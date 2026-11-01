@@ -1,0 +1,168 @@
+name: Prüfen und einspielen
+
+# Was hier passiert, und warum in dieser Reihenfolge:
+#
+#   1. Bei JEDEM Push und bei jedem Pull Request laufen Typprüfung, alle
+#      Tests und der Programmbau.
+#   2. NUR wenn das durchgelaufen ist und nur auf dem Zweig `main` wird auf
+#      den Server eingespielt.
+#
+# Das ist der eigentliche Gewinn gegenüber dem Skript von Hand: Das lud
+# hoch und migrierte, egal ob der Stand funktioniert. Hier erreicht ein
+# kaputter Stand den Server nicht.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  # Von Hand auslösbar, falls ein Einspielen wiederholt werden muss.
+  workflow_dispatch:
+
+# Zwei Einspielvorgänge gleichzeitig würden sich beim Migrieren in die
+# Quere kommen. Der neuere wartet, der ältere läuft zu Ende.
+concurrency:
+  group: einspielen
+  cancel-in-progress: false
+
+jobs:
+  pruefen:
+    name: Typen, Tests, Programmbau
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Abhängigkeiten
+        working-directory: app
+        run: npm ci
+
+      - name: Typprüfung
+        working-directory: app
+        run: npx tsc --noEmit -p .
+
+      - name: Tests
+        working-directory: app
+        # Absichtlich mit einer unerreichbaren Datenbank: Die Tests sind
+        # alle rein, und das soll so bleiben. Schleicht sich ein Test ein,
+        # der eine Datenbank braucht, fällt er hier auf -- und nicht erst,
+        # wenn er im Betrieb gegen echte Mieterdaten läuft.
+        env:
+          DATABASE_URL: postgres://niemand@127.0.0.1:1/nichts
+        run: npx tsx --test tests/*.test.ts
+
+      - name: Programmbau
+        working-directory: app
+        run: npx next build
+
+      - name: Migrationen gegen eine leere Datenbank
+        # Nicht nur lesen, sondern wirklich einspielen. Eine Migration mit
+        # einem Tippfehler fällt sonst erst auf dem Server auf, mitten
+        # zwischen zwei anderen -- und dann steht die Datenbank halb
+        # migriert da.
+        run: |
+          docker run -d --name pg -e POSTGRES_PASSWORD=test \
+            -p 5432:5432 postgres:16
+          for i in $(seq 1 30); do
+            docker exec pg pg_isready -q && break; sleep 1
+          done
+          for f in db/0*.sql; do
+            echo "--- $f"
+            docker exec -i -e PGPASSWORD=test pg \
+              psql -v ON_ERROR_STOP=1 -q -U postgres -d postgres < "$f"
+          done
+          echo "Alle $(ls db/0*.sql | wc -l) Migrationen durchgelaufen."
+
+  einspielen:
+    name: Auf den Server
+    needs: pruefen
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: produktion
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Schlüssel und Rechnerkennung einrichten
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          # Der Fingerabdruck des Server-Schlüssels, festgeschrieben.
+          #
+          # Ohne diese Prüfung würde der Lauf jeden Schlüssel annehmen, den
+          # ihm die Gegenseite anbietet -- und damit die Zugangsdaten an
+          # jeden ausliefern, der sich zwischen GitHub und den Server
+          # setzen kann. Abgelesen am 01.11.2026 auf dem Server selbst.
+          ERWARTET: "SHA256:vLUmmo5ntbDtoaad6+kk7ipWpx5Xl4+5lq0LIAYyD3k"
+          HOST: 78.47.196.190
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+
+          ssh-keyscan -t ed25519 "$HOST" > /tmp/host.pub 2>/dev/null
+          GEFUNDEN=$(ssh-keygen -lf /tmp/host.pub | awk '{print $2}')
+          echo "erwartet:  $ERWARTET"
+          echo "gefunden:  $GEFUNDEN"
+          if [ "$GEFUNDEN" != "$ERWARTET" ]; then
+            echo "::error::Der Server zeigt einen anderen Schlüssel als erwartet."
+            echo "Entweder wurde der Server neu aufgesetzt -- dann muss der"
+            echo "Fingerabdruck in dieser Datei angepasst werden -- oder es"
+            echo "sitzt jemand dazwischen. Es wird nichts eingespielt."
+            exit 1
+          fi
+          cat /tmp/host.pub >> ~/.ssh/known_hosts
+
+      - name: Paket bauen
+        # Was nicht im Repository liegt, geht auch nicht mit: Mieterdaten
+        # und Befundberichte sind ausgeschlossen (siehe .gitignore). Auf
+        # dem Server liegen sie schon und werden vom Auspacken nicht
+        # angetastet.
+        run: |
+          tar --exclude=.git --exclude=node_modules --exclude=.next \
+              --exclude=.github -czf /tmp/neu.tgz .
+          ls -lh /tmp/neu.tgz
+
+      - name: Hochladen
+        run: scp -q /tmp/neu.tgz root@78.47.196.190:/opt/stig/neu.tgz
+
+      - name: Auspacken, migrieren, starten
+        run: |
+          ssh root@78.47.196.190 'bash -lc "
+            set -e
+            cd /opt/stig
+            echo \"== Auspacken ==\"
+            tar xzf neu.tgz && rm -f neu.tgz
+            chmod +x start.sh migrieren.sh einrichten.sh db/nachbuchen.sh 2>/dev/null || true
+            echo
+            echo \"== Datenbank migrieren ==\"
+            ./migrieren.sh
+            echo
+            echo \"== Anwendung neu bauen und starten ==\"
+            ./start.sh up -d --build
+            echo
+            echo \"== Stand ==\"
+            ./start.sh ps
+          "'
+
+      - name: Läuft es wirklich?
+        # Ein Container, der "Up" meldet, kann trotzdem bei jeder Anfrage
+        # abstürzen. Deshalb eine echte Anfrage gegen eine Seite, die ohne
+        # Anmeldung antwortet.
+        run: |
+          sleep 10
+          for i in $(seq 1 12); do
+            if ssh root@78.47.196.190 \
+                 'curl -fsS -o /dev/null http://localhost:3000/api/oeffentlich/verfuegbarkeit' 2>/dev/null; then
+              echo "Die Anwendung antwortet."
+              exit 0
+            fi
+            echo "Versuch $i: noch nicht erreichbar, warte ..."
+            sleep 5
+          done
+          echo "::error::Die Anwendung antwortet nach dem Einspielen nicht."
+          ssh root@78.47.196.190 'cd /opt/stig && ./start.sh logs --tail 40 app' || true
+          exit 1

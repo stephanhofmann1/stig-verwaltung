@@ -1,0 +1,126 @@
+# STIG Verwaltung — Serverbetrieb
+#
+# Drei Dienste: Datenbank, Anwendung, Reverse Proxy mit automatischem TLS.
+# Start:  docker compose up -d
+# Stand:  docker compose ps
+# Log:    docker compose logs -f app
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: stig
+      POSTGRES_USER: stig
+      POSTGRES_PASSWORD: ${DB_PASSWORT:?DB_PASSWORT fehlt in .env}
+      # Deutsche Sortierung, damit Umlaute richtig einsortiert werden
+      LANG: de_DE.UTF-8
+    volumes:
+      - dbdaten:/var/lib/postgresql/data
+      # Wandert beim ersten Start automatisch durch: 001, 002, ...
+      - ./db:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stig -d stig"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    # Nicht nach außen öffnen — nur die Anwendung spricht mit der Datenbank.
+    expose:
+      - "5432"
+
+  app:
+    build:
+      context: ./app
+    # Fester Name, damit einrichten.sh den Passwort-Hash im selben Abbild
+    # erzeugen kann, bevor es eine .env gibt.
+    image: stig-verwaltung-app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # Bewusst NICHT als "stig": Das Postgres-Abbild legt POSTGRES_USER als
+      # Superuser an, und Superuser umgehen Row Level Security immer --
+      # die Mandantentrennung waere wirkungslos. stig_app hat keine
+      # Sonderrechte (siehe db/011).
+      DATABASE_URL: postgres://stig_app:${APP_DB_PASSWORT}@db:5432/stig
+      ABSENDER_EMAIL: ${ABSENDER_EMAIL:-verwaltung@stig-immobilien.de}
+      ABSENDER_NAME: ${ABSENDER_NAME:-STIG Immobilien}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      IMAP_HOST: ${IMAP_HOST:-}
+      IMAP_PORT: ${IMAP_PORT:-993}
+      IMAP_BENUTZER: ${IMAP_BENUTZER:-}
+      IMAP_PASSWORT: ${IMAP_PASSWORT:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_BENUTZER: ${SMTP_BENUTZER:-}
+      SMTP_PASSWORT: ${SMTP_PASSWORT:-}
+      BELEG_ABLAGE: /daten/belege
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      EINGANG_SCHLUESSEL: ${EINGANG_SCHLUESSEL:?EINGANG_SCHLUESSEL fehlt in .env}
+      AUFGABEN_SCHLUESSEL: ${AUFGABEN_SCHLUESSEL:?AUFGABEN_SCHLUESSEL fehlt in .env}
+      WHATSAPP_NUMMER: ${WHATSAPP_NUMMER:-}
+      # Empfaenger des taeglichen Lageberichts. Absichtlich ohne :? --
+      # fehlt er, wird der Bericht nur protokolliert statt den Start zu
+      # verhindern. Die Seite "Laeufe" zeigt dann einen Hinweis.
+      LAGEBERICHT_AN: ${LAGEBERICHT_AN:-}
+      # Bankanbindung ueber FinTS. Alle drei ohne :? -- fehlen sie, wird
+      # nicht abgerufen, aber die Anwendung startet. Eine fehlende
+      # Bankanbindung darf nicht die Mieterverwaltung anhalten.
+      FINTS_SCHLUESSEL: ${FINTS_SCHLUESSEL:-}
+      FINTS_PRODUKT_ID: ${FINTS_PRODUKT_ID:-}
+      FINTS_PRODUKT_VERSION: ${FINTS_PRODUKT_VERSION:-1.0}
+      SITZUNG_GEHEIMNIS: ${SITZUNG_GEHEIMNIS:?SITZUNG_GEHEIMNIS fehlt in .env}
+      # Nur noch fuer die einmalige Uebernahme durch migrieren.sh.
+      # Die Anmeldung liest seit der Mandantentrennung aus der Tabelle benutzer.
+      BENUTZER: ${BENUTZER:-}
+    volumes:
+      - belege:/daten/belege
+    expose:
+      - "3000"
+
+  proxy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:?DOMAIN fehlt in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddydaten:/data
+      - caddyconfig:/config
+
+  # Tägliche Läufe: Agent schreibt Entwürfe, danach Nachfassen für Leads.
+  #
+  # Der Ablauf steht in aufgaben.sh und nicht mehr hier: Ein einzeiliges
+  # sh -c mit verdoppelten Dollarzeichen ist nicht lesbar, und die alte
+  # Fassung schickte jede Antwort nach /dev/null — Fehler fielen damit
+  # niemandem auf. Jetzt schreibt jeder Aufruf eine Zeile ins Log
+  # (start.sh logs aufgaben) und die Anwendung zusätzlich in die Tabelle
+  # `lauf`, sichtbar unter /laeufe.
+  aufgaben:
+    image: alpine:3
+    restart: unless-stopped
+    depends_on:
+      - app
+    environment:
+      # Bewusst ohne :? — ein fehlender Schlüssel darf nur diesen Dienst
+      # anhalten, nicht jeden compose-Aufruf. migrieren.sh ruft compose mit
+      # einer leeren .env auf; ein :? hier würde auch die Migration
+      # abbrechen. aufgaben.sh prüft den Wert selbst und sagt es im Log.
+      AUFGABEN_SCHLUESSEL: ${AUFGABEN_SCHLUESSEL}
+      TZ: Europe/Berlin
+    volumes:
+      - ./aufgaben.sh:/aufgaben.sh:ro
+    command: >
+      sh -c "apk add --no-cache curl tzdata >/dev/null && exec sh /aufgaben.sh"
+
+volumes:
+  dbdaten:
+  belege:
+  caddydaten:
+  caddyconfig:

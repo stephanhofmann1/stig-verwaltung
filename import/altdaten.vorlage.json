@@ -1,0 +1,61 @@
+{
+  "_hinweis": "VORLAGE. Die echten Daten liegen NICHT im Repository (siehe .gitignore) -- sie enthalten Namen, Geburtsdaten und Anschriften echter Mieter. Diese Datei zeigt nur die Struktur, die import/importieren.mts erwartet.",
+  "objekte": [
+    {
+      "name": "Beispielstrasse 1",
+      "strasse": "Beispielstrasse 1",
+      "plz": "12345",
+      "ort": "Beispielstadt"
+    }
+  ],
+  "mietverhaeltnisse": [
+    {
+      "objekt": "Beispielstrasse 1",
+      "einheit": "Zimmer 1",
+      "anzeigename": "Vorname Nachname",
+      "rufname": "Vorname",
+      "beginn": "2026-01-01",
+      "kaltmiete": 500,
+      "nebenkosten": 130,
+      "gesamtmiete": null,
+      "moeblierungszuschlag": null,
+      "kaution": 1500,
+      "kaution_raten": 1,
+      "moebliert": false,
+      "status": "aktiv",
+      "abrechnung_ab": "2026-01-01",
+      "_hinweis_personendaten": "geburtsdatum, geburtsort, anschrift_vorher, telefon und email gehoeren in die echte Datei, nicht in diese Vorlage."
+    }
+  ],
+  "mietanpassungen": [
+    {
+      "anzeigename": "Vorname Nachname",
+      "gilt_ab": "2026-07-01",
+      "kaltmiete": 540,
+      "nebenkosten": 130,
+      "grund": "§ 558 BGB",
+      "beleg": "Mieterhoehung vom 01.04.2026"
+    }
+  ],
+  "kuendigungen": [
+    {
+      "anzeigename": "Vorname Nachname",
+      "zugegangen_am": "2026-09-28",
+      "wirksam_zum": "2026-12-31",
+      "von": "mieter"
+    }
+  ],
+  "fristen": [
+    {
+      "bezeichnung": "Nebenkostenabrechnung 2025 muss zugehen",
+      "objekt": "Beispielstrasse 1",
+      "faellig_am": "2026-12-31",
+      "grundlage": "§ 556 Abs. 3 Satz 2 BGB",
+      "betrag": 0,
+      "haengt_an": "woran es noch haengt"
+    }
+  ],
+  "_abrechnung_ab_je_objekt": {
+    "Beispielstrasse 1": "2026-01-01"
+  }
+}

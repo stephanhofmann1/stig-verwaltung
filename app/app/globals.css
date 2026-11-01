@@ -1,0 +1,329 @@
+@import "@fontsource-variable/archivo";
+
+/* ---------------------------------------------------------------------------
+   STIG Verwaltung — Register, kein Dashboard.
+   Die Anmutung ist ein Hausbuch: Laufnummern, Hairlines, Stempelfarben.
+   Keine Karten, keine Schatten, ein Akzent in Stempelblau.
+--------------------------------------------------------------------------- */
+
+:root {
+  --papier:      #F1F3EF;
+  --papier-tief: #E6E9E3;
+  --tinte:       #1A1C19;
+  --tinte-leise: #6A6E66;
+  --linie:       #D3D7CD;
+  --stempel:     #243C8F;   /* Registerblau */
+  --stempel-hell:#E8ECF8;
+  --alarm:       #8C1D18;   /* heikel */
+  --alarm-hell:  #F6E8E7;
+  --gruen:       #2F5D3A;
+
+  --mass: 1.5rem;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--papier);
+  color: var(--tinte);
+  font-family: "Archivo Variable", ui-sans-serif, system-ui, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Laufnummern und Daten immer tabellarisch — Spalten müssen fluchten. */
+.ziffern {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+a { color: inherit; text-decoration: none; }
+
+:focus-visible {
+  outline: 2px solid var(--stempel);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+
+/* --- Rahmen ------------------------------------------------------------- */
+
+.rahmen {
+  max-width: 68rem;
+  margin: 0 auto;
+  padding: 0 var(--mass) 6rem;
+}
+
+.kopf {
+  border-bottom: 1px solid var(--linie);
+  position: sticky;
+  top: 0;
+  background: var(--papier);
+  z-index: 10;
+}
+
+.kopf-innen {
+  max-width: 68rem;
+  margin: 0 auto;
+  padding: 0.875rem var(--mass);
+  display: flex;
+  align-items: baseline;
+  gap: 1.75rem;
+}
+
+.marke {
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  font-size: 1rem;
+  white-space: nowrap;
+}
+.marke span { color: var(--tinte-leise); font-weight: 500; }
+
+.navi { display: flex; gap: 1.25rem; font-size: 0.9375rem; }
+.navi a { color: var(--tinte-leise); padding-bottom: 0.125rem; }
+.navi a:hover { color: var(--tinte); }
+.navi a[data-aktiv="ja"] {
+  color: var(--tinte);
+  font-weight: 600;
+  box-shadow: inset 0 -2px 0 var(--stempel);
+}
+
+/* --- Seitentitel -------------------------------------------------------- */
+
+.titelzeile {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 2.25rem 0 1rem;
+}
+.titelzeile h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+.zaehler { color: var(--tinte-leise); font-size: 0.9375rem; }
+
+.hinweis {
+  color: var(--tinte-leise);
+  font-size: 0.9375rem;
+  max-width: 46ch;
+  margin: 0 0 1.5rem;
+}
+
+/* --- Register (Liste) --------------------------------------------------- */
+
+.register { border-top: 1px solid var(--linie); }
+
+.posten {
+  display: grid;
+  grid-template-columns: 3.5rem 1fr auto;
+  gap: 0 1rem;
+  align-items: baseline;
+  padding: 0.875rem 0.75rem 0.875rem 0.5rem;
+  border-bottom: 1px solid var(--linie);
+  border-left: 3px solid transparent;
+}
+.posten:hover { background: var(--papier-tief); }
+.posten[data-heikel="ja"] { border-left-color: var(--alarm); }
+
+.nummer {
+  color: var(--tinte-leise);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.betreff { font-weight: 600; letter-spacing: -0.01em; }
+.unterzeile {
+  grid-column: 2;
+  color: var(--tinte-leise);
+  font-size: 0.875rem;
+  margin-top: 0.125rem;
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.zeit {
+  color: var(--tinte-leise);
+  font-size: 0.8125rem;
+  white-space: nowrap;
+}
+
+/* --- Marken ------------------------------------------------------------- */
+
+.marker {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.0625rem 0.375rem;
+  border: 1px solid var(--linie);
+  color: var(--tinte-leise);
+  background: #fff;
+}
+.marker[data-art="heikel"] {
+  border-color: var(--alarm);
+  color: var(--alarm);
+  background: var(--alarm-hell);
+}
+.marker[data-art="agent"] {
+  border-color: var(--stempel);
+  color: var(--stempel);
+  background: var(--stempel-hell);
+}
+.marker[data-art="whatsapp"] {
+  border-color: var(--gruen);
+  color: var(--gruen);
+  background: #EAF1EB;
+}
+
+/* --- Akte (Nachrichtenverlauf) ------------------------------------------ */
+
+.akte-kopf {
+  display: flex;
+  gap: 1.25rem;
+  align-items: flex-start;
+  padding: 2rem 0 1.25rem;
+  border-bottom: 1px solid var(--linie);
+}
+.aktenzeichen {
+  font-size: 2.75rem;
+  font-weight: 700;
+  line-height: 0.9;
+  letter-spacing: -0.04em;
+  color: var(--stempel);
+}
+.akte-kopf h1 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 0 0 0.375rem;
+  letter-spacing: -0.015em;
+}
+.akte-meta {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  align-items: center;
+  color: var(--tinte-leise);
+  font-size: 0.875rem;
+}
+
+.verlauf { margin: 0; padding: 0; }
+
+.eintrag {
+  padding: 1.25rem 0 1.25rem 1rem;
+  border-bottom: 1px solid var(--linie);
+  border-left: 3px solid var(--linie);
+}
+.eintrag[data-richtung="aus"] {
+  border-left-color: var(--stempel);
+  background: linear-gradient(90deg, var(--stempel-hell) 0%, transparent 60%);
+}
+.eintrag-kopf {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  align-items: baseline;
+  margin-bottom: 0.5rem;
+  font-size: 0.875rem;
+}
+.absender { font-weight: 600; }
+.eintrag-text {
+  white-space: pre-wrap;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  max-width: 72ch;
+  margin: 0;
+}
+
+/* --- Entwurf ------------------------------------------------------------ */
+
+.entwurf {
+  border: 1px solid var(--stempel);
+  background: #fff;
+  padding: 1rem;
+  margin: 1.25rem 0;
+}
+.entwurf-kopf {
+  display: flex;
+  gap: 0.75rem;
+  align-items: baseline;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+  font-size: 0.875rem;
+  color: var(--tinte-leise);
+}
+.entwurf textarea {
+  width: 100%;
+  min-height: 11rem;
+  border: 1px solid var(--linie);
+  background: var(--papier);
+  color: var(--tinte);
+  font: inherit;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  padding: 0.75rem;
+  resize: vertical;
+}
+.entwurf-notiz {
+  font-size: 0.875rem;
+  color: var(--tinte-leise);
+  border-left: 2px solid var(--linie);
+  padding-left: 0.75rem;
+  margin: 0 0 0.75rem;
+}
+
+.knopfreihe {
+  display: flex;
+  gap: 0.625rem;
+  margin-top: 0.75rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+button {
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--tinte);
+  background: var(--tinte);
+  color: var(--papier);
+  cursor: pointer;
+}
+button:hover { background: #000; }
+button[data-art="still"] {
+  background: transparent;
+  color: var(--tinte-leise);
+  border-color: var(--linie);
+}
+button[data-art="still"]:hover { background: var(--papier-tief); color: var(--tinte); }
+button:disabled { opacity: 0.45; cursor: default; }
+
+.rueckmeldung { font-size: 0.875rem; color: var(--tinte-leise); }
+.rueckmeldung[data-art="fehler"] { color: var(--alarm); }
+
+/* --- Leerer Zustand ----------------------------------------------------- */
+
+.leer {
+  border: 1px dashed var(--linie);
+  padding: 2.5rem 1.5rem;
+  text-align: center;
+  color: var(--tinte-leise);
+}
+.leer strong { display: block; color: var(--tinte); margin-bottom: 0.25rem; }
+
+/* --- Schmale Schirme ---------------------------------------------------- */
+
+@media (max-width: 40rem) {
+  :root { --mass: 1rem; }
+  .kopf-innen { flex-wrap: wrap; gap: 0.75rem 1.25rem; }
+  .posten { grid-template-columns: 2.75rem 1fr; }
+  .zeit { grid-column: 2; margin-top: 0.25rem; }
+  .aktenzeichen { font-size: 2rem; }
+  .akte-kopf { gap: 0.875rem; }
+}

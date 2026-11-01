@@ -1,0 +1,31 @@
+.env
+.env.local
+# Alle weiteren *.env-Dateien: lokal.env enthaelt SITZUNG_GEHEIMNIS und
+# den Passwort-Hash aus BENUTZER. Nur .env.beispiel geht mit, die hat
+# Platzhalter.
+*.env
+leer.env
+node_modules/
+.next/
+*.log
+
+# --- Nichts Personenbezogenes und nichts Geheimes ins Repository ----------
+#
+# Begruendung, damit es niemand "aus Versehen" wieder aufnimmt: Diese
+# Dateien enthalten Daten echter Mieter -- Namen, Geburtsdaten,
+# Geburtsorte, Voranschriften, Telefonnummern -- und Angaben zu
+# Bankkonten. Ein privates Repository ist nicht dasselbe wie keine
+# Weitergabe: Die Daten lägen dann bei einem Dritten in den USA, in jedem
+# Klon und in jeder Historie, aus der man sie nicht mehr entfernt.
+#
+# Sie reisen deshalb weiter als Paket (stig-verwaltung.tgz) oder liegen
+# ohnehin schon auf dem Server. Code geht über das Repository, Daten nicht.
+import/altdaten.json
+import/*.csv
+# Die Befundberichte aus dem Datenimport: 17 Geburtsdaten, Telefonnummern
+# und Bankangaben. Geprueft am 01.11.2026 -- Ausweisnummern sind NICHT
+# darin, das war schon beim Erheben bewusst ausgelassen worden.
+import/befund-*.md
+doku/kontoauszuege-befund.md
+konten/
+*.tgz

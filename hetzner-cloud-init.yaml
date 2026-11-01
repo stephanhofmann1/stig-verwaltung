@@ -1,0 +1,33 @@
+#cloud-config
+# Wird bei der Servererstellung bei Hetzner unter "Cloud config" eingefügt.
+# Richtet Docker, Firewall und das Zielverzeichnis ein, damit nach dem
+# ersten Hochfahren nur noch das Projekt eingespielt werden muss.
+
+package_update: true
+package_upgrade: true
+
+packages:
+  - docker.io
+  - docker-compose-v2
+  - ufw
+  - unattended-upgrades
+
+runcmd:
+  # Nur SSH, HTTP und HTTPS. Postgres bleibt im Docker-Netz.
+  - ufw default deny incoming
+  - ufw default allow outgoing
+  - ufw allow 22/tcp
+  - ufw allow 80/tcp
+  - ufw allow 443/tcp
+  - ufw --force enable
+
+  # Sicherheitsupdates automatisch einspielen.
+  - systemctl enable --now unattended-upgrades
+
+  # Anmeldung am Server nur mit Schluessel, nie mit Passwort.
+  - sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
+  - sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin prohibit-password/' /etc/ssh/sshd_config
+  - systemctl restart ssh
+
+  - systemctl enable --now docker
+  - mkdir -p /opt/stig
