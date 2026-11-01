@@ -25,9 +25,25 @@ runcmd:
   - systemctl enable --now unattended-upgrades
 
   # Anmeldung am Server nur mit Schluessel, nie mit Passwort.
-  - sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
-  - sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin prohibit-password/' /etc/ssh/sshd_config
-  - systemctl restart ssh
+  #
+  # Als Zusatzdatei mit "00-" im Namen, NICHT ueber sed in der Hauptdatei.
+  # Der Grund ist am 01.11.2026 auf dem laufenden Server aufgefallen:
+  # cloud-init legt selbst /etc/ssh/sshd_config.d/50-cloud-init.conf mit
+  # "PasswordAuthentication yes" an. Die Hauptdatei liest dieses
+  # Verzeichnis oben ueber eine Include-Zeile ein, und bei SSH gewinnt der
+  # ERSTE passende Eintrag -- die 50 schlaegt damit alles, was weiter
+  # unten in der Hauptdatei steht. Ein per sed geaenderter Wert dort hat
+  # also keine Wirkung, und der Server stand monatelang mit offener
+  # Passwort-Anmeldung da, obwohl diese Datei sie abschalten wollte.
+  #
+  # Die 00 sortiert vor der 50 und gewinnt deshalb.
+  - printf 'PasswordAuthentication no\nKbdInteractiveAuthentication no\nPermitRootLogin prohibit-password\n' > /etc/ssh/sshd_config.d/00-nur-schluessel.conf
+  - chmod 600 /etc/ssh/sshd_config.d/00-nur-schluessel.conf
+  # Erst pruefen, dann neu laden: Eine kaputte Konfiguration wuerde den
+  # Zugang zu einem gerade erstellten Server verschliessen.
+  - sshd -t && systemctl reload ssh
+  # Zur Gegenprobe im Serverprotokoll, was wirklich gilt.
+  - sshd -T | grep -iE '^(passwordauthentication|permitrootlogin)' 
 
   - systemctl enable --now docker
   - mkdir -p /opt/stig
