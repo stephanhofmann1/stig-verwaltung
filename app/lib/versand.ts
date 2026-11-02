@@ -104,14 +104,59 @@ export interface VersandErgebnis {
   ok: boolean;
   message_id?: string;
   fehler?: string;
+  /** Nichts hat das System verlassen (nur lokal möglich). */
+  trocken?: boolean;
+}
+
+export interface Versandentscheidung {
+  weg: "resend" | "smtp" | "trocken";
+  darfSenden: boolean;
+  grund?: string;
+}
+
+/**
+ * Entscheidet, auf welchem Weg gesendet wird -- und ob überhaupt.
+ *
+ * Bewusst eine reine Funktion ohne Datenbank: "Darf das raus?" ist die
+ * wichtigste Frage im ganzen Versand und muss ohne Server prüfbar sein.
+ *
+ * Im Trockenmodus verlässt nichts das System. Vorher wurde die Nachricht
+ * trotzdem auf 'gesendet' gesetzt -- im Portal stand "gesendet", obwohl
+ * niemand etwas erhalten hatte. Ein Status, der lügt, ist schlimmer als
+ * ein Fehler: man verlässt sich darauf und merkt erst, dass die Antwort
+ * nie ankam, wenn die Frist vorbei ist. Im Betrieb wird deshalb
+ * abgewiesen und der Entwurf bleibt ein Entwurf; lokal bleibt der
+ * Trockenmodus erlaubt, damit sich der Ablauf ohne Zugangsdaten
+ * durchspielen lässt.
+ *
+ * Ein leer gesetzter Schlüssel ist kein Schlüssel -- "" gilt hier
+ * bewusst als fehlend, nicht als vorhanden.
+ */
+export function entscheideVersandweg(lage: {
+  resendKey?: string | null;
+  smtpHost?: string | null;
+  produktion: boolean;
+}): Versandentscheidung {
+  if (lage.resendKey) return { weg: "resend", darfSenden: true };
+  if (lage.smtpHost) return { weg: "smtp", darfSenden: true };
+  if (lage.produktion) {
+    return {
+      weg: "trocken",
+      darfSenden: false,
+      grund:
+        "Kein Versandweg konfiguriert (RESEND_API_KEY oder SMTP_HOST fehlt) " +
+        "— es wurde nichts gesendet, der Entwurf bleibt offen.",
+    };
+  }
+  return { weg: "trocken", darfSenden: true };
 }
 
 /**
  * Versendet einen freigegebenen Entwurf.
  *
- * Ohne RESEND_API_KEY läuft das im Trockenmodus: Die Nachricht wird als
- * gesendet markiert, aber nichts verlässt das System. So lässt sich der
- * komplette Ablauf testen, bevor die Domain steht.
+ * Ohne konfigurierten Versandweg wird im Betrieb abgewiesen, statt die
+ * Nachricht fälschlich als gesendet zu markieren -- siehe
+ * entscheideVersandweg().
  */
 export async function sendeEntwurf(
   nachrichtId: string,
@@ -127,11 +172,15 @@ export async function sendeEntwurf(
   const key = process.env.RESEND_API_KEY;
   const smtpHost = process.env.SMTP_HOST;
   // Resend bevorzugt, SMTP als Rückfallebene, sonst Trockenmodus.
-  const weg: "resend" | "smtp" | "trocken" = key
-    ? "resend"
-    : smtpHost
-      ? "smtp"
-      : "trocken";
+  const entscheidung = entscheideVersandweg({
+    resendKey: key,
+    smtpHost,
+    produktion: process.env.NODE_ENV === "production",
+  });
+  if (!entscheidung.darfSenden) {
+    return { ok: false, fehler: entscheidung.grund };
+  }
+  const weg = entscheidung.weg;
 
   if (weg === "smtp") {
     const { createTransport } = await import("nodemailer");
@@ -206,7 +255,11 @@ export async function sendeEntwurf(
     );
   });
 
-  return { ok: true, message_id: messageId };
+  return {
+    ok: true,
+    message_id: messageId,
+    ...(weg === "trocken" ? { trocken: true } : {}),
+  };
 }
 
 export async function verwirfEntwurf(nachrichtId: string) {
