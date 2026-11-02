@@ -43,6 +43,32 @@ const EURO = new Intl.NumberFormat("de-DE", {
   maximumFractionDigits: 0,
 });
 
+const TAG = new Intl.DateTimeFormat("de-DE", {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+});
+
+/**
+ * Die Objekte, bei denen Soll in Monaten ohne Kontodaten steht -- benannt.
+ *
+ * Der Name und die Deckungsgrenze kommen aus dem Raster und damit aus der
+ * Datenbank (objekt.name, objekt.zahlungsdaten_ab). Im Quelltext stand hier
+ * früher ein Haus mit Datum; das war für jeden anderen Vermieter falsch und
+ * las sich wie ein Fremdbestand. Die Aussage bleibt dieselbe: Es ist
+ * wichtig, welches Haus gemeint ist, sonst sucht man am falschen Ort.
+ */
+function objekteOhneKontodaten(raster: Awaited<ReturnType<typeof ladeMietenbuch>>) {
+  return raster.gruppen
+    .filter((g) => g.summe.soll_ohne_daten >= 1)
+    .map((g) =>
+      g.zahlungsdaten_ab === null
+        ? `${g.objekt_name} (kein eigenes Konto)`
+        : `${g.objekt_name} (Kontodaten ab ` +
+          `${TAG.format(new Date(g.zahlungsdaten_ab.slice(0, 10) + "T12:00:00Z"))})`,
+    );
+}
+
 export default async function Mietenbuch({
   searchParams,
 }: {
@@ -62,6 +88,7 @@ export default async function Mietenbuch({
   for (let j = heute.getFullYear(); j >= ERSTES_JAHR; j--) jahre.push(j);
 
   const ohneDaten = s.soll_ohne_daten >= 1;
+  const betroffen = objekteOhneKontodaten(raster);
 
   return (
     <main>
@@ -137,10 +164,11 @@ export default async function Mietenbuch({
                 {EURO.format(s.soll_ohne_daten)} stehen in Monaten ohne
                 Kontodaten.
               </strong>{" "}
-              Diese Monate sind nicht unbezahlt, sondern unbekannt: Für die
-              Welserstraße wird ab Januar 2024 abgerechnet, die Kontoumsätze
-              beginnen später, und die Mieten davor flossen dem Voreigentümer
-              zu. Sie zählen deshalb nicht in die Abweichung und lösen keine
+              Diese Monate sind nicht unbezahlt, sondern unbekannt: Abgerechnet
+              wird ab einem Monat, für den noch keine Kontoumsätze vorliegen,
+              und die Mieten davor flossen dem Voreigentümer zu.
+              {betroffen.length > 0 && <> Betroffen: {betroffen.join(", ")}.</>}{" "}
+              Sie zählen deshalb nicht in die Abweichung und lösen keine
               Mahnung aus — zu klären sind sie über die Mietaufstellungen des
               Voreigentümers, nicht über ein Schreiben an den Mieter.
             </p>

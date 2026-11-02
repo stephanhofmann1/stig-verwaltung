@@ -55,10 +55,14 @@ const WARTET: [string, string][] = [
     "Unten in der Liste: entwerfen, verschieben oder nicht mahnen. Nichts " +
       "davon geschieht in Serie, und nichts davon geschieht ohne Klick.",
   ],
+  // Die Freigabe war bis zum 02.11.2026 eine eigene Seite und ist seitdem
+  // eine Karte im Cockpit. Der Verweis auf die Kopfzeile fuehrte danach ins
+  // Leere -- und ein Ablauf, dessen letzter Schritt nicht zu finden ist,
+  // bleibt liegen.
   [
     "Jeden Entwurf freigeben",
-    'Der Entwurf liegt danach in der Freigabe ("Freigabe" in der ' +
-      "Kopfzeile), zum Lesen, Ändern und Senden.",
+    'Der Entwurf liegt danach unter "Freigabe" auf dem Cockpit, der ' +
+      "Startseite — zum Lesen, Ändern und Senden.",
   ],
   [
     "Unklare Zuordnungen klären",

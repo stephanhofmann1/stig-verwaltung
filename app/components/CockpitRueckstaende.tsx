@@ -48,9 +48,10 @@ export function CockpitRueckstaende({
       ) : (
         <div className="meldung" data-art="warnung">
           <strong>Es geht nichts raus</strong>
-          Das Mahnwesen ist in der Datenbank gesperrt — es fehlt die Freigabe
-          in <code>mahnwesen_freigabe</code>, und eine fehlende Zeile heißt
-          gesperrt. Diese Zahlen sind der Stand, kein Schreiben.
+          Das Mahnwesen ist gesperrt, und zwar nicht nur in der Anzeige: Die
+          Sperre liegt in der Datenbank, und solange die Freigabe dort fehlt,
+          entsteht auch nachts kein Schreiben. Diese Zahlen sind der Stand,
+          kein Schreiben.
         </div>
       )}
 

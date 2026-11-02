@@ -36,6 +36,31 @@ const LAEUFE = [
   "lagebericht",
 ] as const;
 
+/**
+ * Der deutsche Name eines Laufs.
+ *
+ * Die Kennung links ist der Wert in der Datenbank und im Zeitplaner -- sie
+ * bleibt, wie sie ist, sonst findet der Lauf seine Zeile nicht mehr. Nur
+ * angezeigt wird der Name rechts: "sollstellungen" sagt dem Vermieter
+ * nichts darueber, dass dort die Mieten gestellt und die Zahlungen
+ * zugeordnet werden.
+ */
+const NAMEN: Record<string, string> = {
+  bankabruf: "Kontoabruf",
+  mailabruf: "E-Mail-Abruf",
+  agent: "Antwortentwürfe",
+  nachfassen: "Nachfassen",
+  sollstellungen: "Mieten stellen und zuordnen",
+  lagebericht: "Lagebericht",
+};
+
+/**
+ * Eine unbekannte Kennung bleibt sichtbar, statt zu verschwinden: Kommt ein
+ * neuer Lauf dazu, soll er in der Liste auftauchen -- und zwar auffaellig
+ * genug, dass jemand ihm einen Namen gibt.
+ */
+const beschriftung = (name: string) => NAMEN[name] ?? name;
+
 const zeit = (iso: string) =>
   new Intl.DateTimeFormat("de-DE", {
     day: "2-digit",
@@ -130,9 +155,10 @@ export default async function Laeufe() {
       {zeilen.length === 0 ? (
         <div className="leer">
           <strong>Noch kein Lauf protokolliert</strong>
-          Der Zeitplaner läuft um 7 und um 18 Uhr. Steht hier morgen nichts,
-          erreicht er die Anwendung nicht — dann hilft{" "}
-          <code>start.sh logs aufgaben</code>.
+          Der Zeitplaner läuft um 7 und um 18 Uhr. Steht hier morgen noch
+          nichts, erreicht er die Anwendung nicht. Das ist dann kein Fehler in
+          den Daten, sondern im Betrieb des Servers — und dort muss jemand
+          nachsehen, der an den Server kommt.
         </div>
       ) : (
         <>
@@ -154,7 +180,7 @@ export default async function Laeufe() {
                     {!z || veraltet ? "!" : z.ok ? "ok" : "!"}
                   </span>
                   <span className="betreff">
-                    {name}
+                    {beschriftung(name)}
                     {z && (
                       <span
                         style={{
@@ -199,7 +225,7 @@ export default async function Laeufe() {
                 {befunde.map((z) => (
                   <div className="posten" key={z.id}>
                     <span className="nummer">!</span>
-                    <span className="betreff">{z.name}</span>
+                    <span className="betreff">{beschriftung(z.name)}</span>
                     <span className="zeit">{zeit(z.begonnen_am)}</span>
                     <span className="unterzeile">
                       {z.fehler && <span>{z.fehler}</span>}
@@ -220,7 +246,7 @@ export default async function Laeufe() {
             {zeilen.map((z) => (
               <div className="posten" key={z.id}>
                 <span className="nummer">{z.ok ? "·" : "!"}</span>
-                <span className="betreff">{z.name}</span>
+                <span className="betreff">{beschriftung(z.name)}</span>
                 <span className="zeit">{zeit(z.begonnen_am)}</span>
                 <span className="unterzeile">
                   <span>{dauer(z.dauer_ms)}</span>
