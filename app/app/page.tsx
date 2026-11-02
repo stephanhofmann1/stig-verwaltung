@@ -1,129 +1,105 @@
 import Link from "next/link";
-import { query } from "@/lib/db";
-import { EntwurfKarte } from "@/components/EntwurfKarte";
-import { aktenzeichen, seit } from "@/lib/formate";
+import { ladeCockpit } from "@/lib/kennzahlen";
+import { CockpitFristen } from "@/components/CockpitFristen";
+import { CockpitMonat } from "@/components/CockpitMonat";
+import { CockpitRueckstaende } from "@/components/CockpitRueckstaende";
+import { CockpitLeerstand } from "@/components/CockpitLeerstand";
+import { CockpitCashflow } from "@/components/CockpitCashflow";
+import { CockpitAutomatik } from "@/components/CockpitAutomatik";
+import { CockpitZahlungen } from "@/components/CockpitZahlungen";
+import { FreigabeListe } from "@/components/FreigabeListe";
+import { datum } from "@/components/CockpitKarte";
 
 export const dynamic = "force-dynamic";
 
-interface Entwurf {
-  id: string;
-  betreff: string;
-  koerper_text: string;
-  an_emails: string[];
-  verfasst_von: "agent" | "mensch" | null;
-  agent_notiz: string | null;
-  vorgang_id: string;
-  vorgang_nummer: number;
-  vorgang_betreff: string;
-}
-
-interface Wartend {
-  id: string;
-  nummer: number;
-  betreff: string;
-  kontakt_name: string | null;
-  geaendert_am: string;
-  heikel: boolean;
-}
-
-export default async function Freigabe() {
-  const entwuerfe = await query<Entwurf>(`
-    SELECT n.id, n.betreff, n.koerper_text, n.an_emails,
-           n.verfasst_von, n.agent_notiz,
-           v.id AS vorgang_id, v.nummer AS vorgang_nummer,
-           v.betreff AS vorgang_betreff
-      FROM nachricht n
-      JOIN vorgang v ON v.id = n.vorgang_id
-     WHERE n.status = 'entwurf'
-     ORDER BY n.angelegt_am ASC
-  `);
-
-  // Vorgänge, die offen sind und auf die noch niemand geantwortet hat.
-  const unbeantwortet = await query<Wartend>(`
-    SELECT v.id, v.nummer, v.betreff, v.heikel, v.geaendert_am,
-           k.anzeigename AS kontakt_name
-      FROM vorgang v
-      LEFT JOIN kontakt k ON k.id = v.kontakt_id
-     WHERE v.status = 'offen'
-       AND NOT EXISTS (
-         SELECT 1 FROM nachricht n
-          WHERE n.vorgang_id = v.id AND n.status IN ('entwurf','gesendet'))
-     ORDER BY v.geaendert_am ASC
-     LIMIT 50
-  `);
+/**
+ * Das Vermieter-Cockpit -- die Startseite.
+ *
+ * Eine Frage, in zehn Sekunden: Bleibt heute etwas liegen? Die Karten stehen
+ * deshalb nach Dringlichkeit und nicht nach Themengebiet:
+ *
+ *   1. Fristen        verstreichen sie, ist Geld oder ein Recht weg
+ *   2. Freigabe       was ohne einen Klick nicht rausgeht
+ *   3. Laufender Monat  Soll, bezahlt, offen
+ *   4. Rueckstaende   Summe und Anzahl; das Mahnwesen ist gesperrt
+ *   5. Leerstand      frei und bald frei
+ *   6. Cashflow       zwoelf Monate Ein und Aus
+ *   7. Automatik      laeuft nachts noch, was nachts laufen soll
+ *   8. Zahlungseingaenge  Geld, das da ist und nicht gezaehlt wird
+ *
+ * Bis zum 02.11.2026 war diese Seite allein die Freigabe-Warteschlange. Die
+ * steckt jetzt unveraendert in components/FreigabeListe.tsx -- verloren ist
+ * nichts, und es geht weiterhin nur raus, was dort freigegeben wird.
+ *
+ * Gerechnet wird hier nichts. Jede Zahl kommt aus lib/kennzahlen.ts, wo die
+ * Rechnerei als reine Funktion steht und Tests hat. Der Grund ist derselbe
+ * wie bei den Mahnstufen: Eine Zahl auf der Startseite wird geglaubt, ohne
+ * nachzurechnen.
+ */
+export default async function Cockpit() {
+  const d = await ladeCockpit();
 
   return (
     <>
       <div className="titelzeile">
-        <h1>Freigabe</h1>
-        <span className="zaehler ziffern">
-          {entwuerfe.length} {entwuerfe.length === 1 ? "Entwurf" : "Entwürfe"}
-        </span>
+        <h1>Cockpit</h1>
+        <span className="zaehler ziffern">Stand {datum(d.heute)}</span>
       </div>
-      <p className="hinweis">
-        Vorbereitete Antworten. Lies drüber, ändere was du willst, und sende.
-        Nichts verlässt das Haus, ohne dass du hier geklickt hast.
+
+      {/* Fehlgeschlagene Abfragen werden genannt, nicht verschwiegen: Eine
+          Karte, die still eine Null zeigt, weil ihre Abfrage geworfen hat,
+          ist schlimmer als eine fehlende Karte. */}
+      {d.fehler.length > 0 && (
+        <p className="hinweis">
+          <span className="marker" data-art="heikel">
+            unvollständig
+          </span>{" "}
+          Diese Kennzahlen konnten nicht gelesen werden und stehen deshalb auf
+          null: {d.fehler.join(" · ")}
+        </p>
+      )}
+
+      <CockpitFristen fristen={d.fristen} />
+
+      <FreigabeListe />
+
+      <CockpitMonat monat={d.monat.monat} geld={d.monat.geld} />
+
+      <CockpitRueckstaende
+        lage={d.rueckstaende}
+        freigegeben={d.mahnwesenFreigegeben}
+      />
+
+      <CockpitLeerstand lage={d.leerstand} />
+
+      <CockpitCashflow reihe={d.cashflow} />
+
+      <CockpitAutomatik posten={d.automatik} lagebericht={d.lagebericht} />
+
+      <CockpitZahlungen
+        anzahl={d.unzugeordnet.anzahl}
+        summe={d.unzugeordnet.summe}
+      />
+
+      <p className="hinweis" style={{ marginTop: "2rem" }}>
+        Weiter ins Detail:{" "}
+        <Link href="/mietenbuch" style={{ textDecoration: "underline" }}>
+          Mietenbuch
+        </Link>
+        ,{" "}
+        <Link href="/mahnwesen" style={{ textDecoration: "underline" }}>
+          Rückstände
+        </Link>
+        ,{" "}
+        <Link href="/belege" style={{ textDecoration: "underline" }}>
+          Belege
+        </Link>
+        ,{" "}
+        <Link href="/stammdaten" style={{ textDecoration: "underline" }}>
+          Stammdaten
+        </Link>
+        .
       </p>
-
-      {entwuerfe.length === 0 ? (
-        <div className="leer">
-          <strong>Nichts zum Freigeben</strong>
-          Sobald eine Mail ankommt, die sich beantworten lässt, liegt der
-          Entwurf hier.
-        </div>
-      ) : (
-        entwuerfe.map((e) => (
-          <EntwurfKarte
-            key={e.id}
-            id={e.id}
-            betreff={e.betreff}
-            koerper={e.koerper_text}
-            empfaenger={e.an_emails}
-            verfasstVon={e.verfasst_von}
-            notiz={e.agent_notiz}
-            vorgang={{
-              id: e.vorgang_id,
-              nummer: e.vorgang_nummer,
-              betreff: e.vorgang_betreff,
-            }}
-          />
-        ))
-      )}
-
-      {unbeantwortet.length > 0 && (
-        <>
-          <div className="titelzeile">
-            <h1>Ohne Entwurf</h1>
-            <span className="zaehler ziffern">{unbeantwortet.length}</span>
-          </div>
-          <p className="hinweis">
-            Diese Vorgänge hat der Agent nicht beantwortet — entweder weil sie
-            als heikel gelten oder weil er sich nicht sicher war.
-          </p>
-          <div className="register">
-            {unbeantwortet.map((v) => (
-              <Link
-                key={v.id}
-                href={`/vorgang/${v.id}`}
-                className="posten"
-                data-heikel={v.heikel ? "ja" : "nein"}
-              >
-                <span className="nummer ziffern">{aktenzeichen(v.nummer)}</span>
-                <span className="betreff">{v.betreff}</span>
-                <span className="zeit">{seit(v.geaendert_am)}</span>
-                <span className="unterzeile">
-                  <span>{v.kontakt_name ?? "Unbekannt"}</span>
-                  {v.heikel && (
-                    <span className="marker" data-art="heikel">
-                      heikel
-                    </span>
-                  )}
-                </span>
-              </Link>
-            ))}
-          </div>
-        </>
-      )}
     </>
   );
 }

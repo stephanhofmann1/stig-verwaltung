@@ -1,329 +1,1050 @@
 @import "@fontsource-variable/archivo";
 
-/* ---------------------------------------------------------------------------
-   STIG Verwaltung — Register, kein Dashboard.
-   Die Anmutung ist ein Hausbuch: Laufnummern, Hairlines, Stempelfarben.
-   Keine Karten, keine Schatten, ein Akzent in Stempelblau.
---------------------------------------------------------------------------- */
+/* ===========================================================================
+   STIG Verwaltung — Gestaltungssystem
+   ---------------------------------------------------------------------------
+   Vermieter-Cockpit: ruhig, dicht, vertrauenswürdig. Neutrale Flächen,
+   Haarlinien, Tabellenziffern. Ein Akzent in Registerblau, drei
+   Statusfarben — sonst keine Farbe.
+
+   Diese Datei wirkt auf ELEMENTE und KLASSEN, nicht auf Seitenaufbau.
+   Neue Seiten erben die Gestaltung, ohne etwas importieren zu müssen.
+   Was es gibt und wie man es benutzt: siehe doku/gestaltung.md.
+
+   Regel für alle, die hier etwas ergänzen:
+   Keine Klasse umbenennen oder entfernen — die Seiten hängen daran.
+=========================================================================== */
+
+/* --- 1. Marken (hell) ---------------------------------------------------- */
 
 :root {
-  --papier:      #F1F3EF;
-  --papier-tief: #E6E9E3;
-  --tinte:       #1A1C19;
-  --tinte-leise: #6A6E66;
-  --linie:       #D3D7CD;
-  --stempel:     #243C8F;   /* Registerblau */
-  --stempel-hell:#E8ECF8;
-  --alarm:       #8C1D18;   /* heikel */
-  --alarm-hell:  #F6E8E7;
-  --gruen:       #2F5D3A;
+  color-scheme: light dark;
 
-  --mass: 1.5rem;
+  /* Flächen, von hinten nach vorn */
+  --grund:         #F6F7F9;   /* Seitenhintergrund */
+  --flaeche:       #FFFFFF;   /* Karte, Tabelle, Feld */
+  --flaeche-ruhig: #FAFBFC;   /* Zebrastreifen */
+  --flaeche-tief:  #EFF2F5;   /* Überfahren, Tabellenkopf */
+
+  /* Schrift */
+  --fg:            #15181C;   /* Haupttext */
+  --fg-leise:      #5C6672;   /* Zweite Ebene, Beschriftungen */
+  --fg-still:      #8B949F;   /* Dritte Ebene, Platzhalter */
+
+  /* Linien */
+  --linie:         #E3E7EB;   /* Haarlinie */
+  --linie-stark:   #CAD1D9;   /* Trennung mit Gewicht */
+
+  /* Akzent */
+  --akzent:         #1F4FA8;
+  --akzent-flaeche: #EBF0FA;
+
+  /* Status. Die hellen Werte sind genau die Inline-Farben, die in den
+     Seiten stehen — dadurch bleibt der alte Code farbgleich. */
+  --gut:            #1b6b3a;
+  --gut-flaeche:    #E8F2EC;
+  --warn:           #8a6d00;
+  --warn-flaeche:   #FBF4E2;
+  --fehl:           #b3261e;
+  --fehl-flaeche:   #FBEAE8;
+
+  /* Formularfelder */
+  --feld-flaeche:   #FFFFFF;
+
+  /* Abstände */
+  --mass:       1.5rem;   /* Seitenabstand des Rahmens */
+  --abstand-1:  0.25rem;
+  --abstand-2:  0.5rem;
+  --abstand-3:  0.75rem;
+  --abstand-4:  1rem;
+  --abstand-5:  1.5rem;
+  --abstand-6:  2rem;
+  --abstand-7:  3rem;
+
+  /* Maße */
+  --rahmen-breite: 72rem;
+  --kopf-hoehe:    3.25rem;
+
+  /* Radien */
+  --radius-s:    5px;
+  --radius-m:    9px;
+  --radius-l:   14px;
+  --radius-rund: 999px;
+
+  /* Schattierungen — sparsam, nie als Dekor */
+  --schatten-1: 0 1px 2px rgba(15, 20, 28, 0.05);
+  --schatten-2: 0 2px 4px rgba(15, 20, 28, 0.06),
+                0 8px 20px rgba(15, 20, 28, 0.05);
+
+  /* Schriftgrößen */
+  --text-xs:  0.75rem;
+  --text-s:   0.8125rem;
+  --text-m:   0.875rem;
+  --text-n:   0.9375rem;   /* Normalmaß der Anwendung */
+  --text-b:   1rem;
+  --text-l:   1.125rem;
+  --text-xl:  1.375rem;
+  --text-2xl: 1.75rem;
+
+  --schrift: "Archivo Variable", ui-sans-serif, system-ui,
+             -apple-system, "Segoe UI", sans-serif;
+
+  /* --- Altnamen -------------------------------------------------------
+     Diese Marken stehen in Inline-Stilen fremder Dateien. Sie bleiben,
+     zeigen aber auf das neue System und kippen im Dunkelmodus mit. */
+  --papier:       var(--grund);
+  --papier-tief:  var(--flaeche-tief);
+  --tinte:        var(--fg);
+  --tinte-leise:  var(--fg-leise);
+  --stempel:      var(--akzent);
+  --stempel-hell: var(--akzent-flaeche);
+  --alarm:        var(--fehl);
+  --alarm-hell:   var(--fehl-flaeche);
+  --gruen:        var(--gut);
+
+  /* --- Dunkle Werte, einmal benannt ------------------------------------
+     Zugewiesen werden sie unten in zwei Blöcken (Systemvorgabe und
+     data-theme). Nur hier ändern. */
+  --dk-grund:         #0E1116;
+  --dk-flaeche:       #171B21;
+  --dk-flaeche-ruhig: #14181E;
+  --dk-flaeche-tief:  #1E242C;
+  --dk-fg:            #E7EBF0;
+  --dk-fg-leise:      #9BA5B1;
+  --dk-fg-still:      #6D7784;
+  --dk-linie:         #272E37;
+  --dk-linie-stark:   #3A434F;
+  --dk-akzent:          #85A9F2;
+  --dk-akzent-flaeche:  #17243B;
+  --dk-gut:             #5FC98A;
+  --dk-gut-flaeche:     #11251B;
+  --dk-warn:            #DFB54A;
+  --dk-warn-flaeche:    #2A2212;
+  --dk-fehl:            #F28B82;
+  --dk-fehl-flaeche:    #2E1716;
+  --dk-feld-flaeche:    #11151A;
+  --dk-schatten-1: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --dk-schatten-2: 0 2px 4px rgba(0, 0, 0, 0.45),
+                   0 8px 20px rgba(0, 0, 0, 0.4);
 }
 
+/* --- 2. Marken (dunkel) --------------------------------------------------
+   Zwei Wege, dieselben Werte: Systemvorgabe und ausdrücklich gesetztes
+   data-theme="dark". data-theme="light" schlägt die Systemvorgabe. */
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --grund: var(--dk-grund);
+    --flaeche: var(--dk-flaeche);
+    --flaeche-ruhig: var(--dk-flaeche-ruhig);
+    --flaeche-tief: var(--dk-flaeche-tief);
+    --fg: var(--dk-fg);
+    --fg-leise: var(--dk-fg-leise);
+    --fg-still: var(--dk-fg-still);
+    --linie: var(--dk-linie);
+    --linie-stark: var(--dk-linie-stark);
+    --akzent: var(--dk-akzent);
+    --akzent-flaeche: var(--dk-akzent-flaeche);
+    --gut: var(--dk-gut);
+    --gut-flaeche: var(--dk-gut-flaeche);
+    --warn: var(--dk-warn);
+    --warn-flaeche: var(--dk-warn-flaeche);
+    --fehl: var(--dk-fehl);
+    --fehl-flaeche: var(--dk-fehl-flaeche);
+    --feld-flaeche: var(--dk-feld-flaeche);
+    --schatten-1: var(--dk-schatten-1);
+    --schatten-2: var(--dk-schatten-2);
+  }
+}
+
+:root[data-theme="dark"] {
+  --grund: var(--dk-grund);
+  --flaeche: var(--dk-flaeche);
+  --flaeche-ruhig: var(--dk-flaeche-ruhig);
+  --flaeche-tief: var(--dk-flaeche-tief);
+  --fg: var(--dk-fg);
+  --fg-leise: var(--dk-fg-leise);
+  --fg-still: var(--dk-fg-still);
+  --linie: var(--dk-linie);
+  --linie-stark: var(--dk-linie-stark);
+  --akzent: var(--dk-akzent);
+  --akzent-flaeche: var(--dk-akzent-flaeche);
+  --gut: var(--dk-gut);
+  --gut-flaeche: var(--dk-gut-flaeche);
+  --warn: var(--dk-warn);
+  --warn-flaeche: var(--dk-warn-flaeche);
+  --fehl: var(--dk-fehl);
+  --fehl-flaeche: var(--dk-fehl-flaeche);
+  --feld-flaeche: var(--dk-feld-flaeche);
+  --schatten-1: var(--dk-schatten-1);
+  --schatten-2: var(--dk-schatten-2);
+}
+
+/* --- 3. Brücke zu den Inline-Farben -------------------------------------
+   In den Seiten stehen Statusfarben als festes Hex im style-Attribut.
+   Diese Regeln biegen genau diese Werte auf die Marken um. Im Hellmodus
+   ist das wirkungslos (die Marke hat denselben Wert), im Dunkelmodus
+   werden die sonst unlesbar dunklen Farben aufgehellt.
+
+   :not([style*="background"]) lässt Kästen in Ruhe, die eine eigene
+   Hintergrundfarbe mitbringen — die werden unten einzeln behandelt.
+
+   Neuer Code soll die Marken benutzen, nicht das Hex. */
+
+[style*="#1b6b3a"]:not([style*="background"]) { color: var(--gut) !important; }
+
+[style*="#8a6d00"]:not([style*="background"]),
+[style*="#8a5a00"]:not([style*="background"]) { color: var(--warn) !important; }
+
+[style*="#b3261e"]:not([style*="background"]),
+[style*="#b00"]:not([style*="background"]) { color: var(--fehl) !important; }
+
+[style*="#5b5b66"]:not([style*="background"]),
+[style*="#6b6b6b"]:not([style*="background"]) { color: var(--fg-leise) !important; }
+
+[style*="#1a4f8a"]:not([style*="background"]) { color: var(--akzent) !important; }
+
+/* Der Warnkasten der Bankseite (helles Creme mit braunem Rand). */
+[style*="#fdf8ef"] {
+  background: var(--warn-flaeche) !important;
+  border-color: var(--warn) !important;
+  color: var(--fg) !important;
+}
+
+/* Der Protokollblock der Altdatenübernahme. */
+[style*="#fafafa"] {
+  background: var(--flaeche-ruhig) !important;
+  border-color: var(--linie) !important;
+}
+
+/* Eingabefelder mit fest eingetragenem Weiß. */
+input[style*="#fff"],
+select[style*="#fff"],
+textarea[style*="#fff"] { background: var(--feld-flaeche) !important; }
+
+/* --- 4. Grundlagen ------------------------------------------------------- */
+
 * { box-sizing: border-box; }
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
 
 html, body {
   margin: 0;
   padding: 0;
-  background: var(--papier);
-  color: var(--tinte);
-  font-family: "Archivo Variable", ui-sans-serif, system-ui, sans-serif;
-  font-size: 16px;
-  line-height: 1.5;
-  -webkit-font-smoothing: antialiased;
+  max-width: 100%;
 }
 
-/* Laufnummern und Daten immer tabellarisch — Spalten müssen fluchten. */
-.ziffern {
+body {
+  background: var(--grund);   /* ausdrücklich, nicht geerbt */
+  color: var(--fg);
+  font-family: var(--schrift);
+  font-size: var(--text-b);
+  line-height: 1.5;
+  font-synthesis-weight: none;
+  overflow-wrap: break-word;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Nichts darf die Seite breiter machen als den Schirm. */
+img, svg, video, canvas, pre, table { max-width: 100%; }
+img, svg, video { height: auto; }
+
+::selection { background: var(--akzent-flaeche); color: var(--fg); }
+
+/* Tabellenziffern überall, wo Zahlen stehen: Spalten müssen fluchten. */
+.ziffern,
+.betrag,
+.zaehler,
+.nummer,
+.zeit,
+.aktenzeichen,
+table,
+time,
+code,
+pre,
+input[type="date"],
+input[type="number"],
+input[inputmode="decimal"],
+input[inputmode="numeric"] {
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum" 1;
 }
 
 a { color: inherit; text-decoration: none; }
+a:not([class]) {
+  color: var(--akzent);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--akzent) 35%, transparent);
+  text-underline-offset: 0.15em;
+}
+a:not([class]):hover { text-decoration-color: currentColor; }
 
 :focus-visible {
-  outline: 2px solid var(--stempel);
+  outline: 2px solid var(--akzent);
   outline-offset: 2px;
+  border-radius: var(--radius-s);
 }
+
+hr {
+  border: 0;
+  border-top: 1px solid var(--linie);
+  margin: var(--abstand-6) 0;
+}
+
+/* Überschriften. In dieser Anwendung ist h1 auch eine Abschnittszeile —
+   darum eine ruhige Größe statt des Browservorschlags. */
+h1, h2, h3, h4 {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  color: var(--fg);
+  text-wrap: balance;
+}
+h1 { font-size: var(--text-xl); margin: var(--abstand-6) 0 var(--abstand-3); }
+h2 { font-size: var(--text-l); margin: var(--abstand-6) 0 var(--abstand-3); letter-spacing: -0.015em; }
+h3 { font-size: var(--text-b); margin: var(--abstand-5) 0 var(--abstand-2); letter-spacing: -0.01em; }
+h4 { font-size: var(--text-n); margin: var(--abstand-4) 0 var(--abstand-2); letter-spacing: 0; }
+h1:first-child, h2:first-child, h3:first-child { margin-top: var(--abstand-5); }
+
+p { margin: 0 0 var(--abstand-4); }
+
+code {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.875em;
+  background: var(--flaeche-tief);
+  border: 1px solid var(--linie);
+  border-radius: var(--radius-s);
+  padding: 0.0625rem 0.3125rem;
+}
+
+pre {
+  background: var(--flaeche-ruhig);
+  border: 1px solid var(--linie);
+  border-radius: var(--radius-m);
+  padding: var(--abstand-3);
+  overflow-x: auto;
+  font-size: var(--text-s);
+  line-height: 1.55;
+}
+pre code { background: none; border: 0; padding: 0; }
+
+details {
+  border-radius: var(--radius-s);
+}
+summary {
+  cursor: pointer;
+  list-style: none;
+}
+summary::-webkit-details-marker { display: none; }
+summary::before {
+  content: "›";
+  display: inline-block;
+  margin-right: 0.375rem;
+  color: var(--fg-still);
+  transition: transform 120ms ease;
+}
+details[open] > summary::before { transform: rotate(90deg); }
 
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
 }
 
-/* --- Rahmen ------------------------------------------------------------- */
+/* --- 5. Rahmen, Kopf, Navigation ---------------------------------------- */
 
 .rahmen {
-  max-width: 68rem;
+  max-width: var(--rahmen-breite);
   margin: 0 auto;
-  padding: 0 var(--mass) 6rem;
+  padding: var(--abstand-2) var(--mass) 6rem;
 }
 
 .kopf {
-  border-bottom: 1px solid var(--linie);
   position: sticky;
   top: 0;
-  background: var(--papier);
-  z-index: 10;
+  z-index: 20;
+  /* Erst der volle Ton als Rueckfall, dann der durchscheinende. */
+  background: var(--grund);
+  background: color-mix(in srgb, var(--grund) 88%, transparent);
+  backdrop-filter: saturate(140%) blur(8px);
+  border-bottom: 1px solid var(--linie);
 }
 
 .kopf-innen {
-  max-width: 68rem;
+  max-width: var(--rahmen-breite);
   margin: 0 auto;
-  padding: 0.875rem var(--mass);
+  min-height: var(--kopf-hoehe);
+  padding: 0 var(--mass);
   display: flex;
-  align-items: baseline;
-  gap: 1.75rem;
+  align-items: center;
+  gap: var(--abstand-5);
 }
 
 .marke {
   font-weight: 700;
-  letter-spacing: -0.015em;
-  font-size: 1rem;
+  letter-spacing: -0.02em;
+  font-size: var(--text-n);
   white-space: nowrap;
+  flex: none;
 }
-.marke span { color: var(--tinte-leise); font-weight: 500; }
+.marke span { color: var(--fg-leise); font-weight: 500; }
 
-.navi { display: flex; gap: 1.25rem; font-size: 0.9375rem; }
-.navi a { color: var(--tinte-leise); padding-bottom: 0.125rem; }
-.navi a:hover { color: var(--tinte); }
+/* Zehn Punkte passen auf dem Mac in eine Zeile, auf dem Telefon nicht.
+   Darum rollt die Navigation waagerecht — die Seite selbst bleibt fest.
+   Sie füllt die Kopfhöhe, damit der Unterstrich des aktiven Punktes
+   genau auf der Haarlinie des Kopfes liegt (daher margin-bottom: -1px). */
+.navi {
+  display: flex;
+  align-self: stretch;
+  align-items: stretch;
+  gap: var(--abstand-4);
+  font-size: var(--text-n);
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  padding: 0;
+  margin-bottom: -1px;
+}
+.navi::-webkit-scrollbar { display: none; }
+
+.navi a {
+  display: flex;
+  align-items: center;
+  color: var(--fg-leise);
+  white-space: nowrap;
+  border-bottom: 2px solid transparent;
+  transition: color 120ms ease, border-color 120ms ease;
+}
+.navi a:hover { color: var(--fg); }
 .navi a[data-aktiv="ja"] {
-  color: var(--tinte);
+  color: var(--fg);
   font-weight: 600;
-  box-shadow: inset 0 -2px 0 var(--stempel);
+  border-bottom-color: var(--akzent);
 }
 
-/* --- Seitentitel -------------------------------------------------------- */
+/* --- 6. Seitentitel und Hinweise ---------------------------------------- */
 
 .titelzeile {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 1rem;
-  padding: 2.25rem 0 1rem;
+  gap: var(--abstand-4);
+  padding: var(--abstand-6) 0 var(--abstand-3);
 }
+.titelzeile:first-child { padding-top: var(--abstand-5); }
 .titelzeile h1 {
-  font-size: 1.5rem;
-  font-weight: 700;
-  letter-spacing: -0.02em;
+  font-size: var(--text-xl);
   margin: 0;
 }
-.zaehler { color: var(--tinte-leise); font-size: 0.9375rem; }
 
-.hinweis {
-  color: var(--tinte-leise);
-  font-size: 0.9375rem;
-  max-width: 46ch;
-  margin: 0 0 1.5rem;
-}
-
-/* --- Register (Liste) --------------------------------------------------- */
-
-.register { border-top: 1px solid var(--linie); }
-
-.posten {
-  display: grid;
-  grid-template-columns: 3.5rem 1fr auto;
-  gap: 0 1rem;
-  align-items: baseline;
-  padding: 0.875rem 0.75rem 0.875rem 0.5rem;
-  border-bottom: 1px solid var(--linie);
-  border-left: 3px solid transparent;
-}
-.posten:hover { background: var(--papier-tief); }
-.posten[data-heikel="ja"] { border-left-color: var(--alarm); }
-
-.nummer {
-  color: var(--tinte-leise);
-  font-size: 0.875rem;
-  font-weight: 600;
-}
-.betreff { font-weight: 600; letter-spacing: -0.01em; }
-.unterzeile {
-  grid-column: 2;
-  color: var(--tinte-leise);
-  font-size: 0.875rem;
-  margin-top: 0.125rem;
-  display: flex;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-}
-.zeit {
-  color: var(--tinte-leise);
-  font-size: 0.8125rem;
+.zaehler {
+  color: var(--fg-leise);
+  font-size: var(--text-n);
   white-space: nowrap;
 }
 
-/* --- Marken ------------------------------------------------------------- */
+/* .hinweis ist der graue Nebensatz. Er steht als p, div, span, dt und
+   summary im Code — nur als Absatz bekommt er Abstand und Lesebreite. */
+.hinweis {
+  color: var(--fg-leise);
+  font-size: var(--text-n);
+}
+p.hinweis {
+  max-width: 62ch;
+  margin: 0 0 var(--abstand-5);
+}
+.hinweis strong { color: var(--fg); font-weight: 600; }
 
-.marker {
-  display: inline-block;
-  font-size: 0.75rem;
-  font-weight: 600;
-  padding: 0.0625rem 0.375rem;
+/* --- 7. Register (Liste aus Posten) ------------------------------------- */
+
+.register {
   border: 1px solid var(--linie);
-  color: var(--tinte-leise);
-  background: #fff;
-}
-.marker[data-art="heikel"] {
-  border-color: var(--alarm);
-  color: var(--alarm);
-  background: var(--alarm-hell);
-}
-.marker[data-art="agent"] {
-  border-color: var(--stempel);
-  color: var(--stempel);
-  background: var(--stempel-hell);
-}
-.marker[data-art="whatsapp"] {
-  border-color: var(--gruen);
-  color: var(--gruen);
-  background: #EAF1EB;
+  border-radius: var(--radius-m);
+  background: var(--flaeche);
+  box-shadow: var(--schatten-1);
+  overflow: hidden;
+  margin-bottom: var(--abstand-5);
 }
 
-/* --- Akte (Nachrichtenverlauf) ------------------------------------------ */
-
-.akte-kopf {
-  display: flex;
-  gap: 1.25rem;
-  align-items: flex-start;
-  padding: 2rem 0 1.25rem;
+.posten {
+  display: grid;
+  grid-template-columns: 3.5rem minmax(0, 1fr) auto;
+  gap: 0 var(--abstand-4);
+  align-items: baseline;
+  padding: var(--abstand-3) var(--abstand-4);
   border-bottom: 1px solid var(--linie);
+  border-left: 3px solid transparent;
+  transition: background 100ms ease;
 }
-.aktenzeichen {
-  font-size: 2.75rem;
-  font-weight: 700;
-  line-height: 0.9;
-  letter-spacing: -0.04em;
-  color: var(--stempel);
+.register > .posten:last-child { border-bottom: 0; }
+.posten:hover { background: var(--flaeche-tief); }
+.posten[data-heikel="ja"] { border-left-color: var(--fehl); }
+
+.nummer {
+  color: var(--fg-still);
+  font-size: var(--text-m);
+  font-weight: 600;
 }
-.akte-kopf h1 {
-  font-size: 1.25rem;
-  font-weight: 700;
-  margin: 0 0 0.375rem;
-  letter-spacing: -0.015em;
+.betreff {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  min-width: 0;
 }
-.akte-meta {
+.unterzeile {
+  grid-column: 2;
+  color: var(--fg-leise);
+  font-size: var(--text-m);
+  margin-top: var(--abstand-1);
   display: flex;
-  gap: 0.75rem;
+  gap: var(--abstand-3);
   flex-wrap: wrap;
   align-items: center;
-  color: var(--tinte-leise);
-  font-size: 0.875rem;
+}
+.zeit {
+  color: var(--fg-leise);
+  font-size: var(--text-s);
+  white-space: nowrap;
+  text-align: right;
 }
 
-.verlauf { margin: 0; padding: 0; }
+/* --- 8. Tabellen --------------------------------------------------------
+   Viele Zahlenspalten. Flächige Zeilen, Zebrastreifen, klebender Kopf.
+   .liste ist der historische Klassenname und sieht genauso aus. */
 
-.eintrag {
-  padding: 1.25rem 0 1.25rem 1rem;
+table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: var(--flaeche);
+  border: 1px solid var(--linie);
+  border-radius: var(--radius-m);
+  box-shadow: var(--schatten-1);
+  font-size: var(--text-m);
+  margin-bottom: var(--abstand-5);
+}
+
+caption {
+  text-align: left;
+  color: var(--fg-leise);
+  font-size: var(--text-m);
+  padding: 0 0 var(--abstand-2);
+}
+
+th {
+  text-align: left;
+  font-weight: 600;
+  font-size: var(--text-s);
+  letter-spacing: 0.02em;
+  color: var(--fg-leise);
+  background: var(--flaeche-tief);
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--linie-stark);
+  white-space: nowrap;
+}
+
+/* Klebender Kopf: bleibt unter der Kopfzeile der Seite stehen. */
+thead th {
+  position: sticky;
+  top: var(--kopf-hoehe);
+  z-index: 2;
+}
+/* Im Rollbehälter klebt nichts — dort rollt die Tabelle selbst. */
+.tabelle-rolle thead th { position: static; }
+
+td {
+  padding: 0.5625rem 0.75rem;
   border-bottom: 1px solid var(--linie);
-  border-left: 3px solid var(--linie);
+  vertical-align: top;
 }
-.eintrag[data-richtung="aus"] {
-  border-left-color: var(--stempel);
-  background: linear-gradient(90deg, var(--stempel-hell) 0%, transparent 60%);
+tbody tr:last-child > td { border-bottom: 0; }
+
+tbody tr:nth-child(even) > td { background: var(--flaeche-ruhig); }
+tbody tr:hover > td { background: var(--flaeche-tief); }
+
+tfoot td {
+  background: var(--flaeche-tief);
+  font-weight: 600;
+  border-top: 1px solid var(--linie-stark);
+  border-bottom: 0;
 }
-.eintrag-kopf {
-  display: flex;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-  align-items: baseline;
-  margin-bottom: 0.5rem;
-  font-size: 0.875rem;
+
+/* Runde Ecken: die Randzellen müssen mitrunden, sonst stehen die
+   Zebrastreifen eckig im runden Rahmen. */
+thead tr:first-child th:first-child { border-top-left-radius: calc(var(--radius-m) - 1px); }
+thead tr:first-child th:last-child  { border-top-right-radius: calc(var(--radius-m) - 1px); }
+tbody tr:last-child > td:first-child { border-bottom-left-radius: calc(var(--radius-m) - 1px); }
+tbody tr:last-child > td:last-child  { border-bottom-right-radius: calc(var(--radius-m) - 1px); }
+
+/* Zahlenspalte: rechtsbündig, einzeilig, fluchtende Ziffern. */
+.betrag,
+th.betrag,
+td.betrag {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
-.absender { font-weight: 600; }
-.eintrag-text {
-  white-space: pre-wrap;
-  font-size: 0.9375rem;
-  line-height: 1.6;
-  max-width: 72ch;
+td.betrag { font-weight: 500; }
+
+/* Behälter für breite Tabellen: rollt waagerecht, ohne die Seite
+   mitzunehmen. Die Tabelle darin gibt ihren eigenen Rahmen ab. */
+.tabelle-rolle {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  background: var(--flaeche);
+  border: 1px solid var(--linie);
+  border-radius: var(--radius-m);
+  box-shadow: var(--schatten-1);
+  margin-bottom: var(--abstand-5);
+}
+.tabelle-rolle > table {
   margin: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  width: auto;
+  min-width: 100%;
 }
 
-/* --- Entwurf ------------------------------------------------------------ */
+/* --- 9. Karten und Kennzahlen ------------------------------------------- */
 
+.karte {
+  background: var(--flaeche);
+  border: 1px solid var(--linie);
+  border-radius: var(--radius-m);
+  box-shadow: var(--schatten-1);
+  padding: var(--abstand-4);
+  margin-bottom: var(--abstand-4);
+}
+.karte-titel {
+  font-size: var(--text-m);
+  font-weight: 600;
+  color: var(--fg-leise);
+  letter-spacing: 0.01em;
+  margin: 0 0 var(--abstand-2);
+}
+
+/* Reihe gleich breiter Karten — bricht von allein um. */
+.karten {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: var(--abstand-3);
+  margin-bottom: var(--abstand-5);
+}
+
+/* Kennzahl fürs Cockpit: eine Zahl, eine Beschriftung, ein Nebensatz. */
+.kennzahl { display: flex; flex-direction: column; gap: 0.125rem; }
+.kennzahl-schild {
+  font-size: var(--text-s);
+  font-weight: 600;
+  color: var(--fg-leise);
+  letter-spacing: 0.02em;
+}
+.kennzahl-wert {
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.kennzahl-wert[data-art="gut"]  { color: var(--gut); }
+.kennzahl-wert[data-art="warn"] { color: var(--warn); }
+.kennzahl-wert[data-art="fehl"] { color: var(--fehl); }
+
+/* Entwurfskarte (Freigabe, Belege, Prüfzeilen). */
 .entwurf {
-  border: 1px solid var(--stempel);
-  background: #fff;
-  padding: 1rem;
-  margin: 1.25rem 0;
+  display: block;
+  background: var(--flaeche);
+  border: 1px solid var(--linie);
+  border-left: 3px solid var(--akzent);
+  border-radius: var(--radius-m);
+  box-shadow: var(--schatten-1);
+  padding: var(--abstand-4);
+  margin: var(--abstand-4) 0;
 }
 .entwurf-kopf {
   display: flex;
-  gap: 0.75rem;
+  gap: var(--abstand-3);
   align-items: baseline;
   flex-wrap: wrap;
-  margin-bottom: 0.75rem;
-  font-size: 0.875rem;
-  color: var(--tinte-leise);
+  margin-bottom: var(--abstand-3);
+  font-size: var(--text-m);
+  color: var(--fg-leise);
 }
+.entwurf-kopf strong { color: var(--fg); }
 .entwurf textarea {
   width: 100%;
   min-height: 11rem;
-  border: 1px solid var(--linie);
-  background: var(--papier);
-  color: var(--tinte);
-  font: inherit;
-  font-size: 0.9375rem;
-  line-height: 1.6;
-  padding: 0.75rem;
   resize: vertical;
 }
 .entwurf-notiz {
-  font-size: 0.875rem;
-  color: var(--tinte-leise);
-  border-left: 2px solid var(--linie);
-  padding-left: 0.75rem;
-  margin: 0 0 0.75rem;
+  font-size: var(--text-m);
+  color: var(--fg-leise);
+  background: var(--akzent-flaeche);
+  border-left: 2px solid var(--akzent);
+  border-radius: 0 var(--radius-s) var(--radius-s) 0;
+  padding: var(--abstand-2) var(--abstand-3);
+  margin: 0 0 var(--abstand-3);
 }
+
+/* --- 10. Schilder und Statuspunkte -------------------------------------- */
+
+.marker,
+.schild {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  line-height: 1.4;
+  padding: 0.125rem 0.4375rem;
+  border: 1px solid var(--linie);
+  border-radius: var(--radius-rund);
+  color: var(--fg-leise);
+  background: var(--flaeche);
+  white-space: nowrap;
+}
+.marker[data-art="heikel"],
+.marker[data-art="fehl"],
+.schild[data-art="fehl"] {
+  border-color: color-mix(in srgb, var(--fehl) 45%, transparent);
+  color: var(--fehl);
+  background: var(--fehl-flaeche);
+}
+.marker[data-art="agent"],
+.marker[data-art="info"],
+.schild[data-art="info"] {
+  border-color: color-mix(in srgb, var(--akzent) 45%, transparent);
+  color: var(--akzent);
+  background: var(--akzent-flaeche);
+}
+.marker[data-art="whatsapp"],
+.marker[data-art="gut"],
+.schild[data-art="gut"] {
+  border-color: color-mix(in srgb, var(--gut) 45%, transparent);
+  color: var(--gut);
+  background: var(--gut-flaeche);
+}
+.marker[data-art="warn"],
+.schild[data-art="warn"] {
+  border-color: color-mix(in srgb, var(--warn) 45%, transparent);
+  color: var(--warn);
+  background: var(--warn-flaeche);
+}
+
+/* Statuspunkt: ein Punkt vor dem Text, kein Wort. */
+.punkt {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: var(--radius-rund);
+  background: var(--fg-still);
+  margin-right: 0.375rem;
+  flex: none;
+  vertical-align: 0.0625rem;
+}
+.punkt[data-art="gut"]  { background: var(--gut); }
+.punkt[data-art="warn"] { background: var(--warn); }
+.punkt[data-art="fehl"] { background: var(--fehl); }
+.punkt[data-art="info"] { background: var(--akzent); }
+.punkt[data-art="still"] { background: var(--fg-still); }
+
+/* --- 11. Knöpfe ---------------------------------------------------------- */
 
 .knopfreihe {
   display: flex;
-  gap: 0.625rem;
-  margin-top: 0.75rem;
+  gap: var(--abstand-2);
+  margin-top: var(--abstand-3);
   flex-wrap: wrap;
   align-items: center;
 }
 
 button {
   font: inherit;
-  font-size: 0.9375rem;
+  font-size: var(--text-n);
   font-weight: 600;
-  padding: 0.5rem 1rem;
-  border: 1px solid var(--tinte);
-  background: var(--tinte);
-  color: var(--papier);
+  line-height: 1.3;
+  padding: 0.5rem 0.9375rem;
+  border: 1px solid var(--fg);
+  border-radius: var(--radius-s);
+  background: var(--fg);
+  color: var(--grund);
+  cursor: pointer;
+  box-shadow: var(--schatten-1);
+  transition: background 100ms ease, border-color 100ms ease, color 100ms ease;
+}
+button:hover { background: color-mix(in srgb, var(--fg) 85%, var(--akzent)); border-color: transparent; }
+button:active { box-shadow: none; }
+
+/* Stille Aktion — gleich groß, aber ohne Gewicht. */
+button[data-art="still"] {
+  background: var(--flaeche);
+  color: var(--fg-leise);
+  border-color: var(--linie-stark);
+}
+button[data-art="still"]:hover {
+  background: var(--flaeche-tief);
+  color: var(--fg);
+  border-color: var(--linie-stark);
+}
+
+/* Aktion, die etwas unwiederbringlich tut. */
+button[data-art="gefahr"] {
+  background: var(--fehl);
+  border-color: var(--fehl);
+  color: #fff;
+}
+button[data-art="gefahr"]:hover { background: color-mix(in srgb, var(--fehl) 85%, #000); }
+
+button:disabled,
+button:disabled:hover {
+  opacity: 0.45;
+  cursor: default;
+  background: var(--flaeche-tief);
+  color: var(--fg-leise);
+  border-color: var(--linie);
+  box-shadow: none;
+}
+
+/* --- 12. Formularfelder -------------------------------------------------- */
+
+label {
+  display: block;
+  font-size: var(--text-m);
+  font-weight: 600;
+  color: var(--fg-leise);
+  margin-bottom: var(--abstand-3);
+}
+label > input,
+label > select,
+label > textarea { margin-top: 0.1875rem; }
+
+input, select, textarea {
+  font: inherit;
+  font-size: var(--text-n);
+  font-weight: 400;
+  color: var(--fg);
+  background: var(--feld-flaeche);
+  border: 1px solid var(--linie-stark);
+  border-radius: var(--radius-s);
+  padding: 0.4375rem 0.625rem;
+  max-width: 100%;
+  transition: border-color 100ms ease, box-shadow 100ms ease;
+}
+textarea { line-height: 1.6; }
+select { cursor: pointer; }
+
+input:hover, select:hover, textarea:hover { border-color: var(--fg-still); }
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--akzent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--akzent) 18%, transparent);
+}
+input::placeholder, textarea::placeholder { color: var(--fg-still); }
+input:disabled, select:disabled, textarea:disabled {
+  background: var(--flaeche-tief);
+  color: var(--fg-leise);
+  cursor: default;
+}
+input[type="checkbox"], input[type="radio"] {
+  accent-color: var(--akzent);
+  width: 1rem;
+  height: 1rem;
+  padding: 0;
+  box-shadow: none;
+}
+input[type="file"] {
+  padding: 0.3125rem;
+  background: var(--flaeche-ruhig);
   cursor: pointer;
 }
-button:hover { background: #000; }
-button[data-art="still"] {
-  background: transparent;
-  color: var(--tinte-leise);
-  border-color: var(--linie);
+
+/* Feldklasse für neue Formulare — wie oben, nur über die ganze Breite. */
+.feld { display: block; width: 100%; }
+.feldreihe {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: var(--abstand-3) var(--abstand-4);
+  margin-bottom: var(--abstand-3);
 }
-button[data-art="still"]:hover { background: var(--papier-tief); color: var(--tinte); }
-button:disabled { opacity: 0.45; cursor: default; }
 
-.rueckmeldung { font-size: 0.875rem; color: var(--tinte-leise); }
-.rueckmeldung[data-art="fehler"] { color: var(--alarm); }
+/* --- 13. Meldungen ------------------------------------------------------- */
 
-/* --- Leerer Zustand ----------------------------------------------------- */
+.rueckmeldung {
+  font-size: var(--text-m);
+  color: var(--fg-leise);
+}
+.rueckmeldung[data-art="fehler"] { color: var(--fehl); font-weight: 600; }
 
+/* Kasten für Fehler, Warnungen und Vollzugsmeldungen. */
+.meldung {
+  font-size: var(--text-n);
+  border: 1px solid var(--linie);
+  border-left: 3px solid var(--fg-still);
+  border-radius: var(--radius-s);
+  background: var(--flaeche-ruhig);
+  padding: var(--abstand-3);
+  margin: 0 0 var(--abstand-4);
+}
+.meldung strong { display: block; margin-bottom: 0.125rem; }
+.meldung[data-art="fehler"] { border-left-color: var(--fehl); background: var(--fehl-flaeche); }
+.meldung[data-art="fehler"] strong { color: var(--fehl); }
+.meldung[data-art="warnung"] { border-left-color: var(--warn); background: var(--warn-flaeche); }
+.meldung[data-art="warnung"] strong { color: var(--warn); }
+.meldung[data-art="gut"] { border-left-color: var(--gut); background: var(--gut-flaeche); }
+.meldung[data-art="gut"] strong { color: var(--gut); }
+.meldung[data-art="info"] { border-left-color: var(--akzent); background: var(--akzent-flaeche); }
+.meldung[data-art="info"] strong { color: var(--akzent); }
+
+/* .leer ist der leere Zustand — und wird im Code auch als Merkkasten
+   benutzt. Darum linksbündig und lesbar, nicht zentriert. */
 .leer {
-  border: 1px dashed var(--linie);
-  padding: 2.5rem 1.5rem;
-  text-align: center;
-  color: var(--tinte-leise);
+  border: 1px solid var(--linie);
+  border-radius: var(--radius-m);
+  background: var(--flaeche-ruhig);
+  padding: var(--abstand-5);
+  color: var(--fg-leise);
+  font-size: var(--text-n);
+  margin-bottom: var(--abstand-5);
+  max-width: 72ch;
 }
-.leer strong { display: block; color: var(--tinte); margin-bottom: 0.25rem; }
+.leer strong {
+  display: block;
+  color: var(--fg);
+  font-size: var(--text-b);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin-bottom: var(--abstand-1);
+}
 
-/* --- Schmale Schirme ---------------------------------------------------- */
+/* --- 14. Akte und Verlauf ------------------------------------------------ */
+
+.akte-kopf {
+  display: flex;
+  gap: var(--abstand-5);
+  align-items: flex-start;
+  padding: var(--abstand-6) 0 var(--abstand-4);
+  border-bottom: 1px solid var(--linie);
+}
+.aktenzeichen {
+  font-size: 2.5rem;
+  font-weight: 700;
+  line-height: 0.9;
+  letter-spacing: -0.045em;
+  color: var(--akzent);
+  flex: none;
+}
+.akte-kopf h1 {
+  font-size: var(--text-l);
+  margin: 0 0 var(--abstand-1);
+}
+.akte-meta {
+  display: flex;
+  gap: var(--abstand-3);
+  flex-wrap: wrap;
+  align-items: center;
+  color: var(--fg-leise);
+  font-size: var(--text-m);
+}
+
+.verlauf { margin: 0; padding: 0; }
+
+.eintrag {
+  display: block;
+  padding: var(--abstand-4) var(--abstand-4) var(--abstand-4) var(--abstand-4);
+  border-bottom: 1px solid var(--linie);
+  border-left: 3px solid var(--linie);
+}
+.eintrag[data-richtung="aus"] {
+  border-left-color: var(--akzent);
+  background: linear-gradient(90deg, var(--akzent-flaeche) 0%, transparent 65%);
+}
+.eintrag-kopf {
+  display: flex;
+  gap: var(--abstand-3);
+  flex-wrap: wrap;
+  align-items: baseline;
+  margin-bottom: var(--abstand-2);
+  font-size: var(--text-m);
+  color: var(--fg-leise);
+}
+.absender { font-weight: 600; color: var(--fg); }
+.eintrag-text {
+  white-space: pre-wrap;
+  font-size: var(--text-n);
+  line-height: 1.65;
+  max-width: 72ch;
+  margin: 0;
+}
+
+/* --- 15. Schmale Schirme (Telefon) --------------------------------------
+   Prüfmaß 390 px: 16 px Seitenabstand, kein waagerechtes Rollen der Seite. */
 
 @media (max-width: 40rem) {
-  :root { --mass: 1rem; }
-  .kopf-innen { flex-wrap: wrap; gap: 0.75rem 1.25rem; }
-  .posten { grid-template-columns: 2.75rem 1fr; }
-  .zeit { grid-column: 2; margin-top: 0.25rem; }
-  .aktenzeichen { font-size: 2rem; }
-  .akte-kopf { gap: 0.875rem; }
+  :root {
+    --mass: 1rem;          /* = 16 px Seitenabstand */
+    --text-2xl: 1.5rem;
+    --rahmen-breite: 100%;
+  }
+
+  .kopf-innen { gap: var(--abstand-3); }
+  .navi { gap: var(--abstand-3); }
+
+  .titelzeile { padding-top: var(--abstand-5); }
+
+  .posten {
+    grid-template-columns: 2.5rem minmax(0, 1fr);
+    padding: var(--abstand-3);
+  }
+  .zeit { grid-column: 2; margin-top: var(--abstand-1); text-align: left; }
+
+  .aktenzeichen { font-size: 1.875rem; }
+  .akte-kopf { gap: var(--abstand-3); }
+
+  .entwurf, .karte, .leer { padding: var(--abstand-3); }
+  .leer { padding: var(--abstand-4); }
+
+  /* Fangnetz: Tabellen rollen in sich selbst, auch ohne .tabelle-rolle.
+     Ohne das schiebt eine sechsspaltige Tabelle die ganze Seite zur
+     Seite. Der klebende Kopf entfällt dabei — auf dem Telefon rollt
+     man ohnehin die Tabelle, nicht die Seite. */
+  table {
+    display: block;
+    width: auto;
+    min-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  thead th { position: static; }
+
+  th, td { padding: 0.5rem 0.625rem; }
+
+  /* Fingerfreundliche Höhe für alles, was angetippt wird. */
+  button,
+  input:not([type="checkbox"]):not([type="radio"]),
+  select {
+    min-height: 2.75rem;
+  }
+  button { padding: 0.5rem 1rem; }
+}
+
+/* Sehr schmal: der zweite Teil der Wortmarke weicht der Navigation. */
+@media (max-width: 24rem) {
+  .marke span { display: none; }
+}
+
+/* --- 16. Druck ----------------------------------------------------------- */
+
+@media print {
+  .kopf, .navi { display: none !important; }
+  body { background: #fff; color: #000; }
+  .rahmen { max-width: none; padding: 0; }
+  table, .karte, .register, .entwurf, .leer { box-shadow: none; }
+  thead th { position: static; }
 }

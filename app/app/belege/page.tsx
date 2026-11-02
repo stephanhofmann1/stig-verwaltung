@@ -2,6 +2,7 @@ import { query } from "@/lib/db";
 import { schlageBelegeVor, offeneBelege } from "@/lib/belegabgleich";
 import { tag } from "@/lib/formate";
 import { BelegZeile } from "@/components/BelegZeile";
+import { BelegUpload } from "@/components/BelegUpload";
 
 export const dynamic = "force-dynamic";
 
@@ -42,6 +43,13 @@ export default async function Belege() {
   const s = stand[0] ?? { gesamt: 0, belegt: 0, befreit: 0 };
   const luecken = vorschlaege.length;
 
+  // Nach Höhe sortiert, nicht nach Datum: Das ist die Liste, die am
+  // Jahresende leer sein muss, und oben stehen die Posten, an denen am
+  // meisten hängt. Ein fehlender Beleg über 2.400 Euro wiegt anders als
+  // einer über 4,99 Euro.
+  const nachHoehe = [...vorschlaege].sort((a, b) => b.betrag - a.betrag);
+  const summeLuecke = vorschlaege.reduce((x, v) => x + v.betrag, 0);
+
   const belegOptionen = belege
     .filter((b) => Number(b.offen) > 0.005)
     .map((b) => ({
@@ -66,6 +74,28 @@ export default async function Belege() {
         Verwendungszweck steht, direkt zugeordnet. Hier steht nur der Rest.
       </p>
 
+      <h1 style={{ marginTop: "2.5rem" }}>Belege hochladen</h1>
+      <p className="hinweis">
+        Erst lesen, dann übernehmen. Bis du auf „Übernehmen" klickst, wird
+        nichts gespeichert, und jedes erkannte Feld lässt sich vorher ändern.
+        Bei Amazon steht die Bestellnummer auch im Verwendungszweck der
+        Abbuchung — solche Belege ordnen sich danach von selbst zu.
+      </p>
+      <BelegUpload />
+
+      <div className="titelzeile" style={{ marginTop: "2.5rem" }}>
+        <h1>Ausgaben ohne Beleg</h1>
+        <span className="zaehler ziffern">
+          {luecken} · {euro(summeLuecke)}
+        </span>
+      </div>
+      <p className="hinweis">
+        Nach Höhe sortiert. Diese Liste muss am Jahresende leer sein: zu jeder
+        Zeile gehört entweder ein Beleg oder ein Vermerk, warum keiner nötig
+        ist (Umbuchung, Privatentnahme). Der Vermerk ist Pflicht — sonst weiß
+        später niemand, warum die Zeile fehlt.
+      </p>
+
       {luecken === 0 ? (
         <div className="leer">
           <strong>Keine Lücken</strong>
@@ -73,7 +103,7 @@ export default async function Belege() {
           nötig ist.
         </div>
       ) : (
-        vorschlaege.map((v) => {
+        nachHoehe.map((v) => {
           const b = nach.get(v.buchung_id);
           if (!b) return null;
           return (

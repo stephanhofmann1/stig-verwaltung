@@ -35,12 +35,37 @@ export function istBild(bytes: Buffer): boolean {
   if (a[0] === 0x89 && a.subarray(1, 4).toString("latin1") === "PNG") return true;
   // JPEG
   if (a[0] === 0xff && a[1] === 0xd8 && a[2] === 0xff) return true;
+  // TIFF (Flachbettscanner): II* fuer little endian, MM\0* fuer big endian
+  const kopf = a.subarray(0, 4).toString("latin1");
+  if (kopf === "II*\u0000" || kopf === "MM\u0000*") return true;
+  // WebP: RIFF....WEBP
+  if (kopf === "RIFF" && a.subarray(8, 12).toString("latin1") === "WEBP") return true;
   // HEIC/HEIF (iPhone-Fotos): ftyp-Box mit heic/heix/mif1
   if (a.subarray(4, 8).toString("latin1") === "ftyp") {
     const marke = a.subarray(8, 12).toString("latin1");
     return ["heic", "heix", "mif1", "msf1", "hevc"].includes(marke);
   }
   return false;
+}
+
+/**
+ * Seiten, die gelesen werden.
+ *
+ * Bei einem langen Beleg (Sammelrechnung, gescannter Stapel) wuerde das
+ * Durchlaufen aller Seiten die Anfrage ausbremsen, ohne mehr zu bringen.
+ * Gelesen werden deshalb die ersten und die letzten Seiten: oben steht der
+ * Briefkopf mit Aussteller und Rechnungsnummer, unten die Endsumme. Die
+ * Mitte ist die Artikelliste -- genau der Teil, aus dem der Betragsleser
+ * ohnehin nichts nehmen soll.
+ */
+export function seitenAuswahl(anzahl: number, grenze = 30): number[] {
+  if (anzahl <= grenze) {
+    return Array.from({ length: anzahl }, (_, i) => i + 1);
+  }
+  const haelfte = Math.floor(grenze / 2);
+  const vorn = Array.from({ length: haelfte }, (_, i) => i + 1);
+  const hinten = Array.from({ length: haelfte }, (_, i) => anzahl - haelfte + i + 1);
+  return [...vorn, ...hinten];
 }
 
 /**
@@ -61,10 +86,13 @@ export async function pdfText(bytes: Buffer): Promise<BelegText> {
     // einer Datei aus dem Netz scheitern -- das Netz ist hier dicht.
     useSystemFonts: false,
     isEvalSupported: false,
+    // Nur Fehler protokollieren. pdfjs warnt bei jedem Beleg ueber fehlende
+    // Standardschriften -- das Protokoll soll von echten Fehlern handeln.
+    verbosity: 0,
   }).promise;
 
   const stuecke: string[] = [];
-  for (let s = 1; s <= dok.numPages; s++) {
+  for (const s of seitenAuswahl(dok.numPages)) {
     const seite = await dok.getPage(s);
     const inhalt = await seite.getTextContent();
     const zeile = inhalt.items
