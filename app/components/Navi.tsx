@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
 const PUNKTE = [
-  { href: "/", text: "Freigabe" },
+  { href: "/", text: "Cockpit" },
   { href: "/mietenbuch", text: "Mietenbuch" },
   { href: "/vorgaenge", text: "Vorgänge" },
   { href: "/zahlungen", text: "Zahlungen" },

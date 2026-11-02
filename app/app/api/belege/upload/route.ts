@@ -5,10 +5,10 @@ import { lieseBeleg } from "@/lib/belegtext";
 import {
   ergaenzeMitModell,
   findeKontobewegung,
+  ablageMarke,
   legeAb,
   leseZahl,
   werteBelegAus,
-  ablagePfad,
   type BelegBefund,
 } from "@/lib/belege";
 import {
@@ -116,6 +116,19 @@ function zahlAusEingabe(w: number | string): number | null {
   return null;
 }
 
+/**
+ * Liegt dieser Inhalt schon als Beleg? Gesucht wird über den
+ * Fingerabdruck im Ablagepfad, nicht über den ganzen Pfad: Der enthält
+ * den Monat, und derselbe Beleg nach einem Monatswechsel erneut
+ * hochgeladen wäre sonst keine Dublette.
+ */
+async function dubletteSuchen(bytes: Buffer): Promise<{ id: string } | null> {
+  return one<{ id: string }>(
+    `SELECT id FROM beleg WHERE ablage_pfad LIKE $1`,
+    [`%${ablageMarke(bytes)}%`],
+  );
+}
+
 function leer() {
   return {
     aussteller: null,
@@ -219,11 +232,7 @@ export async function POST(req: Request) {
       let befund = werteBelegAus(gelesen.text, name);
       if (!gelesen.ohne_textebene) befund = await ergaenzeMitModell(gelesen.text, befund);
 
-      const pfad = ablagePfad(bytes, name);
-      const schon = await one<{ id: string }>(
-        `SELECT id FROM beleg WHERE ablage_pfad = $1`,
-        [pfad],
-      );
+      const schon = await dubletteSuchen(bytes);
 
       dateien.push({
         dateiname: name,
@@ -294,11 +303,7 @@ export async function POST(req: Request) {
       continue;
     }
 
-    const pfad = ablagePfad(bytes, name);
-    const schon = await one<{ id: string }>(
-      `SELECT id FROM beleg WHERE ablage_pfad = $1`,
-      [pfad],
-    );
+    const schon = await dubletteSuchen(bytes);
     if (schon) {
       abgelehnt.push({
         dateiname: name,
@@ -307,8 +312,9 @@ export async function POST(req: Request) {
       continue;
     }
 
+    let pfad: string;
     try {
-      await legeAb(bytes, name);
+      pfad = await legeAb(bytes, name);
     } catch (e) {
       abgelehnt.push({
         dateiname: name,
@@ -346,11 +352,15 @@ export async function POST(req: Request) {
   }
 
   // Der vorhandene Abgleich entscheidet, nicht die Vorschau von oben.
-  const abgleich = await uebernehmeSichereBelege();
+  // Ist nichts gespeichert worden, gibt es auch nichts abzugleichen -- dann
+  // soll die Antwort nicht nach einem gelaufenen Abgleich aussehen.
   const neu = new Set(gespeichert.map((g) => g.beleg_id));
-  const zuordnungen = (await schlageBelegeVor()).filter(
-    (v) => v.beleg_id && neu.has(v.beleg_id),
-  );
+  const abgleich =
+    neu.size > 0 ? await uebernehmeSichereBelege() : { uebernommen: 0, offen: 0 };
+  const zuordnungen =
+    neu.size > 0
+      ? (await schlageBelegeVor()).filter((v) => v.beleg_id && neu.has(v.beleg_id))
+      : [];
 
   return NextResponse.json({
     gespeichert,

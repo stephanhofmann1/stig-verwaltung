@@ -76,7 +76,7 @@ export default async function Belege() {
 
       <h1 style={{ marginTop: "2.5rem" }}>Belege hochladen</h1>
       <p className="hinweis">
-        Erst lesen, dann übernehmen. Bis du auf „Übernehmen" klickst, wird
+        Erst lesen, dann übernehmen. Bis du auf „Übernehmen“ klickst, wird
         nichts gespeichert, und jedes erkannte Feld lässt sich vorher ändern.
         Bei Amazon steht die Bestellnummer auch im Verwendungszweck der
         Abbuchung — solche Belege ordnen sich danach von selbst zu.

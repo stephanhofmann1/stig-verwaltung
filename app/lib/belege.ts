@@ -615,14 +615,27 @@ export function findeKontobewegung(
 // ---------------------------------------------------------------------------
 
 /**
- * Pfad in der Ablage. Der Dateiname ist ein Hash des Inhalts, damit
- * derselbe Beleg aus zwei Quellen nicht zweimal liegt.
+ * Fingerabdruck des Inhalts. Zwei gleiche Dateien ergeben dieselbe Marke,
+ * egal wie sie heißen und woher sie kommen.
+ */
+export function ablageMarke(daten: Buffer): string {
+  return createHash("sha256").update(daten).digest("hex").slice(0, 24);
+}
+
+/**
+ * Pfad in der Ablage. Der Dateiname ist der Fingerabdruck des Inhalts,
+ * damit derselbe Beleg aus zwei Quellen nicht zweimal liegt.
+ *
+ * Der Monatsordner gehört zum Pfad, nicht zur Erkennung: Dieselbe Datei
+ * im Dezember hochgeladen landet in einem anderen Ordner. Wer auf
+ * Dubletten prüft, prüft deshalb auf die Marke und nicht auf den ganzen
+ * Pfad -- sonst liegt der Beleg über einen Monatswechsel hinweg zweimal
+ * in den Büchern.
  */
 export function ablagePfad(daten: Buffer, dateiname: string): string {
-  const hash = createHash("sha256").update(daten).digest("hex").slice(0, 24);
   const endung = dateiname.match(/\.[a-z0-9]+$/i)?.[0]?.toLowerCase() ?? "";
   const monat = new Date().toISOString().slice(0, 7);
-  return join(ABLAGE, monat, `${hash}${endung}`);
+  return join(ABLAGE, monat, `${ablageMarke(daten)}${endung}`);
 }
 
 export async function legeAb(daten: Buffer, dateiname: string): Promise<string> {

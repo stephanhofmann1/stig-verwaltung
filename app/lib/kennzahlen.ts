@@ -2,6 +2,7 @@ import { query } from "./db";
 import { monatsStatus, type StandZeile, type ZahlStatus } from "./mieter";
 import { dritterWerktag, type Rueckstand } from "./mahnstufen";
 import { mahnstand } from "./rueckstaende";
+import { zurueckgestellteIds } from "./mahnablauf";
 import { freigabe } from "./mahnfreigabe";
 import { verfuegbarkeit, type Verfuegbarkeit } from "./oeffentlich";
 
@@ -700,7 +701,19 @@ export async function ladeCockpit(heute = new Date()): Promise<CockpitDaten> {
       monat: monatsErster(heute),
       geld: LEER_MONAT,
     }),
-    behutsam("Rückstände", () => mahnstand(heute), [] as Rueckstand[]),
+    // Zurueckgestellte Faelle zaehlen hier nicht mit: Das Cockpit soll
+    // zeigen, was zu tun ist, nicht was schon entschieden wurde. Sie
+    // bleiben auf der Mahnseite im eigenen Abschnitt sichtbar.
+    behutsam(
+      "Rückstände",
+      async () => {
+        const zurueck = await zurueckgestellteIds(heute);
+        return (await mahnstand(heute)).filter(
+          (r) => !zurueck.has(r.mietverhaeltnis_id),
+        );
+      },
+      [] as Rueckstand[],
+    ),
     behutsam("Mahnfreigabe", freigabe, null),
     behutsam<{ stand: string; einheiten: EinheitLage[] }>(
       "Leerstand",

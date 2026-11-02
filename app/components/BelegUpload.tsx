@@ -348,12 +348,17 @@ export function BelegUpload() {
 
       {ergebnis && (
         <div style={{ marginTop: "1rem" }}>
-          <p>
-            <strong>{ergebnis.gespeichert.length}</strong>{" "}
-            {ergebnis.gespeichert.length === 1 ? "Beleg" : "Belege"} abgelegt.
-            Der Abgleich hat {ergebnis.abgleich.uebernommen} sichere Zuordnungen
-            festgeschrieben, {ergebnis.abgleich.offen} Bewegungen bleiben offen.
-          </p>
+          {ergebnis.gespeichert.length === 0 ? (
+            <p>Nichts gespeichert — siehe die Hinweise unten.</p>
+          ) : (
+            <p>
+              <strong>{ergebnis.gespeichert.length}</strong>{" "}
+              {ergebnis.gespeichert.length === 1 ? "Beleg" : "Belege"} abgelegt.
+              Der Abgleich hat {ergebnis.abgleich.uebernommen} sichere
+              Zuordnungen festgeschrieben, {ergebnis.abgleich.offen} Bewegungen
+              bleiben offen.
+            </p>
+          )}
           {ergebnis.zuordnungen.length > 0 && (
             <ul>
               {ergebnis.zuordnungen.map((z, i) => (

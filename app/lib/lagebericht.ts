@@ -1,5 +1,6 @@
 import { query } from "./db";
 import { mahnstand } from "./rueckstaende";
+import { zurueckgestellteIds } from "./mahnablauf";
 import { mahnbereitschaft } from "./mahnfreigabe";
 
 /**
@@ -175,9 +176,22 @@ async function rueckstaendeAbschnitt(heute: Date): Promise<Abschnitt> {
   const stand = await mahnstand(heute);
   const bereit = await mahnbereitschaft();
   const gesperrt = bereit.freigabe === null;
+  // Faelle, die Stephan auf der Mahnseite ausdruecklich zurueckgestellt hat
+  // ("verschieben" oder "nicht mahnen"). Sie bleiben Rueckstaende und
+  // werden darum weiter genannt -- aber nicht als etwas, das jemand tun
+  // muss. Ein Bericht, der jede Nacht erneut eine Entscheidung verlangt,
+  // die schon getroffen wurde, wird nicht mehr gelesen.
+  const zurueck = await zurueckgestellteIds(heute);
 
   const zuSchreiben = stand.filter(
-    (r) => r.stufe === "mahnung" || r.stufe === "erinnerung",
+    (r) =>
+      (r.stufe === "mahnung" || r.stufe === "erinnerung") &&
+      !zurueck.has(r.mietverhaeltnis_id),
+  );
+  const zurueckgestellt = stand.filter(
+    (r) =>
+      (r.stufe === "mahnung" || r.stufe === "erinnerung") &&
+      zurueck.has(r.mietverhaeltnis_id),
   );
   const ungeklaert = stand.filter((r) => r.offen_ohne_daten >= 1);
 
@@ -197,6 +211,13 @@ async function rueckstaendeAbschnitt(heute: Date): Promise<Abschnitt> {
       gesperrt
         ? "  Das Mahnwesen ist gesperrt — es wird nichts erzeugt und nichts versendet."
         : "  Jedes Schreiben geht einzeln über die Freigabe.",
+    );
+  }
+  if (zurueckgestellt.length > 0) {
+    const summe = zurueckgestellt.reduce((s2, r) => s2 + r.offen, 0);
+    aus.push(
+      `${zurueckgestellt.length} davon zurückgestellt (${eur(summe)}) — ` +
+        "Entscheidung liegt vor, kein Handlungsbedarf.",
     );
   }
   if (ungeklaert.length > 0) {
