@@ -40,15 +40,39 @@ const OFFEN = [
 /** Was ein Mieter sehen darf — alles andere ist Verwaltung. */
 const FUER_MIETER = ["/mieter"];
 
+/**
+ * Wege, die BEIDE Seiten brauchen.
+ *
+ * Der Verwalter legt Dokumente ab, der Mieter ruft die ab, die für ihn
+ * freigegeben sind — über dieselbe Route. In FUER_MIETER aufgenommen
+ * würde sie den Verwaltern verschlossen (siehe `if (fuerMieter) return
+ * false` unten), deshalb eine eigene Liste.
+ *
+ * Für den Mieter gilt hier nur Lesen. Was er sehen darf, entscheidet die
+ * Route selbst (darfSehen in lib/dokumente.ts): Sie verlangt den Haken
+ * `mieter_sichtbar` und holt den Bezug seines Mietverhältnisses aus der
+ * Datenbank — nie aus der Anfrage. Diese Liste öffnet also die Tür, nicht
+ * die Akte.
+ */
+const AUCH_FUER_MIETER = ["/api/dokumente"];
+
 /** Wer nur lesen darf, kommt an keine schreibende Schnittstelle. */
 const SCHREIBEND = new Set(["POST", "PATCH", "PUT", "DELETE"]);
 
-function darf(pfad: string, rolle: Rolle, methode: string): boolean {
+export function darf(pfad: string, rolle: Rolle, methode: string): boolean {
   const fuerMieter = FUER_MIETER.some(
     (p) => pfad === p || pfad.startsWith(p + "/"),
   );
+  const auchMieter = AUCH_FUER_MIETER.some(
+    (p) => pfad === p || pfad.startsWith(p + "/"),
+  );
 
-  if (rolle === "mieter") return fuerMieter;
+  if (rolle === "mieter") {
+    // Lesen ja, schreiben nein: Hochladen und Löschen bleiben bei der
+    // Verwaltung, auch wenn der Weg derselbe ist.
+    if (auchMieter) return !SCHREIBEND.has(methode);
+    return fuerMieter;
+  }
 
   // Verwalter und Lesende haben im Mieterbereich nichts verloren — der zeigt
   // ohnehin nur die Sicht eines einzelnen Mietverhältnisses.

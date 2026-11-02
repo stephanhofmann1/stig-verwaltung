@@ -215,7 +215,6 @@ export function sichererDateiname(roh: string): string {
   const sauber = ohnePfad
     // Steuerzeichen (auch NUL) und Anführungszeichen heraus: der Name steht
     // später in einem Content-Disposition-Header.
-    // eslint-disable-next-line no-control-regex
     .replace(/[\u0000-\u001f\u007f"\\]/g, "")
     // Ein Name, der nur aus Punkten besteht, ist kein Name.
     .replace(/^\.+$/, "")
@@ -223,6 +222,32 @@ export function sichererDateiname(roh: string): string {
     .slice(0, 160);
 
   return sauber === "" ? "dokument" : sauber;
+}
+
+/**
+ * Der Name, unter dem die Datei beim Herunterladen vorgeschlagen wird.
+ *
+ * Die Endung kommt aus dem erkannten Dateityp und nicht aus dem Namen. Das
+ * ist dieselbe Entscheidung wie bei der Prüfung, nur am anderen Ende: Wer
+ * eine PNG-Datei "grundriss.pdf" nennt, soll sie nicht als "grundriss.pdf"
+ * zurückbekommen -- das Betriebssystem öffnet sie dann mit dem falschen
+ * Programm und meldet eine beschädigte Datei.
+ *
+ * Abgeschnitten werden nur die Endungen, die hier vorkommen können. Ein
+ * Punkt in "Grundriss 1.5" ist keine Endung.
+ */
+export function downloadName(d: {
+  bezeichnung: string | null;
+  dateiname: string;
+  mime_typ: string | null;
+}): string {
+  const roh = (d.bezeichnung ?? "").trim() || d.dateiname;
+  const basis = sichererDateiname(roh).replace(
+    /\.(pdf|png|jpe?g|heic|heif)$/i,
+    "",
+  );
+  const typ = ERLAUBTE_TYPEN.find((t) => t.mime === d.mime_typ);
+  return typ ? `${basis}${typ.endung}` : basis;
 }
 
 /** Unterordner der Belegablage. Belege und Dokumente liegen nicht gemischt. */

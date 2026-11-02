@@ -3,6 +3,7 @@ import { angemeldeteSitzung } from "@/lib/anmeldung";
 import {
   darfSehen,
   darfSchreiben,
+  downloadName,
   dokumentMitPfad,
   leseInhalt,
   loesche,
@@ -184,9 +185,7 @@ export async function GET(
   return new NextResponse(new Uint8Array(inhalt), {
     headers: kopfzeilen(
       dok.mime_typ ?? "",
-      dok.bezeichnung
-        ? `${dok.bezeichnung}${(dok.dateiname.match(/\.[a-z0-9]+$/i) ?? [""])[0]}`
-        : dok.dateiname,
+      downloadName(dok),
       inhalt.length,
       anhang,
     ),

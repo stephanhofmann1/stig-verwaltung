@@ -8,6 +8,7 @@ import {
   pruefeDatei,
   sichererDateiname,
   ablagePfad,
+  downloadName,
   darfSehen,
   darfSchreiben,
   mietzusammensetzung,
@@ -187,6 +188,51 @@ describe("Ein Dateiname aus dem Netz wird nicht zu einem Pfad", () => {
     assert.equal(
       sichererDateiname("Grundriss Küche & Bad (Dachgeschoß).pdf"),
       "Grundriss Küche & Bad (Dachgeschoß).pdf",
+    );
+  });
+
+  test("der Name beim Herunterladen traegt die Endung des Inhalts", () => {
+    // Die Gegenseite zur Inhaltsprüfung: Eine PNG-Datei, die "grundriss.pdf"
+    // hiess, darf nicht als .pdf zurueckkommen -- sonst öffnet sie der
+    // Rechner des Empfängers mit dem falschen Programm.
+    assert.equal(
+      downloadName({
+        bezeichnung: null,
+        dateiname: "grundriss.pdf",
+        mime_typ: "image/png",
+      }),
+      "grundriss.png",
+    );
+    assert.equal(
+      downloadName({
+        bezeichnung: "Grundriss 1. OG",
+        dateiname: "z14.jpg",
+        mime_typ: "application/pdf",
+      }),
+      "Grundriss 1. OG.pdf",
+    );
+    // Ein Punkt in der Bezeichnung ist keine Endung.
+    assert.equal(
+      downloadName({
+        bezeichnung: "Grundriss 1.5",
+        dateiname: "x.png",
+        mime_typ: "image/png",
+      }),
+      "Grundriss 1.5.png",
+    );
+    // Auch hier wird kein Pfad zum Namen.
+    assert.equal(
+      downloadName({
+        bezeichnung: null,
+        dateiname: "../../etc/passwd",
+        mime_typ: "application/pdf",
+      }),
+      "passwd.pdf",
+    );
+    // Unbekannter Typ: keine Endung erfunden.
+    assert.equal(
+      downloadName({ bezeichnung: "Alt", dateiname: "a.bin", mime_typ: null }),
+      "Alt",
     );
   });
 

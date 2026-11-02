@@ -6,6 +6,7 @@ import { tag } from "@/lib/formate";
 // der Moeblierungszuschlag schon einmal verloren gegangen.
 import { sollGesamt } from "@/lib/sollstellung";
 import { AltdatenImport } from "@/components/AltdatenImport";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
@@ -98,9 +99,19 @@ export default async function Stammdaten() {
             <div className="posten" key={e.id}>
               <span className="nummer">{e.etage ?? "—"}</span>
               <span className="betreff">
-                {e.mieter}
+                {/* Der Mietername führt ins Mietverhältnis, die
+                    Bezeichnung in die Einheit -- zwei verschiedene
+                    Fragen, zwei verschiedene Seiten. */}
+                {e.mietverhaeltnis_id ? (
+                  <Link href={`/mietverhaeltnis/${e.mietverhaeltnis_id}`}>
+                    {e.mieter}
+                  </Link>
+                ) : (
+                  e.mieter
+                )}
                 <span style={{ fontWeight: 400, color: "var(--tinte-leise)" }}>
-                  {" "}· {e.bezeichnung}
+                  {" "}·{" "}
+                  <Link href={`/einheit/${e.id}`}>{e.bezeichnung}</Link>
                 </span>
               </span>
               <span className="zeit ziffern">
@@ -131,7 +142,9 @@ export default async function Stammdaten() {
         {frei.map((e) => (
           <div className="posten" key={e.id}>
             <span className="nummer">{e.etage ?? "—"}</span>
-            <span className="betreff">{e.bezeichnung}</span>
+            <span className="betreff">
+              <Link href={`/einheit/${e.id}`}>{e.bezeichnung}</Link>
+            </span>
             <span className="zeit">{e.art === "gewerbe" ? "Gewerbe" : ""}</span>
             <span className="unterzeile">
               <span>{e.objekt}</span>

@@ -9,6 +9,17 @@ import {
   type ZahlStatus,
 } from "@/lib/mieter";
 import { MieterMeldung } from "@/components/MieterMeldung";
+import { dokumenteFuer, mieterBezug } from "@/lib/dokumente";
+
+/** Beschriftung der Dokumentarten in der Sprache des Mieters. */
+const ARTEN_TEXT: Record<string, string> = {
+  grundriss: "Grundriss",
+  foto: "Foto",
+  mietvertrag: "Mietvertrag",
+  uebergabeprotokoll: "Übergabeprotokoll",
+  energieausweis: "Energieausweis",
+  sonstige: "Dokument",
+};
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Mieterbereich" };
@@ -40,16 +51,39 @@ const monatName = (iso: string) =>
     new Date(iso.slice(0, 10) + "T12:00:00Z"),
   );
 
+/**
+ * Die Dokumente, die der Mieter sehen darf.
+ *
+ * Geladen werden die seines Mietverhältnisses, seiner Einheit und seines
+ * Objekts -- aber nur die mit gesetztem Haken. Was freigegeben ist,
+ * entscheidet die Verwaltung beim Hochladen; hier wird es nur befolgt.
+ */
+async function freigegebeneDokumente(mietverhaeltnisId: string) {
+  const bezug = await mieterBezug(mietverhaeltnisId);
+  if (!bezug) return [];
+  const alle = await dokumenteFuer({
+    mietverhaeltnis_id: bezug.mietverhaeltnis,
+    einheit_id: bezug.einheit,
+    objekt_id: bezug.objekt,
+  });
+  return alle.filter((d) => d.mieter_sichtbar);
+}
+
 export default async function Mieterbereich() {
   const sitzung = await angemeldeteSitzung();
   if (!sitzung || sitzung.rolle !== "mieter" || !sitzung.mietverhaeltnis) {
     redirect("/mieter/anmelden");
   }
 
-  const [daten, faelle, stand] = await Promise.all([
+  const [daten, faelle, stand, dokumente] = await Promise.all([
     uebersicht(sitzung.mietverhaeltnis),
     vorgaenge(sitzung.mietverhaeltnis),
     zahlungsstand(sitzung.mietverhaeltnis),
+    // Nur die ausdrücklich freigegebenen. Der Bezug kommt aus der
+    // Datenbank, nicht aus der Anfrage -- und `mieter_sichtbar` ist bei
+    // jedem Dokument von Haus aus aus. Ein Übergabeprotokoll des
+    // Vormieters an derselben Wohnung fällt damit heraus.
+    freigegebeneDokumente(sitzung.mietverhaeltnis),
   ]);
 
   if (!daten) redirect("/mieter/anmelden");
@@ -187,6 +221,30 @@ export default async function Mieterbereich() {
           Ihren Daten noch eine Angabe — melden Sie sich dann bei uns.
         </p>
       </section>
+
+      {dokumente.length > 0 && (
+        <section style={{ marginBottom: "2.5rem" }}>
+          <h2 style={{ fontSize: "1rem", fontWeight: 600, margin: "0 0 0.75rem" }}>
+            Zu Ihrer Wohnung
+          </h2>
+          <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+            {dokumente.map((d) => (
+              <li
+                key={d.id}
+                style={{
+                  padding: "0.6rem 0",
+                  borderTop: "1px solid var(--linie, #e5e5e5)",
+                }}
+              >
+                <a href={`/api/dokumente/${d.id}`} target="_blank" rel="noreferrer">
+                  {d.bezeichnung ?? d.dateiname}
+                </a>
+                <span className="hinweis"> · {ARTEN_TEXT[d.art] ?? d.art}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <section style={{ marginBottom: "2.5rem" }}>
         <h2 style={{ fontSize: "1rem", fontWeight: 600, margin: "0 0 0.75rem" }}>

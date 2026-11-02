@@ -7,7 +7,6 @@ import {
   dokumenteFuer,
   istBild,
   mietZeitleiste,
-  mietzusammensetzung,
   type Anpassung,
 } from "@/lib/dokumente";
 import {
