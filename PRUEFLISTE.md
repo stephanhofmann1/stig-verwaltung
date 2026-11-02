@@ -93,7 +93,19 @@ weiter unten — dort läuft kein Docker-Dienst in der Arbeitsumgebung.
       Bericht wurde gebaut, protokolliert und **nie verschickt**. Kein
       Absturz, nur Schweigen. Zwei Mutationstests: Handliste zurückbauen
       und `: > leer.env` entfernen lassen je einen Test fallen.
-- [x] 265 automatische Tests (Monatszuordnung, anteilige Mieten, Gesamtmiete,
+- [x] **Bankanbindung bedienbar gemacht.** Vorher war die FinTS-Maschine
+      gebaut, aber es gab keine Oberfläche, um eine PIN zu hinterlegen, und
+      keinen Weg, eine TAN einzugeben — der Abruf hätte spätestens nach 90
+      Tagen stillgestanden, und der erste Abruf eines neuen Zugangs wäre
+      gar nicht möglich gewesen.
+- [x] **Mutationstests des TAN-Ablaufs:** Wird der Dialog erst nach dem
+      Einlösen verworfen, fällt ein Test — ein zweiter Versuch auf
+      demselben Dialog zählt bei der Bank als weiterer Fehlversuch, und
+      drei sperren den Zugang. Ebenso fallen Tests, wenn der Abruf von Hand
+      den letzten Abruf ignoriert oder die Bankinformationen nach der
+      Erstanmeldung nicht sichert — beides führte dazu, dass bei JEDEM
+      Abruf wieder eine TAN nötig wäre.
+- [x] 273 automatische Tests (Monatszuordnung, anteilige Mieten, Gesamtmiete,
       Belegungsableitung, Thread-Header, CSV-Formate, Zugangsschutz,
       Schema-Abgleich, Vollständigkeitsprüfung der Dokumente).
 - [x] Anwendung baut ohne Fehler, `tsc` fehlerfrei.

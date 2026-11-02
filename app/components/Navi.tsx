@@ -10,6 +10,7 @@ const PUNKTE = [
   { href: "/belege", text: "Belege" },
   { href: "/stammdaten", text: "Stammdaten" },
   { href: "/mahnwesen", text: "Rückstände" },
+  { href: "/bank", text: "Bank" },
   { href: "/laeufe", text: "Läufe" },
 ];
 

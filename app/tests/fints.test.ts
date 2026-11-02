@@ -322,3 +322,83 @@ describe("Der naechtliche Lauf", () => {
       assert.match(c, new RegExp(`${v}: \\$\\{${v}:-\\}`), `${v} fehlt oder hat :?`);
   });
 });
+
+describe("Abruf von Hand und TAN-Eingabe", () => {
+  const lies = (p: string) => readFileSync(new URL(p, import.meta.url), "utf8");
+  const interaktiv = lies("../lib/fints/interaktiv.ts");
+  const tanRoute = lies("../app/api/bank/tan/route.ts");
+  const sitzungen = lies("../lib/fints/sitzungen.ts");
+
+  test("die TAN wird nicht protokolliert und nicht gespeichert", () => {
+    // Sie ist Minuten gueltig und gehoert in keine Datenbank und in kein
+    // Log. Ein versehentliches console.log waere eine TAN in der
+    // Containerausgabe.
+    for (const [name, q] of [["interaktiv", interaktiv], ["route", tanRoute]] as const) {
+      assert.doesNotMatch(q, /console\.[a-z]+\([^)]*\btan\b/i, `${name}: TAN im Log`);
+      assert.doesNotMatch(q, /INSERT[^;]*\btan\b[^;]*VALUES/i, `${name}: TAN gespeichert`);
+    }
+  });
+
+  test("ein Dialog wird nach einem Versuch verworfen", () => {
+    // Ein zweiter Versuch auf demselben Dialog zaehlt bei der Bank als
+    // weiterer Fehlversuch -- drei davon sperren den Zugang. Deshalb
+    // vergessen, BEVOR die TAN ueberhaupt geprueft wird.
+    const ab = interaktiv.indexOf("export async function loeseTanEin");
+    const vergessen = interaktiv.indexOf("vergiss(token)", ab);
+    assert.ok(vergessen > ab, "vergiss(token) fehlt in loeseTanEin");
+
+    // Vor JEDEM Einloesen, nicht nur vor dem ersten.
+    for (const ruf of ["synchronizeWithTan", "getAccountStatementsWithTan"]) {
+      const stelle = interaktiv.indexOf(ruf, ab);
+      assert.ok(stelle > 0, `${ruf} nicht gefunden`);
+      assert.ok(
+        vergessen < stelle,
+        `der Dialog muss vor ${ruf} verworfen werden -- sonst bleibt er ` +
+        "nach einer falschen TAN offen, und ein zweiter Versuch darauf " +
+        "zaehlt bei der Bank als weiterer Fehlversuch",
+      );
+    }
+  });
+
+  test("eine abgelaufene TAN-Anfrage erklaert, dass kein Fehlversuch entstand", () => {
+    // Sonst traut sich niemand, es noch einmal zu versuchen.
+    assert.match(interaktiv, /nicht als Fehlversuch/);
+  });
+
+  test("auch der Abruf von Hand haelt sich an den Zeitraum", () => {
+    // Sonst loest der erste Abruf ueber die Oberflaeche eine TAN aus und
+    // setzt letzter_abruf so, dass der naechtliche Lauf wieder eine
+    // braucht.
+    assert.match(interaktiv, /zeitraum\(z\.letzter_abruf, heute\)/);
+    assert.doesNotMatch(interaktiv, /getAccountStatements\(konto\)/);
+  });
+
+  test("nach geglueckter Erstanmeldung werden die Bankinformationen gesichert", () => {
+    // Ohne sie verlangt JEDER weitere Abruf wieder eine Synchronisation --
+    // und damit wieder eine TAN.
+    assert.match(interaktiv, /UPDATE fints_zugang SET bank_information/);
+  });
+
+  test("offene Dialoge laufen von selbst ab", () => {
+    assert.match(sitzungen, /LEBENSDAUER_MS/);
+    assert.match(sitzungen, /function aufraeumen/);
+  });
+
+  test("Mieterzugaenge kommen an die Bankseite nicht heran", () => {
+    for (const p of ["../app/api/bank/route.ts", "../app/api/bank/abruf/route.ts",
+                     "../app/api/bank/tan/route.ts"]) {
+      const q = lies(p);
+      assert.match(q, /rolle === "mieter"/, `${p}: keine Rollenpruefung`);
+      assert.match(q, /status: 403/, `${p}: kein 403`);
+    }
+  });
+
+  test("das PIN-Feld ist ein Passwortfeld ohne Autovervollstaendigung", () => {
+    const form = lies("../components/BankNeu.tsx");
+    assert.match(form, /name="pin"[^>]*type="password"/);
+    assert.match(form, /autoComplete="off"/);
+    // Und nach dem Speichern wird das Formular geleert, damit die PIN
+    // nicht im Browser stehen bleibt.
+    assert.match(form, /form\.reset\(\)/);
+  });
+});
