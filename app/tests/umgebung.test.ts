@@ -104,3 +104,36 @@ describe("Werte erreichen den Container", () => {
       );
   });
 });
+
+describe("mailabruf: nicht eingerichtet ist kein Fehlschlag", () => {
+  const quelle = readFileSync(
+    new URL("../app/api/aufgaben/mailabruf/route.ts", import.meta.url),
+    "utf8",
+  );
+
+  test("der Lauf fragt ausdrücklich, ob IMAP eingerichtet ist", () => {
+    // Nicht am Wortlaut einer Fehlermeldung erkennen -- das wird beim
+    // ersten Umformulieren still falsch.
+    assert.ok(
+      quelle.includes("imapEingerichtet()"),
+      "ohne diese Abfrage scheitert der Lauf zweimal täglich an einer " +
+        "fehlenden Einstellung und steht als 'gescheitert' im Lagebericht",
+    );
+  });
+
+  test("ohne Zugang wird ruefeAb gar nicht erst gerufen", () => {
+    const frage = quelle.indexOf("if (!imapEingerichtet())");
+    const abruf = quelle.indexOf("await ruefeAb()");
+    assert.ok(frage > 0 && abruf > 0 && frage < abruf,
+      "die Abfrage muss VOR dem Abruf stehen");
+  });
+
+  test("der Hinweis sagt, dass der Regelweg woanders läuft", () => {
+    // Sonst liest es sich wie ein Mangel, obwohl es eine Festlegung ist.
+    assert.ok(quelle.includes("Cloudflare-Worker"));
+    assert.ok(
+      quelle.includes("Fällt der still aus"),
+      "und er muss nennen, was diese zweite Leitung absichert",
+    );
+  });
+});

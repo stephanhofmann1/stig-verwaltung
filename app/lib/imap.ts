@@ -26,6 +26,23 @@ export interface AbrufErgebnis {
   neu_begonnen?: boolean;
 }
 
+/**
+ * Sind IMAP-Zugangsdaten hinterlegt?
+ *
+ * Getrennt von zugang(), weil "nicht eingerichtet" und "eingerichtet,
+ * aber kaputt" zwei verschiedene Lagen sind. Der nächtliche Lauf muss
+ * das unterscheiden können, ohne eine Fehlermeldung nach ihrem Wortlaut
+ * zu durchsuchen -- ein Kennzeichen, das an einem Meldungstext hängt,
+ * wird beim ersten Umformulieren still falsch.
+ */
+export function imapEingerichtet(): boolean {
+  return Boolean(
+    process.env.IMAP_HOST &&
+      process.env.IMAP_BENUTZER &&
+      process.env.IMAP_PASSWORT,
+  );
+}
+
 function zugang() {
   const host = process.env.IMAP_HOST;
   const benutzer = process.env.IMAP_BENUTZER;
