@@ -68,6 +68,11 @@ interface Eingabe {
   belegnummer: string;
   belegdatum: string;
   betrag_brutto: string;
+  /** Zu welchem Objekt der Beleg gehört -- ohne das keine Abrechnung. */
+  objekt_id: string;
+  kostenart: string;
+  /** "ja" | "nein" | "" -- leer heisst ungeklärt, nicht "nein". */
+  umlagefaehig: string;
 }
 
 const euro = (w: string | number) =>
@@ -100,10 +105,28 @@ function aus(d: VorschauDatei): Eingabe {
       d.erkannt?.betrag_brutto !== null && d.erkannt?.betrag_brutto !== undefined
         ? d.erkannt.betrag_brutto.toFixed(2)
         : "",
+    // Bewusst leer: Objekt und Kostenart lassen sich aus einer Rechnung
+    // nicht ablesen. Ein Vorgabewert wäre hier geraten -- und eine zu
+    // Unrecht umgelegte Position fällt erst auf, wenn ein Mieter die
+    // Abrechnung prüft.
+    objekt_id: "",
+    kostenart: "",
+    umlagefaehig: "",
   };
 }
 
-export function BelegUpload() {
+export function BelegUpload({
+  objekte,
+  kostenarten,
+}: {
+  objekte: { id: string; name: string }[];
+  kostenarten: {
+    schluessel: string;
+    text: string;
+    umlagefaehig: boolean | null;
+    hinweis?: string;
+  }[];
+}) {
   const router = useRouter();
   const [dateien, setDateien] = useState<File[]>([]);
   const [stand, setStand] = useState<"bereit" | "liest" | "schreibt">("bereit");
@@ -309,7 +332,77 @@ export function BelegUpload() {
                     />
                     {marke("betrag_brutto")}
                   </label>
+                  <label>
+                    Objekt
+                    <select
+                      value={e.objekt_id}
+                      onChange={(x) => aendere(i, "objekt_id", x.target.value)}
+                      style={feld}
+                    >
+                      <option value="">— noch offen —</option>
+                      {objekte.map((o) => (
+                        <option key={o.id} value={o.id}>{o.name}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Kostenart
+                    <select
+                      value={e.kostenart}
+                      onChange={(x) => {
+                        const k = x.target.value;
+                        aendere(i, "kostenart", k);
+                        // Vorschlag für die Umlage mitführen. Der Mensch
+                        // kann ihn ändern -- und wo das Gesetz keine
+                        // pauschale Antwort gibt, bleibt das Feld leer.
+                        const v = kostenarten.find((a) => a.schluessel === k);
+                        aendere(
+                          i,
+                          "umlagefaehig",
+                          v?.umlagefaehig === true ? "ja"
+                          : v?.umlagefaehig === false ? "nein"
+                          : "",
+                        );
+                      }}
+                      style={feld}
+                    >
+                      <option value="">— noch offen —</option>
+                      {kostenarten.map((k) => (
+                        <option key={k.schluessel} value={k.schluessel}>
+                          {k.text}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Umlagefähig
+                    <select
+                      value={e.umlagefaehig}
+                      onChange={(x) => aendere(i, "umlagefaehig", x.target.value)}
+                      style={feld}
+                    >
+                      <option value="">— ungeklärt —</option>
+                      <option value="ja">ja</option>
+                      <option value="nein">nein</option>
+                    </select>
+                  </label>
                 </div>
+
+                {(() => {
+                  const k = kostenarten.find((a) => a.schluessel === e.kostenart);
+                  return k?.hinweis ? (
+                    <p className="hinweis">{k.hinweis}</p>
+                  ) : null;
+                })()}
+                {e.kostenart !== "" && e.umlagefaehig === "" && (
+                  <p className="hinweis">
+                    Umlagefähigkeit ungeklärt — der Beleg wird gespeichert und
+                    taucht später in der Nebenkostenabrechnung weder auf der
+                    einen noch auf der anderen Seite auf, bis das entschieden
+                    ist. Umgelegt werden darf ohnehin nur, was der Mietvertrag
+                    vereinbart (§ 556 Abs. 1 BGB).
+                  </p>
+                )}
 
                 {d.vorschlag ? (
                   <p className="entwurf-notiz">

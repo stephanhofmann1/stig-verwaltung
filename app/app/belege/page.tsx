@@ -3,6 +3,7 @@ import { schlageBelegeVor, offeneBelege } from "@/lib/belegabgleich";
 import { tag } from "@/lib/formate";
 import { BelegZeile } from "@/components/BelegZeile";
 import { BelegUpload } from "@/components/BelegUpload";
+import { KOSTENARTEN } from "@/lib/kostenarten";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,11 @@ const euro = (w: number | string) =>
 export default async function Belege() {
   const vorschlaege = await schlageBelegeVor();
   const belege = await offeneBelege();
+  // Für die Zuordnung beim Hochladen: Gießen, Ludwigshafen und Mannheim
+  // werden getrennt abgerechnet.
+  const objekte = await query<{ id: string; name: string }>(
+    `SELECT id, name FROM objekt ORDER BY name`,
+  );
 
   const buchungen = await query<{
     id: string;
@@ -81,7 +87,7 @@ export default async function Belege() {
         Bei Amazon steht die Bestellnummer auch im Verwendungszweck der
         Abbuchung — solche Belege ordnen sich danach von selbst zu.
       </p>
-      <BelegUpload />
+      <BelegUpload objekte={objekte} kostenarten={KOSTENARTEN} />
 
       <div className="titelzeile" style={{ marginTop: "2.5rem" }}>
         <h1>Ausgaben ohne Beleg</h1>

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { pruefeKostenart } from "@/lib/kostenarten";
 import { angemeldeteSitzung } from "@/lib/anmeldung";
 import { one, query } from "@/lib/db";
 import { lieseBeleg } from "@/lib/belegtext";
@@ -48,6 +49,11 @@ interface Felder {
   belegnummer?: string | null;
   belegdatum?: string | null;
   betrag_brutto?: number | string | null;
+  /** Zu welchem Objekt der Beleg gehört. Ohne ihn keine Abrechnung. */
+  objekt_id?: string | null;
+  kostenart?: string | null;
+  /** "ja" | "nein" | "" -- leer heisst ungeklärt, nicht "nein". */
+  umlagefaehig?: string | null;
 }
 
 function sauberName(n: string): string {
@@ -63,7 +69,14 @@ function text(w: unknown, max: number): string | null {
 
 /** Nur was geprüft ist, geht in die Spalte. Rest bleibt leer. */
 function pruefeEingabe(f: Felder): {
-  befund: Pick<BelegBefund, "aussteller" | "belegnummer" | "belegdatum" | "betrag_brutto">;
+  befund: Pick<
+    BelegBefund,
+    "aussteller" | "belegnummer" | "belegdatum" | "betrag_brutto"
+  > & {
+    objekt_id: string | null;
+    kostenart: string | null;
+    umlagefaehig: boolean | null;
+  };
   fehler: string | null;
 } {
   const datum = text(f.belegdatum, 10);
@@ -83,12 +96,30 @@ function pruefeEingabe(f: Felder): {
     }
     betrag = z;
   }
+  // Kostenart nur aus der bekannten Liste -- nie der rohe Wert aus dem
+  // Formular. Eine erfundene Kostenart liesse sich später nicht
+  // auswerten und stünde doch in den Büchern.
+  const art = pruefeKostenart(f.kostenart);
+
+  // Leer heisst UNGEKLÄRT, nicht "nein". Eine Vorgabe, die sich im
+  // Zweifel festlegt, fällt erst auf, wenn ein Mieter die Abrechnung
+  // prüft -- und dann ist die Frist nach § 556 Abs. 3 BGB abgelaufen.
+  const umlage =
+    f.umlagefaehig === "ja" ? true
+    : f.umlagefaehig === "nein" ? false
+    : null;
+
   return {
     befund: {
       aussteller: text(f.aussteller, 120),
       belegnummer: text(f.belegnummer, 60),
       belegdatum: datum,
       betrag_brutto: betrag,
+      objekt_id: /^[0-9a-f-]{36}$/i.test(String(f.objekt_id ?? ""))
+        ? String(f.objekt_id)
+        : null,
+      kostenart: art?.schluessel ?? null,
+      umlagefaehig: umlage,
     },
     fehler: null,
   };
@@ -135,6 +166,9 @@ function leer() {
     belegnummer: null,
     belegdatum: null,
     betrag_brutto: null,
+    objekt_id: null,
+    kostenart: null,
+    umlagefaehig: null,
   };
 }
 
@@ -333,8 +367,9 @@ export async function POST(req: Request) {
 
     const [b] = await query<{ id: string }>(
       `INSERT INTO beleg (art, richtung, aussteller, belegnummer, belegdatum,
-                          betrag_brutto, dateiname, ablage_pfad, notizen)
-       VALUES ($1,'eingang',$2,$3,$4,$5,$6,$7,$8)
+                          betrag_brutto, dateiname, ablage_pfad, notizen,
+                          objekt_id, kostenart, umlagefaehig)
+       VALUES ($1,'eingang',$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
        RETURNING id`,
       [
         art,
@@ -345,6 +380,9 @@ export async function POST(req: Request) {
         name,
         pfad,
         notiz,
+        befund.objekt_id,
+        befund.kostenart,
+        befund.umlagefaehig,
       ],
     );
 
