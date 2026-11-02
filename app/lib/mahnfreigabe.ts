@@ -46,7 +46,8 @@ export class NichtFreigegeben extends Error {
   constructor() {
     super(
       "Das Mahnwesen ist für diesen Mandanten nicht freigegeben. Es wird " +
-        "kein Schreiben erzeugt. Freigabe erteilt Stephan, wenn der " +
+        "kein Schreiben erzeugt. Die Freigabe erteilt der Eigent\u00fcmer, " +
+        "wenn der " +
         "Zahlungsabgleich vollständig ist.",
     );
     this.name = "NichtFreigegeben";

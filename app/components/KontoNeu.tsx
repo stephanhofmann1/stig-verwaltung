@@ -38,7 +38,7 @@ export function KontoNeu({ objekte }: { objekte: { id: string; name: string }[] 
   return (
     <form onSubmit={absenden} style={{ maxWidth: "32rem" }}>
       <label>Bezeichnung
-        <input name="bezeichnung" required placeholder="Sparkasse Gießen" style={feld} />
+        <input name="bezeichnung" required placeholder="z. B. Hausbank Geschäftskonto" style={feld} />
         <span className="hinweis">
           Unter diesem Namen sucht der Import sein Konto. Am besten so, wie
           du das Konto selbst nennst.

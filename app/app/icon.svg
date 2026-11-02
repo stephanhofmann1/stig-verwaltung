@@ -1,9 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" role="img" aria-label="Verwaltung">
   <!-- Zwei Blöcke auf einer Grundlinie, ungleich hoch: das kleinste Bild,
-       das noch nach Gebäudebestand aussieht. Nur Flächen, keine Linien und
-       kein Verlauf -- bei 16 px verschwindet eine Haarlinie, eine Fläche
-       nicht. Einfarbig in der Akzentfarbe, damit das Zeichen im hellen und
-       im dunklen Browsertab gleich bleibt. -->
+       das noch nach Gebäudebestand aussieht. Nur Flächen, keine Linien, kein
+       Verlauf. Bei 16 px verschwindet eine Haarlinie, eine Fläche nicht.
+       Einfarbig in der Akzentfarbe, damit das Zeichen im hellen und im
+       dunklen Browsertab gleich bleibt. -->
   <rect x="3" y="15" width="11" height="14" rx="1.5" fill="#1D3FA0"/>
   <rect x="18" y="3" width="11" height="26" rx="1.5" fill="#1D3FA0"/>
 </svg>

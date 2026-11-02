@@ -314,7 +314,7 @@ export default async function Mahnwesen() {
           über die Mietaufstellungen des Voreigentümers, nicht über ein
           Schreiben an den Mieter.
           {deckung.length > 0 && (
-            <div className="hinweis">
+            <div className="hinweis" style={{ marginTop: "var(--abstand-3)" }}>
               So weit reichen die Kontodaten:{" "}
               {deckung.map(deckungssatz).join(" · ")}
             </div>
