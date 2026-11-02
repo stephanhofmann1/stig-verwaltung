@@ -2,7 +2,12 @@ import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-import { kurzeIban, pruefeBezeichnung, pruefeArt } from "../lib/konten";
+import {
+  kurzeIban,
+  pruefeBezeichnung,
+  pruefeArt,
+  pruefeDatum,
+} from "../lib/konten";
 
 /**
  * Tests der Kontoverwaltung.
@@ -186,5 +191,76 @@ describe("keine Seite faellt aus dem Repository", () => {
         "auf dem Server. In Produktion liefern sie 404, obwohl hier alles " +
         "gruen ist. Muster in .gitignore mit / am Anfang verankern.",
     );
+  });
+});
+
+describe("pruefeDatum fuer den Beginn der Kontodaten", () => {
+  test("ein gueltiges Datum geht durch", () => {
+    assert.deepEqual(pruefeDatum("2025-07-31"), { wert: "2025-07-31", fehler: null });
+  });
+
+  test("leer heisst null -- also: hier wird nie gemahnt", () => {
+    // Das ist kein Fehler, sondern die sichere Vorgabe. Augartenstrasse 91
+    // hat kein Konto und soll deshalb leer bleiben.
+    assert.deepEqual(pruefeDatum(""), { wert: null, fehler: null });
+    assert.deepEqual(pruefeDatum("   "), { wert: null, fehler: null });
+    assert.deepEqual(pruefeDatum(null), { wert: null, fehler: null });
+  });
+
+  test("ein Tag, den es nicht gibt, wird abgelehnt", () => {
+    // 2026-02-31 passt auf das Muster und ist trotzdem kein Tag. Ohne diese
+    // Pruefung kaeme der Fehler erst aus Postgres, in einer Sprache, die
+    // niemandem hilft.
+    assert.ok(pruefeDatum("2026-02-31").fehler);
+    assert.ok(pruefeDatum("2026-13-01").fehler);
+    assert.ok(pruefeDatum("2025-00-10").fehler);
+  });
+
+  test("der 29. Februar im Schaltjahr ist gueltig", () => {
+    assert.equal(pruefeDatum("2024-02-29").fehler, null);
+    assert.ok(pruefeDatum("2025-02-29").fehler);
+  });
+
+  test("falsche Schreibweisen werden abgelehnt", () => {
+    for (const p of ["31.07.2025", "2025/07/31", "2025-7-1", "gestern", "0"]) {
+      assert.ok(pruefeDatum(p).fehler, `"${p}" haette abgelehnt werden muessen`);
+    }
+  });
+
+  test("unplausible Jahre werden abgelehnt", () => {
+    assert.ok(pruefeDatum("0025-07-31").fehler);
+    assert.ok(pruefeDatum("9999-07-31").fehler);
+  });
+});
+
+describe("die Route fuer den Beginn der Kontodaten", () => {
+  const route = readFileSync(
+    new URL("../app/api/konten/zahlungsdaten/route.ts", import.meta.url),
+    "utf8",
+  );
+
+  test("nur Verwalter -- nicht Mieter, nicht Lesezugang", () => {
+    assert.ok(route.includes('sitzung.rolle === "mieter"'));
+    assert.ok(
+      route.includes('sitzung.rolle === "lesen"'),
+      "ein Lesezugang darf die Abdeckungsgrenze des Mahnwesens nicht verschieben",
+    );
+  });
+
+  test("aus_buchungen nimmt das Minimum der echten Buchungstage", () => {
+    assert.ok(
+      /min\(b\.buchungstag\)/.test(route),
+      "der Wert muss aus den Buchungen kommen, nicht aus dem Konto",
+    );
+    assert.ok(
+      /JOIN konto k ON k\.id = b\.konto_id/.test(route),
+      "gezaehlt wird ueber die Konten des Objekts",
+    );
+  });
+
+  test("ohne Buchungen wird nichts gesetzt", () => {
+    // Sonst stuende dort NULL und saehe aus wie eine Entscheidung.
+    assert.ok(route.includes("keine Buchungen vor"));
+    assert.ok(route.includes("status: 409"));
   });
 });

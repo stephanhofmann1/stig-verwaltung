@@ -63,3 +63,43 @@ export function pruefeArt(eingabe: string | null | undefined): KontoArt | null {
   const w = (eingabe ?? "").trim() || "bank";
   return (KONTO_ARTEN as readonly string[]).includes(w) ? (w as KontoArt) : null;
 }
+
+/**
+ * Prueft ein Datum fuer `objekt.zahlungsdaten_ab`.
+ *
+ * Diese Spalte ist die Abdeckungsgrenze des Mahnwesens: Monate davor
+ * gelten als "nicht abgeglichen" und werden nie gemahnt, Monate danach
+ * als geprueft. Steht sie zu FRUEH, erscheinen Monate ohne Kontodaten als
+ * Rueckstand -- bei Welserstrasse 10 waeren das acht Monate zu je acht
+ * Mietverhaeltnissen. Steht sie zu spaet, bleiben echte Rueckstaende
+ * unbemerkt.
+ *
+ * Sie gehoert deshalb auf den ersten Buchungstag, der wirklich in der
+ * Datenbank liegt -- nicht auf das Eroeffnungsdatum des Kontos.
+ */
+export function pruefeDatum(eingabe: string | null | undefined): {
+  wert: string | null;
+  fehler: string | null;
+} {
+  const w = (eingabe ?? "").trim();
+  if (w === "") return { wert: null, fehler: null }; // leer = nie mahnen
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(w)) {
+    return { wert: null, fehler: "Datum bitte als JJJJ-MM-TT." };
+  }
+  // Nicht nur das Muster pruefen: 2026-02-31 passt zum Muster und ist
+  // trotzdem kein Tag. Postgres wuerde es ablehnen, aber mit einer
+  // Meldung, die niemandem hilft.
+  const [j, m, t] = w.split("-").map(Number);
+  const d = new Date(Date.UTC(j, m - 1, t));
+  if (
+    d.getUTCFullYear() !== j ||
+    d.getUTCMonth() !== m - 1 ||
+    d.getUTCDate() !== t
+  ) {
+    return { wert: null, fehler: `Den ${w} gibt es nicht.` };
+  }
+  if (j < 1990 || j > 2100) {
+    return { wert: null, fehler: "Das Jahr sieht nicht plausibel aus." };
+  }
+  return { wert: w, fehler: null };
+}

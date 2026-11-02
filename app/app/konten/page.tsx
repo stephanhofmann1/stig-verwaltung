@@ -1,6 +1,7 @@
 import { query } from "@/lib/db";
 import { KontoNeu } from "@/components/KontoNeu";
 import { AuszugUpload } from "@/components/AuszugUpload";
+import { KontodatenBeginn, type ObjektZeile } from "@/components/KontodatenBeginn";
 
 export const dynamic = "force-dynamic";
 
@@ -54,9 +55,16 @@ export default async function Konten() {
        GROUP BY k.id, k.bezeichnung, k.art, k.iban_kurz, k.notizen, o.name
        ORDER BY k.bezeichnung
     `),
-    query<{ id: string; name: string }>(
-      `SELECT id, name FROM objekt ORDER BY name`,
-    ),
+    query<ObjektZeile & { id: string; name: string }>(`
+      SELECT o.id, o.name, o.zahlungsdaten_ab::text,
+             min(b.buchungstag)::text AS erste_buchung,
+             count(b.id)::text        AS buchungen
+        FROM objekt o
+        LEFT JOIN konto k   ON k.objekt_id = o.id
+        LEFT JOIN buchung b ON b.konto_id  = k.id
+       GROUP BY o.id, o.name, o.zahlungsdaten_ab
+       ORDER BY o.name
+    `),
   ]);
 
   const namen = konten.map((k) => k.bezeichnung);
@@ -113,6 +121,16 @@ export default async function Konten() {
       <p style={{ marginTop: "1rem" }}>
         <KontoNeu objekte={objekte} />
       </p>
+
+      <h1 style={{ marginTop: "2.5rem" }}>Beginn der Kontodaten</h1>
+      <p className="hinweis">
+        Ab diesem Tag gilt ein Monat als abgeglichen. Monate davor werden
+        nie gemahnt — für sie liegen keine Kontodaten vor. Der Wert gehört
+        auf die erste Buchung, die wirklich in der Datenbank liegt, nicht
+        auf das Eröffnungsdatum des Kontos: Sonst sehen Monate ohne Daten
+        wie Rückstände aus.
+      </p>
+      <KontodatenBeginn objekte={objekte} />
 
       <h1 style={{ marginTop: "2.5rem" }}>Kontoauszug einlesen</h1>
       <p className="hinweis">
