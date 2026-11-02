@@ -1,7 +1,11 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 
-import { normalisiereBetreff, parseMessageIds } from "../lib/einordnung";
+import {
+  normalisiereBetreff,
+  parseMessageIds,
+  SCHLUESSELWOERTER,
+} from "../lib/einordnung";
 import { zielmonat, vergleichbar } from "../lib/zuordnung";
 import {
   monatsbetrag,
@@ -502,5 +506,79 @@ describe("Miete je Monat aus der Anpassungshistorie", () => {
     const r = betragImMonat(monat(2026, 9), a, vertrag);
     assert.equal(r.gesamt, 944);
     assert.equal(r.posten, 944);
+  });
+});
+
+/**
+ * Einordnung: "Bescheid geben" ist keine Behoerdenpost.
+ *
+ * Am 03.11.2026 schrieb ein Messdienstleister "Geben Sie mir dazu noch
+ * Bescheid." Das Stichwort "bescheid" war fuer den Behoerdenbescheid
+ * gedacht und traf die alltaeglichste Wendung der deutschen
+ * Geschaeftssprache. Der Vorgang wurde als Behoerdenpost gefuehrt und
+ * heikel markiert -- und damit schreibt der Agent dort nie wieder einen
+ * Entwurf.
+ *
+ * Der Schaden eines solchen Fehlers ist still: Die Automatik hoert auf
+ * zu arbeiten, und niemand erfaehrt warum. Genau deshalb steht er hier.
+ */
+describe("Stichwort behoerde", () => {
+  const behoerde = SCHLUESSELWOERTER.find((m) => m.kategorie === "behoerde");
+
+  function trifft(text: string): boolean {
+    assert.ok(behoerde, "Kategorie behoerde muss es geben");
+    return behoerde!.muster.test(text);
+  }
+
+  const redewendung = [
+    "Geben Sie mir dazu noch Bescheid.",
+    "Bitte geben Sie mir Bescheid, sobald es da ist.",
+    "Sagen Sie mir Bescheid wenn es passt",
+    "Ich gebe Ihnen Bescheid",
+    "Sie wissen Bescheid",
+    "Wir melden uns und geben Bescheid",
+  ];
+  for (const t of redewendung) {
+    test(`keine Behoerde: ${JSON.stringify(t)}`, () => {
+      assert.equal(trifft(t), false);
+    });
+  }
+
+  /**
+   * Die Gegenprobe ist genauso wichtig: Wer die Redewendung ausnimmt,
+   * darf nicht den echten Bescheid mit ausnehmen. Eine Behoerdenfrist
+   * zu uebersehen waere der teurere Fehler.
+   */
+  const echterBescheid = [
+    "Anbei der Bescheid des Finanzamts",
+    "Der Bescheid vom 12.03. ist anzufechten",
+    "Bescheid ueber die Grundsteuer",
+    "Wir haben den Bescheid erhalten",
+    "Der beiliegende Bescheid",
+    "Bescheid der Stadt Giessen",
+    "Ladung zum Termin",
+    "Schreiben vom Amtsgericht",
+  ];
+  for (const t of echterBescheid) {
+    test(`Behoerde: ${JSON.stringify(t)}`, () => {
+      assert.equal(trifft(t), true);
+    });
+  }
+
+  test("ohne Stichwort keine Behoerde", () => {
+    assert.equal(trifft("Harmlose Mail ohne Stichwort"), false);
+  });
+
+  /**
+   * Der Satz aus der echten Mail, woertlich. Wenn jemand das Muster
+   * spaeter anfasst, faellt genau dieser Fall wieder auf.
+   */
+  test("die Mail, die den Fehler aufgedeckt hat", () => {
+    const text =
+      "AW: Rueckfragen vor Weitergabe - Abrechnung 2025\n" +
+      "Der Heizverbrauch wurde nun geschaetzt und eine Geraetepruefung " +
+      "veranlasst. Geben Sie mir dazu noch Bescheid. Anschliessend " +
+      "erhalten Sie die Korrektur und die Rechnung.";
+    assert.equal(trifft(text), false);
   });
 });

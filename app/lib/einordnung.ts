@@ -23,7 +23,7 @@ export function parseMessageIds(roh: string | null | undefined): string[] {
   return (roh.match(/<[^<>\s]+>/g) ?? []).map((s) => s.trim());
 }
 
-const SCHLUESSELWOERTER: Array<{ kategorie: Kategorie; muster: RegExp }> = [
+export const SCHLUESSELWOERTER: Array<{ kategorie: Kategorie; muster: RegExp }> = [
   {
     kategorie: "mahnwesen",
     muster:
@@ -31,8 +31,20 @@ const SCHLUESSELWOERTER: Array<{ kategorie: Kategorie; muster: RegExp }> = [
   },
   {
     kategorie: "behoerde",
+    // "bescheid" meint den Behoerdenbescheid -- traf aber "Bescheid geben",
+    // die alltaeglichste Wendung der deutschen Geschaeftssprache. Am
+    // 03.11.2026 landete so eine Mail des Messdienstleisters als
+    // Behoerdenpost in der Akte, wurde heikel markiert, und der Agent
+    // durfte dort keinen Entwurf mehr schreiben. Der Schaden ist still:
+    // die Automatik hoert auf zu arbeiten, ohne dass jemand erfaehrt warum.
+    // Der tragfaehige Unterschied ist nicht die Verbform -- im Deutschen
+    // steht das Verb davor ("Geben Sie mir Bescheid") -- sondern die
+    // Begleitung: Ein Behoerdenbescheid traegt einen Artikel oder eine
+    // Praeposition ("der Bescheid", "Bescheid des Finanzamts"), die
+    // Redewendung nie. Faellt ein echter Bescheid dadurch einmal durch,
+    // greifen meist die uebrigen Stichwoerter derselben Zeile.
     muster:
-      /\b(finanzamt|bauamt|ordnungsamt|bürgerbüro|buergerbuero|gewerbeamt|stadt gießen|stadt giessen|amtsgericht|bescheid|ladung)/i,
+      /\b(finanzamt|bauamt|ordnungsamt|bürgerbüro|buergerbuero|gewerbeamt|stadt gießen|stadt giessen|amtsgericht|(?:(?:der|die|den|dem|des|ein|einen|einem|eines|ihr|ihre|ihren|ihrem|unser|unseren|unserem|beiliegende[nrs]?|anliegende[nrs]?)\s+bescheid|bescheid\s+(?:des|der|vom|von|über|ueber|gemäß|gemaess|nach|zur|zum|betreffend))|ladung)/i,
   },
   {
     kategorie: "rechnung",
