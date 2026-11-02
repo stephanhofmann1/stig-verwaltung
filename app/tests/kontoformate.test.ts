@@ -231,6 +231,40 @@ describe("Volksbank-CSV", () => {
       l.warnungen.some((w) => /gek(ue|ü)rzt|kuerzt|kürzt/.test(w)),
       "bei 200 Umsaetzen muss vor der Kuerzung gewarnt werden",
     );
+    // Dasselbe als Kennzeichen, nicht nur als Satz: Es wird in
+    // auszug_import gespeichert und spaeter ausgewertet. Ein Kennzeichen,
+    // das man aus dem Wortlaut einer Meldung zurueckliest, wird beim
+    // ersten Umformulieren still falsch.
+    assert.equal(
+      l.abgeschnitten,
+      true,
+      "die Warnung ist da, aber das Kennzeichen nicht -- dann steht im " +
+        "Importprotokoll spaeter, der Auszug sei vollstaendig gewesen",
+    );
+  });
+
+  test("Warnung und Kennzeichen sagen immer dasselbe", () => {
+    // Beide Richtungen, ueber eine Reihe von Groessen: Das Kennzeichen
+    // darf nicht ohne Warnung gesetzt sein und die Warnung nicht ohne
+    // Kennzeichen erscheinen.
+    for (const anzahl of [1, 50, 199, 200, 201]) {
+      const zeilen = [VB_KOPF];
+      let saldo = 100000;
+      for (let n = 0; n < anzahl; n++) {
+        zeilen.push(
+          vbZeile("15.09.2026", `Zahler${n}`, "10,00",
+                  saldo.toFixed(2).replace(".", ",")));
+        saldo -= 10;
+      }
+      const l = liesKontoauszug(utf8(zeilen.join("\r\n")));
+      const gewarnt = l.warnungen.some((w) =>
+        /gek(ue|ü)rzt|kuerzt|kürzt/.test(w));
+      assert.equal(
+        l.abgeschnitten, gewarnt,
+        `bei ${anzahl} Umsaetzen stimmen Warnung (${gewarnt}) und ` +
+          `Kennzeichen (${l.abgeschnitten}) nicht ueberein`,
+      );
+    }
   });
 
   test("199 Umsaetze loesen sie nicht aus", () => {

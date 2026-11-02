@@ -49,6 +49,15 @@ export interface Lesung {
    * behandelt. Jede Warnung hier kann einen Mieter zum Säumigen machen.
    */
   warnungen: string[];
+  /**
+   * Der Export war vermutlich bei einer festen Zahl Umsaetze
+   * abgeschnitten. Das steht als eigenes Feld da und nicht nur als Satz
+   * in `warnungen`: Es wird in der Datenbank festgehalten und spaeter
+   * ausgewertet, und ein Kennzeichen, das aus dem Wortlaut einer Meldung
+   * zurueckgelesen werden muss, wird beim ersten Umformulieren still
+   * falsch.
+   */
+  abgeschnitten: boolean;
 }
 
 /**
@@ -195,6 +204,7 @@ function liesSparkasse(text: string): Lesung {
       buchungen: [],
       uebersprungen: [],
       warnungen,
+      abgeschnitten: false,
     };
   }
   if (iInfo < 0) {
@@ -274,6 +284,7 @@ function liesSparkasse(text: string): Lesung {
     buchungen: nummeriere(rohe),
     uebersprungen,
     warnungen,
+    abgeschnitten: false,
   };
 }
 
@@ -320,6 +331,7 @@ function liesIng(text: string): Lesung {
       buchungen: [],
       uebersprungen: [],
       warnungen,
+      abgeschnitten: false,
     };
   }
 
@@ -374,6 +386,7 @@ function liesIng(text: string): Lesung {
     buchungen: nummeriere(rohe),
     uebersprungen,
     warnungen,
+    abgeschnitten: false,
   };
 }
 
@@ -451,7 +464,9 @@ function liesVolksbankCsv(text: string): Lesung {
   // Die 200er-Grenze. Sie steht nirgends in der Datei; die einzige Spur ist
   // die Zeilenzahl. Genau 200 (oder 205, je nach Zählung der Kopfzeilen) ist
   // deshalb immer verdächtig -- auch wenn es Zufall sein kann.
+  let abgeschnitten = false;
   if (rohe.length >= VOLKSBANK_GRENZE) {
+    abgeschnitten = true;
     warnungen.push(
       `${rohe.length} Umsätze — die Volksbank kürzt CSV-Exporte ` +
         `stillschweigend bei ${VOLKSBANK_GRENZE} Umsätzen, unabhängig vom ` +
@@ -472,6 +487,7 @@ function liesVolksbankCsv(text: string): Lesung {
     buchungen: nummeriere(rohe),
     uebersprungen,
     warnungen,
+    abgeschnitten,
   };
 }
 
@@ -593,6 +609,7 @@ function liesVolksbankPdf(text: string): Lesung {
     buchungen: nummeriere(rohe),
     uebersprungen,
     warnungen,
+    abgeschnitten: false,
   };
 }
 

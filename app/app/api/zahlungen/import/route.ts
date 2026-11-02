@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { leseCsv } from "@/lib/kontoimport";
 import { liesKontoauszug, UnbekanntesFormat } from "@/lib/kontoformate";
-import { tx, one } from "@/lib/db";
+import { tx, one, query } from "@/lib/db";
 import { uebernehmeSichere } from "@/lib/zuordnung";
 
 export const dynamic = "force-dynamic";
@@ -30,12 +30,14 @@ export async function POST(req: Request) {
   // Vorschau statt Schreiben. Standard ist schreiben -- wer das Flag nicht
   // kennt, bekommt das alte Verhalten.
   let nurPruefen = false;
+  let dateiname: string | null = null;
 
   if (typ.includes("multipart/form-data") || typ.includes("form-urlencoded")) {
     const form = await req.formData();
     const datei = form.get("datei");
     if (datei instanceof File) {
       rohe = Buffer.from(await datei.arrayBuffer());
+      dateiname = datei.name || null;
     } else if (typeof datei === "string") {
       rohe = Buffer.from(datei, "utf8");
     } else {
@@ -74,6 +76,7 @@ export async function POST(req: Request) {
   let format = "unbekannt";
   let kodierung = "?";
   let zeitraum: { von: string; bis: string } | null = null;
+  let abgeschnitten = false;
   let buchungen;
   let uebersprungen: unknown;
   const warnungen: string[] = [];
@@ -85,6 +88,7 @@ export async function POST(req: Request) {
     zeitraum = l.zeitraum;
     buchungen = l.buchungen;
     uebersprungen = l.uebersprungen;
+    abgeschnitten = l.abgeschnitten;
     warnungen.push(...l.warnungen);
   } catch (e) {
     if (!(e instanceof UnbekanntesFormat)) throw e;
@@ -148,6 +152,31 @@ export async function POST(req: Request) {
       );
       if (r.rowCount && r.rowCount > 0) neu++; else bekannt++;
     }
+  });
+
+  // --- Importprotokoll ----------------------------------------------------
+  //
+  // Die Warnungen gab es bisher nur einmal, in der Antwort auf diesen
+  // Aufruf. Wer sie wegklickt, konnte sie nicht wiederfinden -- und bei
+  // einem abgeschnittenen Volksbank-Export entscheidet genau diese
+  // Warnung darüber, ob die Buchhaltung vollständig ist. Sie gehört
+  // deshalb in die Datenbank, im Wortlaut.
+  //
+  // Der Eintrag darf den Import nicht scheitern lassen: Die Buchungen
+  // sind an dieser Stelle schon geschrieben, und ein fehlendes Protokoll
+  // ist das kleinere Übel als ein Fehler, der wie ein fehlgeschlagener
+  // Import aussieht.
+  await query(
+    `INSERT INTO auszug_import
+       (konto_id, dateiname, format, kodierung, zeitraum_von, zeitraum_bis,
+        gelesen, neu, bereits_bekannt, warnungen, abgeschnitten, geraten)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+    [konto.id, dateiname, format, kodierung,
+     zeitraum?.von ?? null, zeitraum?.bis ?? null,
+     buchungen.length, neu, bekannt, warnungen,
+     abgeschnitten, format === "unbekannt"],
+  ).catch((e) => {
+    console.error("[import] Protokolleintrag fehlgeschlagen:", (e as Error).message);
   });
 
   const zuordnung = await uebernehmeSichere();
