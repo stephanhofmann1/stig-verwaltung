@@ -1030,6 +1030,15 @@ input[type="file"] {
   outline-offset: 2px;
 }
 
+/* Steht ein Verweis in einer Knopfreihe, ist er ein Bedienelement und
+   braucht am Telefon dasselbe Tippziel wie ein Knopf daneben. */
+@media (max-width: 40rem) {
+  .knopfreihe .verweis {
+    min-height: 2.75rem;
+    padding-inline: var(--abstand-4);
+  }
+}
+
 /* Eine Zeile ohne Ziel darf nicht aufleuchten.
    .posten:hover verspricht Klickbarkeit; 18 von 20 Vorkommen waren divs
    ohne Ziel. Die Oberfläche hat an 18 Stellen etwas versprochen, das sie
