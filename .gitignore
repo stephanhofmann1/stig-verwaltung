@@ -27,5 +27,14 @@ import/*.csv
 # darin, das war schon beim Erheben bewusst ausgelassen worden.
 import/befund-*.md
 doku/kontoauszuege-befund.md
-konten/
+# Mit Schrägstrich am Anfang: NUR der Ordner "konten" direkt im
+# Projektverzeichnis, in dem heruntergeladene Kontoauszuege liegen.
+#
+# Vorher stand hier "konten/" ohne Schraegstrich. Das trifft jeden Ordner
+# dieses Namens in jeder Tiefe -- und damit auch app/app/konten/ und
+# app/app/api/konten/, also die Seite zur Kontoverwaltung. Die waere
+# stillschweigend nicht im Repository gelandet: Tests gruen, Auslieferung
+# gruen, und in Produktion ein toter Menuepunkt mit 404. Gefunden am
+# 02.11.2026 beim Anlegen genau dieser Seite.
+/konten/
 *.tgz

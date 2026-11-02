@@ -27,6 +27,9 @@ export async function POST(req: Request) {
   const typ = req.headers.get("content-type") ?? "";
   let rohe: Buffer;
   let kontoBezeichnung: string;
+  // Vorschau statt Schreiben. Standard ist schreiben -- wer das Flag nicht
+  // kennt, bekommt das alte Verhalten.
+  let nurPruefen = false;
 
   if (typ.includes("multipart/form-data") || typ.includes("form-urlencoded")) {
     const form = await req.formData();
@@ -39,15 +42,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ fehler: "Keine Datei erhalten" }, { status: 400 });
     }
     kontoBezeichnung = String(form.get("konto") ?? "").trim();
+    nurPruefen = String(form.get("pruefen") ?? "") === "1";
   } else {
     const body = (await req.json().catch(() => null)) as
-      | { csv?: string; konto?: string }
+      | { csv?: string; konto?: string; pruefen?: boolean }
       | null;
     if (!body) {
       return NextResponse.json({ fehler: "Koerper nicht lesbar" }, { status: 400 });
     }
     rohe = Buffer.from(body.csv ?? "", "utf8");
     kontoBezeichnung = (body.konto ?? "").trim();
+    nurPruefen = body.pruefen === true;
   }
 
   if (!kontoBezeichnung) {
@@ -95,6 +100,36 @@ export async function POST(req: Request) {
         "nachsehen, bevor darauf gemahnt wird. Erkannt wurde: " +
         JSON.stringify(g.erkannteSpalten),
     );
+  }
+
+  // --- Vorschau ------------------------------------------------------------
+  //
+  // Ein Kontoauszug entscheidet spaeter darueber, wer eine Mahnung bekommt.
+  // Deshalb gibt es den Weg, ihn zu lesen, ohne ihn zu schreiben: erst
+  // ansehen, was erkannt wurde, dann uebernehmen. Hier wird nichts
+  // veraendert -- kein INSERT, keine Zuordnung.
+  if (nurPruefen) {
+    return NextResponse.json({
+      vorschau: true,
+      format,
+      kodierung,
+      zeitraum,
+      gelesen: buchungen.length,
+      uebersprungen,
+      warnungen,
+      // Ein paar echte Zeilen zum Nachsehen. Die Warnung im Rueckfall-Fall
+      // sagt "Betraege und Buchungstage bitte an ein paar Zeilen
+      // nachsehen" -- dann muessen die Zeilen auch sichtbar sein.
+      proben: buchungen.slice(0, 8).map((b) => ({
+        buchungstag: b.buchungstag,
+        betrag: b.betrag,
+        absender: b.absender,
+        verwendungszweck: (b.verwendungszweck ?? "").slice(0, 80),
+      })),
+      summe: buchungen
+        .reduce((s, b) => s + Number(b.betrag), 0)
+        .toFixed(2),
+    });
   }
 
   let neu = 0;
