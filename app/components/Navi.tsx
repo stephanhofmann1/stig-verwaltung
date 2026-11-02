@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 
 const PUNKTE = [
   { href: "/", text: "Freigabe" },
+  { href: "/mietenbuch", text: "Mietenbuch" },
   { href: "/vorgaenge", text: "Vorgänge" },
   { href: "/zahlungen", text: "Zahlungen" },
   { href: "/belege", text: "Belege" },

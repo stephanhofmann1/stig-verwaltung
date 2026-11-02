@@ -1,4 +1,4 @@
-import { query, one, tx, mandantWert } from "./db";
+import { query, one, tx } from "./db";
 import { verlangeFreigabe, freigabe, type Freigabe } from "./mahnfreigabe";
 import type { Rueckstand, Stufe } from "./mahnstufen";
 import type { Rolle } from "./sitzung";
@@ -396,7 +396,7 @@ export const ZAHLUNGSZIEL: Record<"erinnerung" | "mahnung", number> = {
 };
 
 export interface Schreiben {
-  betreff: string
+  betreff: string;
   koerper: string;
   /** Bis wann gezahlt werden soll. */
   zahlbarBis: string;
@@ -603,13 +603,16 @@ export async function erteileFreigabe(opts: {
   const schon = await freigabe();
   if (schon) return schon;
 
-  const mandant = await mandantWert();
   return tx(async (c) => {
+    // Ohne mandant_id: Die Spalte hat DEFAULT aktueller_mandant() (db/024),
+    // und der Mandant der Transaktion kommt aus der Sitzung. Ihn hier von
+    // Hand zu setzen wäre die einzige Stelle, an der sich ein falscher
+    // Mandant einschleichen könnte.
     const r = await c.query<Freigabe>(
-      `INSERT INTO mahnwesen_freigabe (mandant_id, freigegeben_von, notiz)
-       VALUES ($1, $2, $3)
+      `INSERT INTO mahnwesen_freigabe (freigegeben_von, notiz)
+       VALUES ($1, $2)
        RETURNING freigegeben_am::text, freigegeben_von, notiz`,
-      [mandant, opts.wer, g.grund],
+      [opts.wer, g.grund],
     );
     // Ohne Vorgang: Die Freigabe gehört zu keinem Mietverhältnis. protokoll
     // erlaubt vorgang_id NULL (db/001), und damit ist auch diese

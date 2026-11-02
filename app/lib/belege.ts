@@ -247,6 +247,19 @@ const ETIKETTEN: Etikett[] = [
  */
 const UMDEUTUNG = /netto|ohne|rabatt|skonto|abzug|discount/i;
 
+/**
+ * Ein Steuersatz ist kein Betrag.
+ *
+ * "Gesamtbetrag inkl. 19 % MwSt: 119,00 EUR" -- die erste Zahl hinter dem
+ * Etikett ist hier die 19. Sie stand im Weg, bevor es diese Zeile gab, und
+ * zwar mit dem schlimmstmöglichen Ergebnis: einem plausiblen, viel zu
+ * kleinen Betrag. Prozentangaben werden deshalb aus dem Fenster
+ * genommen, bevor darin nach der Zahl gesucht wird.
+ */
+function ohneProzente(fenster: string): string {
+  return fenster.replace(/\d{1,3}(?:[.,]\d{1,2})?\s*%/g, " ");
+}
+
 const ZAHL_AM_ANFANG =
   /^(?:\d{1,3}(?:[   ]\d{3})+(?:[.,]\d{2})?|\d[\d.,]*\d|\d)/;
 
@@ -266,7 +279,9 @@ export function findeBetrag(text: string): number | null {
     const muster = new RegExp(e.muster.source, e.muster.flags);
     for (const t of text.matchAll(muster)) {
       const stelle = t.index ?? 0;
-      const rest = text.slice(stelle + t[0].length, stelle + t[0].length + 56);
+      const rest = ohneProzente(
+        text.slice(stelle + t[0].length, stelle + t[0].length + 64),
+      );
       // Kein Minuszeichen in der Lücke: ein negativer Betrag ist eine
       // Gutschrift und gehört nicht als Bruttobetrag in den Beleg.
       const luecke = rest.match(/^[^\d\n\-]{0,40}/);

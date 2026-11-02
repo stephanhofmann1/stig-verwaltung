@@ -4,19 +4,19 @@ import { CockpitKarte } from "@/components/CockpitKarte";
 /**
  * Zustand der Automatik.
  *
- * Der Grund, warum das aufs Cockpit gehoert und nicht nur unter /laeufe:
- * Ein Lauf, der seit drei Wochen an einem abgelaufenen Token scheitert,
- * verhaelt sich nach aussen genauso wie einer, der nichts zu tun hatte --
- * beide schweigen. Auffallen wuerde es erst, wenn sich ein Mieter beschwert,
- * dass niemand auf seine Mail geantwortet hat.
+ * Der Grund, warum das aufs Cockpit gehoert und nicht nur unter /laeufe: Ein
+ * Lauf, der seit drei Wochen an einem abgelaufenen Token scheitert, verhaelt
+ * sich nach aussen genauso wie einer, der nichts zu tun hatte -- beide
+ * schweigen. Auffallen wuerde es erst, wenn sich ein Mieter beschwert, dass
+ * niemand auf seine Mail geantwortet hat.
  *
- * Zwei Zustaende sind besonders hinterhaeltig und stehen deshalb ausdruecklich
- * da:
+ * Zwei Zustaende sind besonders hinterhaeltig und stehen deshalb
+ * ausdruecklich da:
  *
- *   "steht"      Der letzte Lauf meldet ok, ist aber von vorgestern. Dann
- *                sind auch alle anderen Zahlen dieser Seite von vorgestern.
- *   Serie        Mehrere Fehllaeufe hintereinander. Ein einmaliger Umfaller
- *                ist kein Grund, etwas zu tun; eine Serie schon.
+ *   "steht"   Der letzte Lauf meldet ok, ist aber von vorgestern. Dann sind
+ *             auch alle anderen Zahlen dieser Seite von vorgestern.
+ *   Serie     Mehrere Fehllaeufe hintereinander. Ein einmaliger Umfaller ist
+ *             kein Grund, etwas zu tun; eine Serie schon.
  */
 
 const WORTE: Record<LaufLage, string> = {
@@ -25,6 +25,14 @@ const WORTE: Record<LaufLage, string> = {
   gescheitert: "gescheitert",
   hinweise: "mit Hinweis",
   ok: "ok",
+};
+
+const PUNKT: Record<LaufLage, string> = {
+  nie: "fehl",
+  steht: "fehl",
+  gescheitert: "fehl",
+  hinweise: "warn",
+  ok: "gut",
 };
 
 const zeitpunkt = (iso: string) =>
@@ -65,10 +73,8 @@ export function CockpitAutomatik({
       mehrText="Läufe im Verlauf"
     >
       {dauerhaft.length > 0 && (
-        <p className="hinweis">
-          <span className="marker" data-art="heikel">
-            dauerhaft
-          </span>{" "}
+        <div className="meldung" data-art="fehler">
+          <strong>Das scheitert nicht einmal, das scheitert dauerhaft</strong>
           {dauerhaft
             .map((p) =>
               p.lage === "nie"
@@ -76,8 +82,8 @@ export function CockpitAutomatik({
                 : `${p.name} scheitert ${p.serie} Läufe hintereinander`,
             )
             .join("; ")}
-          . Das ist kein Umfaller, sondern ein Zustand.
-        </p>
+          .
+        </div>
       )}
 
       <div className="register">
@@ -90,13 +96,17 @@ export function CockpitAutomatik({
               key={p.name}
               data-heikel={scharf ? "ja" : "nein"}
             >
-              <span className="nummer">{scharf ? "!" : p.lage === "ok" ? "ok" : "·"}</span>
+              {/* Nur Farbe, kein Inhalt: Das Wort steht als Schild in der
+                  Unterzeile und wird vorgelesen. */}
+              <span className="nummer" aria-hidden="true">
+                <span className="punkt" data-art={PUNKT[p.lage]} />
+              </span>
               <span className="betreff">{p.name}</span>
-              <span className="zeit ziffern">
+              <span className="zeit">
                 {p.begonnen_am ? zeitpunkt(p.begonnen_am) : "nie"}
               </span>
               <span className="unterzeile">
-                <span className="marker" data-art={scharf ? "heikel" : undefined}>
+                <span className="marker" data-art={PUNKT[p.lage]}>
                   {WORTE[p.lage]}
                 </span>
                 {p.serie > 1 && <span>{p.serie} Fehlläufe in Folge</span>}
@@ -109,34 +119,37 @@ export function CockpitAutomatik({
 
       {/* Zwei Fragen, nicht eine: gelaufen und verschickt. Ein Lauf, der ok
           meldet und nichts verschickt hat, ist der stille Fall -- der
-          Zeitplaner ist gruen, auf dem Telefon kommt nichts an. */}
-      <p className="hinweis" style={{ marginTop: "1rem" }}>
-        <strong>Lagebericht heute:</strong>{" "}
-        {!lagebericht.gelaufen ? (
-          <>
-            noch nicht gelaufen. Steht er abends noch so da, kam heute keine
-            Meldung — und das Ausbleiben einer Meldung sieht aus wie „alles
-            ruhig“.
-          </>
-        ) : lagebericht.versendet ? (
-          <>
-            verschickt
-            {lagebericht.begonnen_am
-              ? ` um ${zeitpunkt(lagebericht.begonnen_am)}`
-              : ""}
-            .
-          </>
-        ) : (
-          <>
-            gelaufen
-            {lagebericht.begonnen_am
-              ? ` um ${zeitpunkt(lagebericht.begonnen_am)}`
-              : ""}
-            , aber <strong>nicht verschickt</strong>. Der Lauf meldet sich,
-            die Nachricht nicht.
-          </>
-        )}
-      </p>
+          Zeitplaner ist grün, auf dem Telefon kommt nichts an. */}
+      {lagebericht.versendet ? (
+        <p className="hinweis">
+          <strong>Lagebericht heute:</strong> verschickt
+          {lagebericht.begonnen_am
+            ? ` um ${zeitpunkt(lagebericht.begonnen_am)}`
+            : ""}
+          .
+        </p>
+      ) : (
+        <div className="meldung" data-art="warnung">
+          <strong>
+            Lagebericht heute:{" "}
+            {lagebericht.gelaufen ? "nicht verschickt" : "noch nicht gelaufen"}
+          </strong>
+          {lagebericht.gelaufen ? (
+            <>
+              Der Lauf hat sich gemeldet
+              {lagebericht.begonnen_am
+                ? ` (${zeitpunkt(lagebericht.begonnen_am)})`
+                : ""}
+              , die Nachricht nicht. Auf dem Telefon kommt heute nichts an.
+            </>
+          ) : (
+            <>
+              Steht das abends noch so da, kam heute keine Meldung — und das
+              Ausbleiben einer Meldung sieht aus wie „alles ruhig“.
+            </>
+          )}
+        </div>
+      )}
     </CockpitKarte>
   );
 }

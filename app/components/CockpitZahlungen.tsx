@@ -3,10 +3,10 @@ import { CockpitKarte, Kennzahlen, euroGenau } from "@/components/CockpitKarte";
 /**
  * Unzugeordnete Zahlungseingaenge.
  *
- * Die unscheinbarste Karte und die mit der groessten Hebelwirkung: Ein
- * Eingang ohne Zuordnung ist genau der Fall, in dem das Geld da ist und die
- * Verwaltung es nicht sieht. Die Miete gilt dann als offen, der Mieter als
- * saeumig -- und am Ende geht ein Schreiben an jemanden, der gezahlt hat.
+ * Die unscheinbarste Karte mit der groessten Hebelwirkung: Ein Eingang ohne
+ * Zuordnung ist genau der Fall, in dem das Geld da ist und die Verwaltung es
+ * nicht sieht. Die Miete gilt dann als offen, der Mieter als saeumig -- und
+ * am Ende geht ein Schreiben an jemanden, der gezahlt hat.
  *
  * Deshalb steht hier die Anzahl und nicht nur die Summe: Hundert Euro auf
  * einem Eingang sind eine Kleinigkeit, hundert Eingaenge sind der Grund,
@@ -22,7 +22,7 @@ export function CockpitZahlungen({
   return (
     <CockpitKarte
       titel="Unzugeordnete Zahlungseingänge"
-      zaehler={anzahl === 0 ? "keine" : `${anzahl}`}
+      zaehler={anzahl === 0 ? "keine" : String(anzahl)}
       hinweis={
         anzahl === 0 ? (
           <>
@@ -41,7 +41,11 @@ export function CockpitZahlungen({
     >
       <Kennzahlen
         posten={[
-          { begriff: "Eingänge", wert: String(anzahl) },
+          {
+            begriff: "Eingänge",
+            wert: String(anzahl),
+            art: anzahl > 0 ? "warn" : "gut",
+          },
           {
             begriff: "noch nicht zugeordnet",
             wert: euroGenau(summe),

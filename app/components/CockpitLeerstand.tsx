@@ -15,9 +15,9 @@ import { CockpitKarte, Kennzahlen, datum } from "@/components/CockpitKarte";
  *      die Gewerbeflaeche (vermarktung = 'nicht_anbieten') und die
  *      WG-Etagen selbst (sie haben Zimmer unter sich) sind nicht dabei --
  *      die Zahl ist also kleiner als die Zahl aller Einheiten.
- *   2. Aus fehlenden Daten entsteht nie "frei". Eine Einheit ohne
- *      gepflegte Belegung gilt als belegt. Der Leerstand ist damit eher
- *      zu niedrig als zu hoch, und das ist die gewollte Richtung.
+ *   2. Aus fehlenden Daten entsteht nie "frei". Eine Einheit ohne gepflegte
+ *      Belegung gilt als belegt. Der Leerstand ist damit eher zu niedrig als
+ *      zu hoch, und das ist die gewollte Richtung.
  */
 export function CockpitLeerstand({ lage }: { lage: LeerstandsLage }) {
   const liste = [
@@ -44,7 +44,11 @@ export function CockpitLeerstand({ lage }: { lage: LeerstandsLage }) {
     >
       <Kennzahlen
         posten={[
-          { begriff: "frei", wert: String(lage.frei.length) },
+          {
+            begriff: "frei",
+            wert: String(lage.frei.length),
+            art: lage.frei.length > 0 ? "warn" : "gut",
+          },
           {
             begriff: "frei in 3 Monaten",
             wert: String(lage.bald.length),
@@ -55,18 +59,18 @@ export function CockpitLeerstand({ lage }: { lage: LeerstandsLage }) {
       />
 
       {liste.length === 0 ? (
-        <p className="hinweis" style={{ marginTop: "1rem" }}>
+        <p className="hinweis">
           {lage.gesamt === 0
             ? "Es konnten keine Einheiten gelesen werden."
             : "Alles vermietet, und in den nächsten drei Monaten läuft nichts aus."}
         </p>
       ) : (
-        <div className="register" style={{ marginTop: "1rem" }}>
+        <div className="register">
           {liste.map((e) => (
             <div className="posten" key={e.objekt + e.einheit}>
               <span className="nummer">{e.art === "frei" ? "frei" : "bald"}</span>
               <span className="betreff">{e.einheit}</span>
-              <span className="zeit ziffern">
+              <span className="zeit">
                 {e.art === "frei"
                   ? "ab sofort"
                   : e.frei_ab
@@ -79,7 +83,9 @@ export function CockpitLeerstand({ lage }: { lage: LeerstandsLage }) {
                     in die Anschreiben der Lead-Automation. */}
                 {e.hinweis && <span>{e.hinweis}</span>}
                 {e.art === "bald" && e.frei_ab === null && (
-                  <span className="marker">kein Datum zugesagt</span>
+                  <span className="marker" data-art="warn">
+                    kein Datum zugesagt
+                  </span>
                 )}
               </span>
             </div>

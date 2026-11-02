@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type {
+  Abschnitt,
   Gruppe,
   LeerGrund,
   Raster,
@@ -7,7 +8,6 @@ import type {
   Zelle,
   ZellStatus,
 } from "@/lib/mietenbuch";
-import type { Abschnitt } from "@/lib/mietenbuch";
 
 /**
  * Das Mietenbuch als Raster: Zeilen sind Einheiten, Spalten sind Monate.

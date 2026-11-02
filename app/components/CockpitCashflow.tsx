@@ -9,20 +9,18 @@ import {
 /**
  * Cashflow der letzten zwoelf Monate.
  *
- * Reines SVG, keine Diagrammbibliothek. Die Balken sind Daten und deshalb
- * der einzige Ort in diesen Karten, an dem Masse im Markup stehen; Farben
- * kommen ueber currentColor und die Marken aus globals.css, damit die
- * Gestaltung sie weiter in der Hand hat.
+ * Reines SVG, keine Diagrammbibliothek. Die Balkenmasse stehen im Markup,
+ * weil sie Daten sind; Farbe kommt ueber currentColor, damit die Gestaltung
+ * sie weiter in der Hand hat -- auch im dunklen Modus.
  *
- * Getrennt werden Mieteinnahmen und sonstige Einnahmen -- aber nur, soweit
- * es sich aus den Zuordnungen ergibt: Miete ist, was einer Sollstellung
+ * Mieteinnahmen und sonstige Einnahmen sind getrennt, aber nur soweit es
+ * sich aus den Zuordnungen ergibt: Miete ist, was einer Sollstellung
  * zugeordnet ist. Ein Eingang, den noch niemand zugeordnet hat, erscheint
- * damit als "sonstige". Das ist keine Schaetzung, sondern der Stand des
- * Abgleichs, und der Hinweis unter dem Diagramm sagt das.
+ * damit als "sonstige" -- das ist keine Schaetzung, sondern der Stand des
+ * Abgleichs, und der Hinweis sagt es.
  *
- * Ausgaben sind Buchungen mit negativem Betrag, als positive Balken nach
- * unten. Eine Aufschluesselung nach Art gibt es nicht: dafuer muessten die
- * Belege kategorisiert sein, und das sind sie nicht.
+ * Eine Aufschluesselung der Ausgaben nach Art gibt es nicht: dafuer muessten
+ * die Belege kategorisiert sein, und das sind sie nicht.
  */
 
 const HOCH = 62; // Hoehe einer Balkenhaelfte in Benutzereinheiten
@@ -68,10 +66,8 @@ export function CockpitCashflow({ reihe }: { reihe: CashflowBalken[] }) {
           <svg
             viewBox={`0 0 ${breite} ${2 * HOCH + 30}`}
             width="100%"
-            height="auto"
             role="img"
-            aria-label={`Einnahmen und Ausgaben der letzten ${reihe.length} Monate. Insgesamt ${euro(summeEin)} ein, ${euro(summeAus)} aus.`}
-            style={{ display: "block", maxHeight: "16rem" }}
+            aria-label={`Einnahmen und Ausgaben der letzten ${reihe.length} Monate: insgesamt ${euro(summeEin)} ein, ${euro(summeAus)} aus. Die Zahlen je Monat stehen in der Tabelle darunter.`}
           >
             {/* Nulllinie */}
             <line
@@ -80,7 +76,7 @@ export function CockpitCashflow({ reihe }: { reihe: CashflowBalken[] }) {
               x2={breite}
               y2={mitte}
               stroke="currentColor"
-              strokeOpacity="0.25"
+              strokeOpacity="0.3"
             />
             {reihe.map((b, i) => {
               const x = i * SPUR + (SPUR - BREIT) / 2;
@@ -107,9 +103,9 @@ export function CockpitCashflow({ reihe }: { reihe: CashflowBalken[] }) {
                     width={BREIT}
                     height={hSonst}
                     fill="currentColor"
-                    fillOpacity="0.35"
+                    fillOpacity="0.3"
                   />
-                  {/* Ausgaben nach unten, schraffiert durch halbe Deckung. */}
+                  {/* Ausgaben nach unten, als Umriss. */}
                   <rect
                     x={x}
                     y={mitte}
@@ -117,7 +113,7 @@ export function CockpitCashflow({ reihe }: { reihe: CashflowBalken[] }) {
                     height={hAus}
                     fill="none"
                     stroke="currentColor"
-                    strokeOpacity="0.55"
+                    strokeOpacity="0.6"
                   />
                   <text
                     x={x + BREIT / 2}
@@ -134,55 +130,57 @@ export function CockpitCashflow({ reihe }: { reihe: CashflowBalken[] }) {
             })}
           </svg>
 
-          <p className="hinweis" style={{ marginTop: "0.75rem" }}>
-            Oben Einnahmen (voll: Miete, blass: sonstige), unten Ausgaben als
-            Umriss. Höchster Balken {euroGenau(max)}. In zwölf Monaten{" "}
-            {euroGenau(summeMiete)} zugeordnete Miete und{" "}
+          <p className="hinweis">
+            Oben Einnahmen (voll: zugeordnete Miete, blass: sonstige), unten
+            Ausgaben als Umriss. Höchster Balken {euroGenau(max)}. In zwölf
+            Monaten {euroGenau(summeMiete)} zugeordnete Miete und{" "}
             {euroGenau(summeEin - summeMiete)} sonstige Eingänge.
           </p>
 
           <details>
-            <summary className="zaehler">Zahlen je Monat</summary>
-            <table style={{ borderCollapse: "collapse", width: "100%" }}>
-              <caption className="hinweis" style={{ captionSide: "bottom" }}>
-                Beträge aus <code>buchung</code>, Miete aus{" "}
-                <code>zuordnung</code>.
-              </caption>
-              <thead>
-                <tr>
-                  <th scope="col" style={{ textAlign: "left" }}>
-                    Monat
-                  </th>
-                  <th scope="col" style={{ textAlign: "right" }}>
-                    Miete
-                  </th>
-                  <th scope="col" style={{ textAlign: "right" }}>
-                    sonstige
-                  </th>
-                  <th scope="col" style={{ textAlign: "right" }}>
-                    Ausgaben
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {reihe.map((b) => (
-                  <tr key={b.monat}>
-                    <th scope="row" style={{ textAlign: "left", fontWeight: 400 }}>
-                      {monatKurz(b.monat)}
+            <summary className="hinweis">Zahlen je Monat</summary>
+            <div className="tabelle-rolle">
+              <table>
+                <caption>
+                  Beträge aus <code>buchung</code>, Miete aus{" "}
+                  <code>zuordnung</code>.
+                </caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Monat</th>
+                    <th scope="col" className="betrag">
+                      Miete
                     </th>
-                    <td className="ziffern" style={{ textAlign: "right" }}>
-                      {euroGenau(b.miete)}
-                    </td>
-                    <td className="ziffern" style={{ textAlign: "right" }}>
-                      {euroGenau(b.sonstige)}
-                    </td>
-                    <td className="ziffern" style={{ textAlign: "right" }}>
-                      {euroGenau(b.aus)}
-                    </td>
+                    <th scope="col" className="betrag">
+                      sonstige
+                    </th>
+                    <th scope="col" className="betrag">
+                      Ausgaben
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {reihe.map((b) => (
+                    <tr key={b.monat}>
+                      <th scope="row">{monatKurz(b.monat)}</th>
+                      <td className="betrag">{euroGenau(b.miete)}</td>
+                      <td className="betrag">{euroGenau(b.sonstige)}</td>
+                      <td className="betrag">{euroGenau(b.aus)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <th scope="row">zusammen</th>
+                    <td className="betrag">{euroGenau(summeMiete)}</td>
+                    <td className="betrag">
+                      {euroGenau(summeEin - summeMiete)}
+                    </td>
+                    <td className="betrag">{euroGenau(summeAus)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
           </details>
         </>
       )}
