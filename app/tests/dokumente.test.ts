@@ -17,6 +17,7 @@ import {
   baujahrAusNotizen,
   istArt,
   istBild,
+  DOKUMENTARTEN,
   GRENZE_BYTES,
   type Anpassung,
   type DokumentBezug,
@@ -655,6 +656,33 @@ describe("db/029_dokument.sql", () => {
         sql.includes(`REFERENCES ${ziel} (id, mandant_id)`),
         `Kein zusammengesetzter Fremdschlüssel auf ${ziel}`,
       );
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Die Liste der Arten steht zweimal da
+// ---------------------------------------------------------------------------
+
+describe("Arten in Oberfläche, Bibliothek und Datenbank", () => {
+  test("alle drei nennen dieselben sechs", () => {
+    // components/DokumentArten.tsx wiederholt die Liste, weil die Bausteine
+    // im Browser laufen und lib/dokumente.ts node:fs einbindet. Läuft die
+    // Wiederholung auseinander, bietet das Formular eine Art an, die der
+    // CHECK der Tabelle ablehnt -- und der Upload scheitert mit einem
+    // Datenbankfehler statt mit einer Rückmeldung.
+    const quelle = readFileSync(
+      join(APP, "components", "DokumentArten.tsx"),
+      "utf8",
+    );
+    const inOberflaeche = [...quelle.matchAll(/\{ wert: "([a-z]+)"/g)].map(
+      (m) => m[1],
+    );
+    assert.deepEqual(inOberflaeche, [...DOKUMENTARTEN]);
+
+    for (const art of DOKUMENTARTEN) {
+      assert.ok(sql.includes(`'${art}'`), `${art} fehlt in der Migration`);
+      assert.equal(istArt(art), true);
     }
   });
 });
