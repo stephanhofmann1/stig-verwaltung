@@ -73,10 +73,7 @@ export default async function Cockpit() {
 
       <CockpitAutomatik posten={d.automatik} lagebericht={d.lagebericht} />
 
-      <CockpitZahlungen
-        anzahl={d.unzugeordnet.anzahl}
-        summe={d.unzugeordnet.summe}
-      />
+      <CockpitZahlungen lage={d.unzugeordnet} />
 
       <p className="hinweis">
         Weiter ins Detail: <Verweis nach="/mietenbuch">Mietenbuch</Verweis>{" "}

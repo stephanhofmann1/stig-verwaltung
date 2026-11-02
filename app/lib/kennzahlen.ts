@@ -1,7 +1,7 @@
 import { query } from "./db";
 import { monatsStatus, type StandZeile, type ZahlStatus } from "./mieter";
 import { dritterWerktag, type Rueckstand } from "./mahnstufen";
-import { mahnstand } from "./rueckstaende";
+import { mahnstand, hoechsteMonatsmiete } from "./rueckstaende";
 import { zurueckgestellteIds } from "./mahnablauf";
 import { freigabe } from "./mahnfreigabe";
 import { verfuegbarkeit, type Verfuegbarkeit } from "./oeffentlich";
@@ -630,21 +630,81 @@ async function ladeLaeufe(): Promise<LaufZeile[]> {
   `);
 }
 
-async function ladeUnzugeordnet(): Promise<{ anzahl: number; summe: number }> {
-  const z = await query<{ anzahl: string; summe: number }>(`
-    SELECT count(*)::text AS anzahl,
-           COALESCE(SUM(b.betrag - COALESCE(z.zu, 0)), 0)::float8 AS summe
-      FROM buchung b
-      LEFT JOIN (
-            SELECT buchung_id, SUM(betrag) AS zu FROM zuordnung GROUP BY buchung_id
-      ) z ON z.buchung_id = b.id
-     WHERE b.betrag > 0
-       AND b.betrag > COALESCE(z.zu, 0)
-  `);
+export interface UnzugeordnetLage {
+  anzahl: number;
+  summe: number;
+  /** Eingänge, die der Höhe nach eine Monatsmiete sein könnten. */
+  anzahlMietgross: number;
+  summeMietgross: number;
+  /** Eingänge über der höchsten Monatsmiete -- Finanzierung, Einlagen. */
+  anzahlGross: number;
+  summeGross: number;
+  /** Die verwendete Grenze, damit sie auf der Karte genannt werden kann. */
+  grenze: number;
+}
+
+/**
+ * Teilt die Eingänge an der höchsten Monatsmiete.
+ *
+ * Grund: Auf dem Konto liegen neben Mieten auch die Darlehensauszahlung
+ * (2,15 Mio.) und Gesellschaftereinlagen. Zusammengerechnet stand auf der
+ * Karte eine Summe von 2,68 Mio. neben dem Satz "jeder einzelne davon kann
+ * eine Miete sein". Das ist für 95 Prozent des Betrags falsch -- und eine
+ * Karte, die so etwas behauptet, lehrt einen, sie zu überlesen. Genau
+ * diese Karte darf man aber nicht überlesen: Ein nicht zugeordneter
+ * Eingang ist der Fall, in dem das Geld da ist und die Verwaltung es nicht
+ * sieht.
+ *
+ * Die Grenze ist nicht gewählt, sondern abgeleitet. Ein Betrag über der
+ * höchsten vereinbarten Monatsmiete kann keine einzelne Monatsmiete sein.
+ * Er kann eine Sammelzahlung mehrerer Monate sein -- darum heisst die
+ * Spalte "könnte eine Miete sein" und nicht "ist keine".
+ */
+export function teileEingaenge(
+  zeilen: Array<{ rest: number }>,
+  grenze: number,
+): UnzugeordnetLage {
+  let anzahlMietgross = 0, summeMietgross = 0;
+  let anzahlGross = 0, summeGross = 0;
+  for (const z of zeilen) {
+    // Ohne Grenze (keine Mietverhältnisse) gilt alles als mietgross: Dann
+    // ist nichts bekannt, und eine Behauptung wäre schlechter als keine.
+    if (grenze > 0 && z.rest > grenze) {
+      anzahlGross++;
+      summeGross += z.rest;
+    } else {
+      anzahlMietgross++;
+      summeMietgross += z.rest;
+    }
+  }
   return {
-    anzahl: Number(z[0]?.anzahl ?? 0),
-    summe: runde(Number(z[0]?.summe ?? 0)),
+    anzahl: zeilen.length,
+    summe: runde(summeMietgross + summeGross),
+    anzahlMietgross,
+    summeMietgross: runde(summeMietgross),
+    anzahlGross,
+    summeGross: runde(summeGross),
+    grenze: runde(grenze),
   };
+}
+
+async function ladeUnzugeordnet(): Promise<UnzugeordnetLage> {
+  const [zeilen, grenze] = await Promise.all([
+    query<{ rest: number }>(`
+      SELECT (b.betrag - COALESCE(z.zu, 0))::float8 AS rest
+        FROM buchung b
+        LEFT JOIN (
+              SELECT buchung_id, SUM(betrag) AS zu FROM zuordnung GROUP BY buchung_id
+        ) z ON z.buchung_id = b.id
+       WHERE b.betrag > 0
+         AND b.betrag > COALESCE(z.zu, 0)
+    `),
+    hoechsteMonatsmiete(),
+  ]);
+  return teileEingaenge(
+    zeilen.map((z) => ({ rest: Number(z.rest) })),
+    grenze,
+  );
 }
 
 export interface CockpitDaten {
@@ -658,7 +718,7 @@ export interface CockpitDaten {
   cashflow: CashflowBalken[];
   automatik: AutomatikPosten[];
   lagebericht: LageberichtLage;
-  unzugeordnet: { anzahl: number; summe: number };
+  unzugeordnet: UnzugeordnetLage;
   /** Kennzahlen, die nicht gelesen werden konnten. Gehoert auf die Seite. */
   fehler: string[];
 }
@@ -722,7 +782,7 @@ export async function ladeCockpit(heute = new Date()): Promise<CockpitDaten> {
     ),
     behutsam("Cashflow", () => ladeCashflow(heute), [] as CashflowBalken[]),
     behutsam("Läufe", ladeLaeufe, [] as LaufZeile[]),
-    behutsam("Zahlungseingänge", ladeUnzugeordnet, { anzahl: 0, summe: 0 }),
+    behutsam("Zahlungseingänge", ladeUnzugeordnet, teileEingaenge([], 0)),
   ]);
 
   return {

@@ -87,6 +87,24 @@ async function offenePosten(): Promise<OffenerPosten[]> {
  * Der Stand des Mahnwesens. Reine Lesefunktion -- sie verschickt nichts und
  * schreibt nichts. Versendet wird nur über die Freigabe.
  */
+/**
+ * Die höchste Monatsmiete im Bestand.
+ *
+ * Dient als Grenze, oberhalb derer ein Zahlungseingang keine einzelne
+ * Monatsmiete sein KANN -- bei STIG sind das die Darlehensauszahlung und
+ * die Gesellschaftereinlagen. Die Grenze ist damit nicht geraten, sondern
+ * aus den Verträgen abgeleitet, und sie wächst mit ihnen.
+ *
+ * Bewusst hier und nicht im Cockpit: Sie benutzt dieselbe Mietformel wie
+ * alles andere (monatsmieten), und die soll es nur einmal geben.
+ */
+export async function hoechsteMonatsmiete(): Promise<number> {
+  const mieten = await monatsmieten();
+  let hoch = 0;
+  for (const m of mieten.values()) if (m > hoch) hoch = m;
+  return hoch;
+}
+
 export async function mahnstand(heute = new Date()): Promise<Rueckstand[]> {
   const [posten, mieten] = await Promise.all([offenePosten(), monatsmieten()]);
   return rueckstaende(posten, mieten, heute);

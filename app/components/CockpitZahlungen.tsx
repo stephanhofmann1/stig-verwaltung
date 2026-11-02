@@ -13,12 +13,18 @@ import { CockpitKarte, Kennzahlen, euroGenau } from "@/components/CockpitKarte";
  * warum das Mahnwesen gesperrt bleibt.
  */
 export function CockpitZahlungen({
-  anzahl,
-  summe,
+  lage,
 }: {
-  anzahl: number;
-  summe: number;
+  lage: {
+    anzahl: number;
+    anzahlMietgross: number;
+    summeMietgross: number;
+    anzahlGross: number;
+    summeGross: number;
+    grenze: number;
+  };
 }) {
+  const { anzahl } = lage;
   return (
     <CockpitKarte
       titel="Unzugeordnete Zahlungseingänge"
@@ -31,8 +37,12 @@ export function CockpitZahlungen({
           </>
         ) : (
           <>
-            Jeder einzelne davon kann eine Miete sein, die ohne Zuordnung als
-            Rückstand gilt. Zuordnen, bevor irgendetwas gemahnt wird.
+            Ein Eingang ohne Zuordnung gilt als nicht gezahlt. Getrennt wird
+            an der höchsten vereinbarten Monatsmiete: Was darüber liegt, kann
+            keine einzelne Monatsmiete sein — die Darlehensauszahlung und die
+            Einlagen stehen deshalb für sich und nicht in der Arbeitsmenge.
+            Eine Sammelzahlung über mehrere Monate kann allerdings auch
+            darüber liegen.
           </>
         )
       }
@@ -47,10 +57,25 @@ export function CockpitZahlungen({
             art: anzahl > 0 ? "warn" : "gut",
           },
           {
-            begriff: "noch nicht zugeordnet",
-            wert: euroGenau(summe),
-            dazu: "Restbetrag der offenen Eingänge",
+            begriff: "könnte eine Miete sein",
+            wert: euroGenau(lage.summeMietgross),
+            dazu: `${lage.anzahlMietgross} Eingänge bis ${euroGenau(
+              lage.grenze,
+            )} — hier liegt die Arbeit`,
+            art: lage.anzahlMietgross > 0 ? "warn" : "gut",
           },
+          ...(lage.anzahlGross > 0
+            ? [
+                {
+                  begriff: "größer als jede Monatsmiete",
+                  wert: euroGenau(lage.summeGross),
+                  dazu:
+                    `${lage.anzahlGross} Eingänge über ` +
+                    `${euroGenau(lage.grenze)} — Darlehen, Einlagen, ` +
+                    "Übertrag. Keine einzelne Monatsmiete.",
+                },
+              ]
+            : []),
         ]}
       />
     </CockpitKarte>
