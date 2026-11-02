@@ -5,6 +5,7 @@ import { tag } from "@/lib/formate";
 // einmal auszurechnen hiesse, zwei Regeln zu pflegen -- und genau daran ist
 // der Moeblierungszuschlag schon einmal verloren gegangen.
 import { sollGesamt } from "@/lib/sollstellung";
+import { AltdatenImport } from "@/components/AltdatenImport";
 
 export const dynamic = "force-dynamic";
 
@@ -138,6 +139,9 @@ export default async function Stammdaten() {
           </div>
         ))}
       </div>
+
+      <h1 style={{ marginTop: "2.5rem" }}>Altdaten übernehmen</h1>
+      <AltdatenImport />
     </>
   );
 }
