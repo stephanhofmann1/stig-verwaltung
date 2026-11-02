@@ -95,8 +95,12 @@ export default async function Stammdaten() {
         </div>
       ) : (
         <div className="register">
+          {/* Kein Link um die ganze Zeile: Sie traegt schon zwei Wege
+              (Mieter, Einheit), und ein Link darf keinen Link enthalten.
+              data-still nimmt ihr nur das Aufleuchten -- geklickt wird auf
+              die Woerter. */}
           {vermietet.map((e) => (
-            <div className="posten" key={e.id}>
+            <div className="posten" data-still="ja" key={e.id}>
               <span className="nummer">{e.etage ?? "—"}</span>
               <span className="betreff">
                 {/* Der Mietername führt ins Mietverhältnis, die
@@ -139,17 +143,19 @@ export default async function Stammdaten() {
         <span className="zaehler ziffern">{frei.length}</span>
       </div>
       <div className="register">
+        {/* Ein freies Zimmer hat genau ein Ziel, also traegt die ganze Zeile
+            den Weg -- auf dem Telefon ist das eine Flaeche statt eines
+            Wortes. Die Bezeichnung ist deshalb kein eigener Link mehr: Ein
+            Link im Link ist kein gueltiges HTML. */}
         {frei.map((e) => (
-          <div className="posten" key={e.id}>
+          <Link href={`/einheit/${e.id}`} className="posten" key={e.id}>
             <span className="nummer">{e.etage ?? "—"}</span>
-            <span className="betreff">
-              <Link href={`/einheit/${e.id}`}>{e.bezeichnung}</Link>
-            </span>
+            <span className="betreff">{e.bezeichnung}</span>
             <span className="zeit">{e.art === "gewerbe" ? "Gewerbe" : ""}</span>
             <span className="unterzeile">
               <span>{e.objekt}</span>
             </span>
-          </div>
+          </Link>
         ))}
       </div>
 

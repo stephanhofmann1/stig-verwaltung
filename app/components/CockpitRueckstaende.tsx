@@ -18,8 +18,8 @@ import {
  *
  * `summe` und `summeUngeklaert` werden nie addiert. Der ungeklaerte Teil
  * stammt aus Monaten ohne Kontoauszug; beides zusammenzuzaehlen gaebe jedem
- * langjaehrigen Ludwigshafener Mieter einen Kuendigungsgrund nach § 543
- * Abs. 2 Nr. 3 BGB -- ausgerechnet denen, die puenktlich zahlen.
+ * uebernommenen Altmieter einen Kuendigungsgrund nach § 543 Abs. 2 Nr. 3
+ * BGB -- ausgerechnet denen, die puenktlich zahlen.
  */
 export function CockpitRueckstaende({
   lage,

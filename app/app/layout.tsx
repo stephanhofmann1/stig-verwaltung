@@ -6,9 +6,21 @@ import "./globals.css";
 import { Navi } from "@/components/Navi";
 import { angemeldeterBenutzer } from "@/lib/anmeldung";
 
+/**
+ * Titel und Beschreibung stehen im Browsertab, im Lesezeichen und in der
+ * Vorschau eines geteilten Links. Sie nennen deshalb kein Objekt: Sobald
+ * ein zweiter Vermieter die Anwendung benutzt, stünden dort die Immobilien
+ * eines Fremden. Welche Objekte verwaltet werden, steht auf den Seiten --
+ * dort kommt es aus den Daten.
+ *
+ * icons verweist auf app/icon.svg. Next trägt das Zeichen über die
+ * Dateikonvention ohnehin ein; der ausdrückliche Eintrag hält den Verweis
+ * auch dort, wo die Metadaten von Hand gelesen werden.
+ */
 export const metadata: Metadata = {
-  title: "STIG Verwaltung",
-  description: "Vorgänge, Nachrichten und Freigaben für Westanlage 9 und Ludwigshafen",
+  title: "Hausverwaltung",
+  description: "Mieten, Zahlungen, Vorgänge und Freigaben an einer Stelle",
+  icons: { icon: "/icon.svg" },
 };
 
 /**

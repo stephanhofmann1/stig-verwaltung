@@ -143,7 +143,15 @@ export default async function Belege() {
           {belege.map((b) => {
             const offen = Number(b.offen);
             return (
-              <div className="posten" key={b.id} data-heikel={offen > 0.005 ? "ja" : "nein"}>
+              // Kein Weg zur Datei: Ein Beleg hat keine Zeile in
+              // `dokument`, und /api/dokumente/<id> liefert nur die. Ein
+              // Link dorthin waere ein 404 -- schlimmer als keiner.
+              <div
+                className="posten"
+                data-still="ja"
+                key={b.id}
+                data-heikel={offen > 0.005 ? "ja" : "nein"}
+              >
                 <span className="nummer ziffern">
                   {b.belegdatum ? b.belegdatum.slice(5, 7) + "/" + b.belegdatum.slice(2, 4) : "—"}
                 </span>

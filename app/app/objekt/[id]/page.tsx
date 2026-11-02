@@ -267,10 +267,14 @@ export default async function Objektseite({
       {kopf.notizen && <p className="hinweis">{kopf.notizen}</p>}
 
       <div className="knopfreihe">
-        <Link href="/mietenbuch" className="rueckmeldung">
+        {/* Der einzige Rueckweg der Seite. Als `rueckmeldung` war er graues
+            13-Pixel-Kleingedrucktes neben den Knoepfen und wurde nicht als
+            Weg gelesen -- wer hier landete, kam nur ueber den Zurueck-Knopf
+            des Browsers wieder heraus. */}
+        <Link href="/mietenbuch" className="verweis">
           Mietenbuch
         </Link>
-        <Link href="/stammdaten" className="rueckmeldung">
+        <Link href="/stammdaten" className="verweis">
           Stammdaten
         </Link>
       </div>
@@ -286,7 +290,11 @@ export default async function Objektseite({
           const betrag = miete(e);
           const ueberWg = !e.mv_id && e.eltern_id && belegt.has(e.eltern_id);
           return (
-            <div className="posten" key={e.id}>
+            // Die Zeile traegt zwei Wege (Einheit, Mietverhaeltnis), und ein
+            // Link darf keinen Link enthalten. Also bleibt sie ein div --
+            // ohne das Aufleuchten, das eine Klickbarkeit verspricht, die
+            // nur die beiden Woerter haben.
+            <div className="posten" data-still="ja" key={e.id}>
               <span className="nummer">{e.etage ?? "—"}</span>
               <span className="betreff">
                 <Link href={`/einheit/${e.id}`}>{e.bezeichnung}</Link>

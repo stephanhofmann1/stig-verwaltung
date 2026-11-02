@@ -69,8 +69,13 @@ export function CockpitFristen({ fristen }: { fristen: FristLage[] }) {
             const scharf =
               f.dringlichkeit === "verstrichen" || f.dringlichkeit === "kritisch";
             return (
+              // Das Ziel waere das Objekt (frist.objekt_id gibt es), aber
+              // ladeFristen in lib/kennzahlen.ts liest die Spalte nicht mit.
+              // Bis sie mitgelesen wird, ist die Zeile stumm statt
+              // scheinbar klickbar.
               <div
                 className="posten"
+                data-still="ja"
                 key={f.bezeichnung + f.faellig_am}
                 data-heikel={scharf ? "ja" : "nein"}
               >

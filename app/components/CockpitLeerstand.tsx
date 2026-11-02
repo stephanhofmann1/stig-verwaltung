@@ -67,7 +67,10 @@ export function CockpitLeerstand({ lage }: { lage: LeerstandsLage }) {
       ) : (
         <div className="register">
           {liste.map((e) => (
-            <div className="posten" key={e.objekt + e.einheit}>
+            // Ziel waere die Einheit, aber verfuegbarkeit() liefert nur
+            // Namen, keine Kennung -- dieselbe Antwort geht an die
+            // Objektwebsite, und dort hat eine Kennung nichts zu suchen.
+            <div className="posten" data-still="ja" key={e.objekt + e.einheit}>
               <span className="nummer">{e.art === "frei" ? "frei" : "bald"}</span>
               <span className="betreff">{e.einheit}</span>
               <span className="zeit">

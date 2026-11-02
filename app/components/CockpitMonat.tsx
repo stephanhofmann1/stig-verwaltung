@@ -2,6 +2,7 @@ import type { MonatsGeld } from "@/lib/kennzahlen";
 import {
   CockpitKarte,
   Kennzahlen,
+  Verweis,
   euroGenau,
   monatsName,
 } from "@/components/CockpitKarte";
@@ -17,9 +18,10 @@ import {
  *   nicht abgeglichen  es gibt fuer diesen Monat keine Kontodaten
  *
  * Das zweite ist keine Aussage ueber Geld, sondern ueber Unterlagen. Als
- * "offen" angezeigt waere es eine Beschuldigung -- und bei den
- * Ludwigshafener Altmietern eine falsche: Dort wird ab Januar 2024
- * abgerechnet, das Konto gibt es erst ab Dezember 2024.
+ * "offen" angezeigt waere es eine Beschuldigung -- und bei uebernommenen
+ * Altmietern eine falsche: Abgerechnet wird ab einem Monat, fuer den es
+ * noch gar keine Kontoumsaetze gibt, weil die Mieten davor dem
+ * Voreigentuemer zuflossen.
  *
  * Deshalb zeigt diese Karte lieber nichts an als eine Null. Ist der Monat
  * nicht abgeglichen, steht genau das an der Stelle, an der sonst der offene
@@ -114,9 +116,10 @@ export function CockpitMonat({
             ohne Kontodaten
           </strong>
           Das ist kein Rückstand, sondern eine fehlende Unterlage: Für diese
-          Monate liegen keine Auszüge vor (<code>objekt.zahlungsdaten_ab</code>
-          ). Die Augartenstraße hat gar kein eigenes Konto, dort ist jeder
-          Monat so.
+          Monate liegen keine Kontoauszüge vor. Objekte ohne eigenes Konto
+          haben überhaupt keine — dort ist jeder Monat so. Ab welchem Tag die
+          Kontodaten eines Objekts reichen, steht bei den Konten.{" "}
+          <Verweis nach="/konten">Konten</Verweis>
         </div>
       )}
     </CockpitKarte>

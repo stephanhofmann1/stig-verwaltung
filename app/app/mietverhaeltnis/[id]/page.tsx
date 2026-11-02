@@ -293,7 +293,7 @@ export default async function Mietverhaeltnisseite({
 
       {/* --- Mieter --- */}
       <div className="titelzeile" style={{ marginTop: "1.5rem" }}>
-        <h1>Mieter</h1>
+        <h2>Mieter</h2>
       </div>
       <dl
         style={{
@@ -363,7 +363,7 @@ export default async function Mietverhaeltnisseite({
 
       {/* --- Laufzeit --- */}
       <div className="titelzeile" style={{ marginTop: "2rem" }}>
-        <h1>Laufzeit</h1>
+        <h2>Laufzeit</h2>
       </div>
       <dl
         style={{
@@ -429,7 +429,7 @@ export default async function Mietverhaeltnisseite({
       {kuendigung && (
         <>
           <div className="titelzeile" style={{ marginTop: "2rem" }}>
-            <h1>Kündigung</h1>
+            <h2>Kündigung</h2>
           </div>
           <p>
             Eingegangen am <strong>{tag(kuendigung.eingegangen_am)}</strong>,
@@ -447,7 +447,7 @@ export default async function Mietverhaeltnisseite({
 
       {/* --- Miete --- */}
       <div className="titelzeile" style={{ marginTop: "2rem" }}>
-        <h1>Miete</h1>
+        <h2>Miete</h2>
         <span className="zaehler ziffern">{euro(jetzt.miete.summe)}</span>
       </div>
       {jetzt.miete.inklusiv ? (
@@ -472,12 +472,14 @@ export default async function Mietverhaeltnisseite({
       )}
 
       <div className="titelzeile" style={{ marginTop: "1.25rem" }}>
-        <h1 style={{ fontSize: "1rem" }}>Verlauf</h1>
+        <h2 style={{ fontSize: "1rem" }}>Verlauf</h2>
         <span className="zaehler ziffern">{zeitleiste.length}</span>
       </div>
       <div className="register">
         {[...zeitleiste].reverse().map((z) => (
-          <div className="posten" key={`${z.giltAb}-${z.quelle}`}>
+          // Eine Mietaenderung ist ein Stand zu einem Datum, keine eigene
+          // Seite. Stumm statt scheinbar klickbar.
+          <div className="posten" data-still="ja" key={`${z.giltAb}-${z.quelle}`}>
             <span className="nummer ziffern">{z.giltAb.slice(2, 7)}</span>
             <span className="betreff">{z.quelle}</span>
             <span className="zeit ziffern">{euro(z.miete.summe)}</span>
@@ -499,7 +501,7 @@ export default async function Mietverhaeltnisseite({
 
       {/* --- Kaution --- */}
       <div className="titelzeile" style={{ marginTop: "2rem" }}>
-        <h1>Kaution</h1>
+        <h2>Kaution</h2>
         <span className="zaehler ziffern">
           {kaution > 0 ? euro(kaution) : "keine"}
         </span>
@@ -516,7 +518,8 @@ export default async function Mietverhaeltnisseite({
       {kautionseingaenge.length > 0 ? (
         <div className="register">
           {kautionseingaenge.map((b, i) => (
-            <div className="posten" key={i}>
+            // Eine Buchung hat in dieser Verwaltung keine eigene Seite.
+            <div className="posten" data-still="ja" key={i}>
               <span className="nummer ziffern">{b.buchungstag.slice(2, 7)}</span>
               <span className="betreff">{b.absender ?? "ohne Absender"}</span>
               <span className="zeit ziffern">{euro(Number(b.betrag))}</span>
@@ -542,7 +545,7 @@ export default async function Mietverhaeltnisseite({
 
       {/* --- Zahlungsverlauf --- */}
       <div className="titelzeile" style={{ marginTop: "2rem" }}>
-        <h1>Zahlungsverlauf</h1>
+        <h2>Zahlungsverlauf</h2>
         <span className="zaehler ziffern">{soll.length} Monate</span>
       </div>
       {soll.length === 0 ? (
@@ -555,8 +558,11 @@ export default async function Mietverhaeltnisseite({
             const stand = standVon(s);
             const bezahlt = Number(s.bezahlt);
             return (
+              // Die Monatszeile gehoert zu genau diesem Mietverhaeltnis --
+              // ein Link wuerde auf die Seite zeigen, auf der man steht.
               <div
                 className="posten"
+                data-still="ja"
                 key={s.id}
                 data-heikel={stand.heikel ? "ja" : undefined}
               >
@@ -591,7 +597,7 @@ export default async function Mietverhaeltnisseite({
 
       {/* --- Dokumente --- */}
       <div className="titelzeile" style={{ marginTop: "2.5rem" }}>
-        <h1>Dokumente</h1>
+        <h2>Dokumente</h2>
         <span className="zaehler ziffern">{dokumente.length}</span>
       </div>
       <DokumentListe
@@ -613,10 +619,13 @@ export default async function Mietverhaeltnisseite({
       )}
 
       <div className="knopfreihe" style={{ marginTop: "2rem" }}>
-        <Link href={`/einheit/${kopf.einheit_id}`} className="rueckmeldung">
+        {/* Die beiden Rueckwege sind der einzige Ausgang der Seite und
+            waren als `rueckmeldung` kaum zu sehen -- grau, klein, ohne
+            Unterstreichung. */}
+        <Link href={`/einheit/${kopf.einheit_id}`} className="verweis">
           Zur Einheit
         </Link>
-        <Link href="/mietenbuch" className="rueckmeldung">
+        <Link href="/mietenbuch" className="verweis">
           Mietenbuch
         </Link>
       </div>

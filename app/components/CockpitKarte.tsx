@@ -49,10 +49,14 @@ export const datum = (iso: string | null) =>
         year: "numeric",
       }).format(new Date(iso.slice(0, 10) + "T12:00:00Z"));
 
-/** Verweis als Schild — ein Link ohne Unterstreichung waere kein Link. */
+/**
+ * Verweis als eigene Form -- `marker` war die falsche: Damit sind sonst
+ * Zustaende gekennzeichnet ("kritisch", "bezahlt"). Der Kartenfuss las sich
+ * dadurch wie eine Reihe Etiketten und nicht wie eine Reihe Wege.
+ */
 export function Verweis({ nach, children }: { nach: string; children: React.ReactNode }) {
   return (
-    <Link href={nach} className="marker" data-art="info">
+    <Link href={nach} className="verweis">
       {children}
     </Link>
   );

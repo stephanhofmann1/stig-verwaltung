@@ -91,8 +91,11 @@ export function CockpitAutomatik({
           const scharf =
             p.lage === "nie" || p.lage === "steht" || p.lage === "gescheitert";
           return (
+            // Ein Lauf ist eine Meldung, kein Ort. Der Weg in den Verlauf
+            // steht einmal unter der Karte und nicht in jeder Zeile.
             <div
               className="posten"
+              data-still="ja"
               key={p.name}
               data-heikel={scharf ? "ja" : "nein"}
             >

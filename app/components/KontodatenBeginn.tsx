@@ -22,9 +22,9 @@ const tag = (iso: string | null) =>
  *
  * Das ist die Abdeckungsgrenze des Mahnwesens, und sie ist der
  * unscheinbarste gefährliche Wert im ganzen System: Steht sie zu früh,
- * sehen Monate ohne Kontodaten wie Rückstände aus. Bei Welserstraße 10
- * wären das acht Monate zu je acht Mietverhältnissen — rund 32.000 Euro
- * Rückstand, die es nie gab.
+ * sehen Monate ohne Kontodaten wie Rückstände aus. Bei einem übernommenen
+ * Haus mit acht Mietverhältnissen und acht Monaten vor dem Kontobeginn sind
+ * das rund 32.000 Euro Rückstand, die es nie gab.
  *
  * Darum gehört sie auf den ersten Buchungstag, der wirklich in der
  * Datenbank liegt, und nicht auf das Eröffnungsdatum des Kontos. Genau
