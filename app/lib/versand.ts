@@ -32,6 +32,67 @@ export function baueThreadHeader(bezug: {
 }
 
 /**
+ * Baut das Zitat der Nachricht, auf die geantwortet wird.
+ *
+ * Warum überhaupt: Ohne Zitat geht beim Empfänger nur der neue Text ein.
+ * Die Thread-Kopfzeilen sortieren die Mail zwar in den richtigen Strang,
+ * aber wer sie einzeln öffnet, weiterleitet oder ausdruckt — und bei einer
+ * Abrechnung mit Ausschlussfrist tut das irgendwann jemand — sieht eine
+ * Antwort ohne Frage.
+ *
+ * Verschachtelung entsteht von selbst: Trägt die Elternnachricht schon ein
+ * Zitat, bekommt deren ">" ein weiteres davor und wird zu ">>". Deshalb
+ * wird hier nichts über Ebenen gerechnet.
+ *
+ * Reine Funktion ohne Datenbank: Was wörtlich an einen Dritten hinausgeht,
+ * muss ohne Server prüfbar sein.
+ */
+export function zitiere(eltern: {
+  von_name?: string | null;
+  von_email: string;
+  koerper_text?: string | null;
+  gesendet_am?: string | null;
+  empfangen_am?: string | null;
+  angelegt_am?: string | null;
+}): string {
+  const text = (eltern.koerper_text ?? "").replace(/\s+$/, "");
+  // Nichts zu zitieren ist kein Fehler -- eine leere Zeile "schrieb:" ohne
+  // Inhalt waere schlechter als gar kein Zitat.
+  if (!text) return "";
+
+  const wer = eltern.von_name?.trim()
+    ? `${eltern.von_name.trim()} <${eltern.von_email}>`
+    : eltern.von_email;
+
+  const roh = eltern.gesendet_am ?? eltern.empfangen_am ?? eltern.angelegt_am;
+  const d = roh ? new Date(roh) : null;
+  const gueltig = d && !Number.isNaN(d.getTime());
+
+  // Feste Zeitzone: Der Server läuft in UTC, gelesen wird die Mail in
+  // Deutschland. Ohne Angabe stünde im Zitat eine Uhrzeit, die niemand
+  // wiedererkennt.
+  const kopf = gueltig
+    ? `Am ${new Intl.DateTimeFormat("de-DE", {
+        timeZone: "Europe/Berlin",
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      }).format(d)} um ${new Intl.DateTimeFormat("de-DE", {
+        timeZone: "Europe/Berlin",
+        hour: "2-digit",
+        minute: "2-digit",
+      }).format(d)} schrieb ${wer}:`
+    : `${wer} schrieb:`;
+
+  const zeilen = text
+    .split(/\r?\n/)
+    .map((z) => (z.startsWith(">") ? `>${z}` : `> ${z}`))
+    .join("\n");
+
+  return `\n\n${kopf}\n\n${zeilen}`;
+}
+
+/**
  * Legt einen Entwurf an, der auf eine eingegangene Nachricht antwortet.
  * Der Entwurf wird NICHT versendet — er landet in der Freigabe-Queue.
  */
@@ -50,6 +111,12 @@ export async function erstelleEntwurf(opts: {
   if (!bezug) throw new Error("Bezugsnachricht nicht gefunden");
 
   const header = baueThreadHeader(bezug);
+
+  // Das Zitat entsteht beim Anlegen, nicht beim Versand: In der Freigabe
+  // soll woertlich stehen, was den Empfaenger erreicht. Ein Entwurf, der
+  // weniger zeigt als die Mail enthaelt, ist dieselbe Art Luege wie ein
+  // Status "gesendet" ohne Versand.
+  const koerper = opts.koerper.replace(/\s+$/, "") + zitiere(bezug);
   const betreff =
     opts.betreff ??
     (/^\s*(re|aw)\s*:/i.test(bezug.betreff)
@@ -80,7 +147,7 @@ export async function erstelleEntwurf(opts: {
         an,
         Array.from(new Set(cc)),
         betreff,
-        opts.koerper,
+        koerper,
         header.in_reply_to,
         header.referenzen,
         opts.verfasstVon,
