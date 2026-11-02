@@ -150,14 +150,26 @@ jobs:
 
       - name: Läuft es wirklich?
         # Ein Container, der "Up" meldet, kann trotzdem bei jeder Anfrage
-        # abstürzen. Deshalb eine echte Anfrage gegen eine Seite, die ohne
-        # Anmeldung antwortet.
+        # abstürzen. Deshalb eine echte Anfrage -- und zwar von außen über
+        # die öffentliche Adresse.
+        #
+        # NICHT über localhost:3000 auf dem Server: Dort lauscht nichts.
+        # Der App-Container stellt 3000 nur im Docker-Netz bereit
+        # (`expose`, nicht `ports`), nach außen geht allein der Proxy auf
+        # 80 und 443. Der erste Lauf am 02.11.2026 ist genau daran
+        # gescheitert und hat eine geglückte Einspielung als Fehlschlag
+        # gemeldet.
+        #
+        # Von außen zu prüfen ist ohnehin das Richtige: Das deckt DNS,
+        # Zertifikat, Proxy und Anwendung ab, also den Weg, den ein
+        # Benutzer wirklich nimmt. Geprüft wird die Anmeldeseite, weil sie
+        # ohne Sitzung antwortet -- und auf ihren Inhalt, nicht nur auf
+        # den Statuscode: Eine Fehlerseite des Proxys käme auch mit 200.
         run: |
-          sleep 10
-          for i in $(seq 1 12); do
-            if ssh root@78.47.196.190 \
-                 'curl -fsS -o /dev/null http://localhost:3000/api/oeffentlich/verfuegbarkeit' 2>/dev/null; then
-              echo "Die Anwendung antwortet."
+          for i in $(seq 1 15); do
+            if curl -fsS --max-time 10 https://stig-immobilien.de/anmelden \
+                 | grep -q "STIG Verwaltung"; then
+              echo "Die Anwendung antwortet und liefert die Anmeldeseite aus."
               exit 0
             fi
             echo "Versuch $i: noch nicht erreichbar, warte ..."
