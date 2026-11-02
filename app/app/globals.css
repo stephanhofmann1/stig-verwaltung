@@ -21,31 +21,39 @@
   color-scheme: light dark;
 
   /* Flächen, von hinten nach vorn */
-  --grund:         #F6F7F9;   /* Seitenhintergrund */
+  --grund:         #EEF1F5;   /* Seitenhintergrund */
   --flaeche:       #FFFFFF;   /* Karte, Tabelle, Feld */
-  --flaeche-ruhig: #FAFBFC;   /* Zebrastreifen */
-  --flaeche-tief:  #EFF2F5;   /* Überfahren, Tabellenkopf */
+  --flaeche-ruhig: #F7F9FB;   /* Zebrastreifen */
+  --flaeche-tief:  #E7ECF1;   /* Überfahren, Tabellenkopf */
 
   /* Schrift */
-  --fg:            #15181C;   /* Haupttext */
-  --fg-leise:      #5C6672;   /* Zweite Ebene, Beschriftungen */
-  --fg-still:      #8B949F;   /* Dritte Ebene, Platzhalter */
+  --fg:            #10151B;   /* Haupttext */
+  --fg-leise:      #4F5A66;   /* Zweite Ebene, Beschriftungen */
+  /* #8B949F lag bei 3,07:1 auf Weiß und 2,73:1 auf grauer Fläche -- damit
+     war "nicht abgeglichen" schlechter lesbar als die Zahl daneben. */
+  --fg-still:      #616A77;   /* Dritte Ebene, Platzhalter (5,47:1) */
 
   /* Linien */
   --linie:         #E3E7EB;   /* Haarlinie */
   --linie-stark:   #CAD1D9;   /* Trennung mit Gewicht */
+  /* Eigener Ton für Feldränder: --linie-stark erreichte als Rand nur
+     1,54:1, WCAG 1.4.11 verlangt 3:1. Die Felder hatten praktisch
+     keinen Rand. */
+  --feldrand:      #7E8996;   /* Rand von Eingabefeldern (3,56:1) */
 
   /* Akzent */
-  --akzent:         #1F4FA8;
+  --akzent:         #1D3FA0;
   --akzent-flaeche: #EBF0FA;
 
-  /* Status. Die hellen Werte sind genau die Inline-Farben, die in den
-     Seiten stehen — dadurch bleibt der alte Code farbgleich. */
-  --gut:            #1b6b3a;
+  /* Status. Die Inline-Farben in den Seiten werden in Abschnitt 3 auf
+     diese Marken gezogen -- das Markup folgt also mit, auch wenn die
+     Werte hier nicht mehr zeichengleich sind. */
+  --gut:            #15663A;
   --gut-flaeche:    #E8F2EC;
-  --warn:           #8a6d00;
+  /* #8a6d00 lag auf der Warnfläche bei 4,48:1 und verfehlte AA. */
+  --warn:           #7A5800;   /* 5,94:1 auf --warn-flaeche */
   --warn-flaeche:   #FBF4E2;
-  --fehl:           #b3261e;
+  --fehl:           #AC231B;
   --fehl-flaeche:   #FBEAE8;
 
   /* Formularfelder */
@@ -66,15 +74,20 @@
   --kopf-hoehe:    3.25rem;
 
   /* Radien */
-  --radius-s:    5px;
-  --radius-m:    9px;
-  --radius-l:   14px;
+  /* Radiengesetz: Datenflächen sind eckig, Bedienelemente leicht
+     gerundet, Statuspillen rund. --radius-m trugen table, .karte,
+     .register, .entwurf, .tabelle-rolle, .meldung, .leer und pre --
+     sieben verschiedene Dinge im selben Gehäuse. Ein Gehäuse, das
+     alles umschließt, unterscheidet nichts. */
+  --radius-s:    4px;
+  --radius-m:    0;
+  --radius-l:    0;
   --radius-rund: 999px;
 
-  /* Schattierungen — sparsam, nie als Dekor */
-  --schatten-1: 0 1px 2px rgba(15, 20, 28, 0.05);
-  --schatten-2: 0 2px 4px rgba(15, 20, 28, 0.06),
-                0 8px 20px rgba(15, 20, 28, 0.05);
+  /* Schattierungen — keine. Nichts hier liegt über etwas anderem:
+     eine Tabelle ist kein Kaertchen, sie ist eine Seite im Buch. */
+  --schatten-1: none;
+  --schatten-2: none;
 
   /* Schriftgrößen */
   --text-xs:  0.75rem;
@@ -105,27 +118,28 @@
   /* --- Dunkle Werte, einmal benannt ------------------------------------
      Zugewiesen werden sie unten in zwei Blöcken (Systemvorgabe und
      data-theme). Nur hier ändern. */
-  --dk-grund:         #0E1116;
-  --dk-flaeche:       #171B21;
-  --dk-flaeche-ruhig: #14181E;
-  --dk-flaeche-tief:  #1E242C;
-  --dk-fg:            #E7EBF0;
-  --dk-fg-leise:      #9BA5B1;
-  --dk-fg-still:      #6D7784;
+  --dk-grund:         #0F1318;
+  --dk-flaeche:       #161B22;
+  --dk-flaeche-ruhig: #13181E;
+  --dk-flaeche-tief:  #1F252E;
+  --dk-fg:            #E6EBF1;
+  --dk-fg-leise:      #9BA6B2;
+  /* #6D7784 lag bei 3,81:1 -- derselbe Fehler wie im Hellen. */
+  --dk-fg-still:      #8A95A2;   /* 5,68:1 */
   --dk-linie:         #272E37;
   --dk-linie-stark:   #3A434F;
-  --dk-akzent:          #85A9F2;
+  --dk-akzent:          #8FB4FF;
   --dk-akzent-flaeche:  #17243B;
   --dk-gut:             #5FC98A;
   --dk-gut-flaeche:     #11251B;
-  --dk-warn:            #DFB54A;
+  --dk-warn:            #E0B75C;
   --dk-warn-flaeche:    #2A2212;
-  --dk-fehl:            #F28B82;
+  --dk-fehl:            #F49188;
   --dk-fehl-flaeche:    #2E1716;
   --dk-feld-flaeche:    #11151A;
-  --dk-schatten-1: 0 1px 2px rgba(0, 0, 0, 0.5);
-  --dk-schatten-2: 0 2px 4px rgba(0, 0, 0, 0.45),
-                   0 8px 20px rgba(0, 0, 0, 0.4);
+  --dk-feldrand:        #626E7D;   /* 3,53:1 auf --dk-feld-flaeche */
+  --dk-schatten-1: none;
+  --dk-schatten-2: none;
 }
 
 /* --- 2. Marken (dunkel) --------------------------------------------------
@@ -152,6 +166,7 @@
     --fehl: var(--dk-fehl);
     --fehl-flaeche: var(--dk-fehl-flaeche);
     --feld-flaeche: var(--dk-feld-flaeche);
+    --feldrand: var(--dk-feldrand);
     --schatten-1: var(--dk-schatten-1);
     --schatten-2: var(--dk-schatten-2);
   }
@@ -176,6 +191,7 @@
   --fehl: var(--dk-fehl);
   --fehl-flaeche: var(--dk-fehl-flaeche);
   --feld-flaeche: var(--dk-feld-flaeche);
+  --feldrand: var(--dk-feldrand);
   --schatten-1: var(--dk-schatten-1);
   --schatten-2: var(--dk-schatten-2);
 }
@@ -830,7 +846,7 @@ input, select, textarea {
   font-weight: 400;
   color: var(--fg);
   background: var(--feld-flaeche);
-  border: 1px solid var(--linie-stark);
+  border: 1px solid var(--feldrand);
   border-radius: var(--radius-s);
   padding: 0.4375rem 0.625rem;
   max-width: 100%;
@@ -981,6 +997,95 @@ input[type="file"] {
   max-width: 72ch;
   margin: 0;
 }
+
+/* --- 14b. Wege, stille Zeilen und wiederkehrende Bauteile ----------------
+   Diese Regeln ersetzen Inline-Stile, die bisher in den Seiten standen.
+   Eine Farbe im Markup entzieht sich dem Dunkelmodus und jeder späteren
+   Änderung — genau dafür standen in Abschnitt 3 die Flucht-Selektoren,
+   die auf Inline-Werte zielen. Sie fallen weg, sobald die Seiten hier
+   angekommen sind. */
+
+/* Ein Weg, kein Zustand.
+   Verweise trugen bisher die Klasse .marker — dieselbe Pille wie
+   "kritisch" oder "heikel". Wer einen Weg wie ein Urteil aussehen lässt,
+   bringt dem Nutzer bei, Urteile zu übersehen. */
+.verweis {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--abstand-1);
+  padding: 0.1875rem 0.5rem;
+  border: 1px solid var(--akzent);
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--akzent);
+  font-size: var(--text-s);
+  font-weight: 600;
+  line-height: 1.4;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.verweis:hover { background: var(--akzent-flaeche); }
+.verweis:focus-visible {
+  outline: 2px solid var(--akzent);
+  outline-offset: 2px;
+}
+
+/* Eine Zeile ohne Ziel darf nicht aufleuchten.
+   .posten:hover verspricht Klickbarkeit; 18 von 20 Vorkommen waren divs
+   ohne Ziel. Die Oberfläche hat an 18 Stellen etwas versprochen, das sie
+   nicht halten konnte. */
+.posten[data-still="ja"]:hover {
+  background: transparent;
+  cursor: default;
+}
+
+/* Rückmeldung mit Urteil.
+   Es gab nur den Fehlerfall, deshalb standen Erfolgs- und Warnsätze als
+   Inline-Farbe im Markup — und waren im Dunkelmodus unlesbar. */
+.rueckmeldung[data-art="gut"]    { color: var(--gut); }
+.rueckmeldung[data-art="warn"]   { color: var(--warn); }
+.rueckmeldung[data-art="fehler"] { color: var(--fehl); }
+
+/* Datenblatt: Begriff links, Wert rechts.
+   Stand viermal wortgleich als Inline-Grid in den Detailseiten. */
+.datenblatt {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--abstand-1) var(--abstand-5);
+  margin: 0;
+}
+.datenblatt dt { color: var(--fg-leise); }
+.datenblatt dd { margin: 0; }
+
+/* Formularraster.
+   Stand fünfmal inline — mit fünf verschiedenen Mindestbreiten für
+   dieselbe Sache. */
+.feldraster {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: var(--abstand-3);
+  align-items: end;
+}
+
+/* Protokollblock eines Import- oder Prüfdurchlaufs. */
+.protokoll {
+  max-height: 22rem;
+  overflow: auto;
+  background: var(--flaeche-ruhig);
+  border: 1px solid var(--linie);
+  border-radius: var(--radius-m);
+  padding: var(--abstand-3);
+  font-size: var(--text-s);
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+/* Abschnittskopf.
+   h1 wurde bisher als Trennlinie benutzt — acht davon auf einer Seite
+   sind für einen Screenreader acht Dokumente. */
+.abschnitt { margin-top: var(--abstand-7); }
+.abschnitt:first-child { margin-top: 0; }
+
 
 /* --- 15. Schmale Schirme (Telefon) --------------------------------------
    Prüfmaß 390 px: 16 px Seitenabstand, kein waagerechtes Rollen der Seite. */
