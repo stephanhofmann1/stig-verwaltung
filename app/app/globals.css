@@ -161,10 +161,6 @@
   --tinte:        var(--fg);
   --tinte-leise:  var(--fg-leise);
   --stempel:      var(--akzent);
-  --stempel-hell: var(--akzent-flaeche);
-  --alarm:        var(--fehl);
-  --alarm-hell:   var(--fehl-flaeche);
-  --gruen:        var(--gut);
 
   /* --- Dunkle Werte, einmal benannt ------------------------------------
      Zugewiesen werden sie unten in zwei Blöcken (Systemvorgabe und
@@ -247,47 +243,21 @@
   --schatten-2: var(--dk-schatten-2);
 }
 
-/* --- 3. Brücke zu den Inline-Farben -------------------------------------
-   In den Seiten stehen Statusfarben als festes Hex im style-Attribut.
-   Diese Regeln biegen genau diese Werte auf die Marken um. Im Hellmodus
-   ist das wirkungslos (die Marke hat denselben Wert), im Dunkelmodus
-   werden die sonst unlesbar dunklen Farben aufgehellt.
+/* --- 3. (entfallen) ------------------------------------------------------
+   Hier stand eine Brücke: Selektoren der Form [style*="#1b6b3a"] mit
+   !important, die Statusfarben aus den style-Attributen der Seiten auf
+   die Marken umbogen. Sie war nötig, solange 38 feste Hexwerte im
+   Markup standen -- im Dunkelmodus wären sie sonst unlesbar geblieben.
 
-   :not([style*="background"]) lässt Kästen in Ruhe, die eine eigene
-   Hintergrundfarbe mitbringen — die werden unten einzeln behandelt.
+   Eine Brücke ersetzt eine Entscheidung. Sie greift still nicht mehr,
+   sobald jemand eine Farbe anders schreibt, und sie macht aus einem
+   Tippfehler kein Problem, sondern einen unsichtbaren Fehler.
 
-   Neuer Code soll die Marken benutzen, nicht das Hex. */
-
-[style*="#1b6b3a"]:not([style*="background"]) { color: var(--gut) !important; }
-
-[style*="#8a6d00"]:not([style*="background"]),
-[style*="#8a5a00"]:not([style*="background"]) { color: var(--warn) !important; }
-
-[style*="#b3261e"]:not([style*="background"]),
-[style*="#b00"]:not([style*="background"]) { color: var(--fehl) !important; }
-
-[style*="#5b5b66"]:not([style*="background"]),
-[style*="#6b6b6b"]:not([style*="background"]) { color: var(--fg-leise) !important; }
-
-[style*="#1a4f8a"]:not([style*="background"]) { color: var(--akzent) !important; }
-
-/* Der Warnkasten der Bankseite (helles Creme mit braunem Rand). */
-[style*="#fdf8ef"] {
-  background: var(--warn-flaeche) !important;
-  border-color: var(--warn) !important;
-  color: var(--fg) !important;
-}
-
-/* Der Protokollblock der Altdatenübernahme. */
-[style*="#fafafa"] {
-  background: var(--flaeche-ruhig) !important;
-  border-color: var(--linie) !important;
-}
-
-/* Eingabefelder mit fest eingetragenem Weiß. */
-input[style*="#fff"],
-select[style*="#fff"],
-textarea[style*="#fff"] { background: var(--feld-flaeche) !important; }
+   Am 03.11.2026 sind die letzten Inline-Farben aus dem Markup
+   verschwunden (nachgezählt: 0 in app/ und components/). Damit ist die
+   Brücke ersatzlos entfallen -- mit ihr elf der dreizehn !important.
+   Übrig bleiben die zwei berechtigten: prefers-reduced-motion und
+   der Druckblock.                                                      */
 
 /* --- 4. Grundlagen ------------------------------------------------------- */
 
@@ -921,11 +891,6 @@ button[data-art="still"]:hover {
 }
 
 /* Aktion, die etwas unwiederbringlich tut. */
-button[data-art="gefahr"] {
-  background: var(--fehl);
-  border-color: var(--fehl);
-  color: #fff;
-}
 button[data-art="gefahr"]:hover { background: color-mix(in srgb, var(--fehl) 85%, #000); }
 
 button:disabled,
@@ -1404,6 +1369,35 @@ th.betrag {
   .navi[data-offen="ja"] a { min-height: 2.75rem; width: 100%; }
 }
 
+
+/* --- 14d. Was beim Aufraeumen gefehlt hat ------------------------------
+   Diese fuenf Regeln stammen aus einem Befund: Es waren die Stellen, an
+   denen ein Inline-Stil nicht ersetzt werden konnte, weil es nichts gab,
+   wogegen man ihn haette tauschen koennen. */
+
+/* Ein h2 in der Titelzeile bringt sonst seinen eigenen Oberrand mit und
+   schiebt die Zeile auseinander. Gestylt war nur h1. */
+.titelzeile h2 {
+  font-size: var(--t-abschnitt);
+  margin: 0;
+}
+
+/* Der graue Nebensatz erbte das Gewicht 600 vom Betreff darueber --
+   leise sieht anders aus. */
+.hinweis { font-weight: var(--g-text); }
+
+/* p.hinweis setzt margin als Kurzschreibweise und damit auch den
+   Oberrand auf 0. Ohne diese Zeile laesst sich ein Hinweisabsatz nicht
+   als Abschnittsbeginn verwenden. */
+p.hinweis.abschnitt { margin-top: var(--abstand-7); }
+
+/* Eine Rueckmeldung, die weder gut noch schlecht ist, sondern nur sagt,
+   was passieren wuerde -- die Probelauf-Zeilen des Altdatenimports. */
+.rueckmeldung[data-art="info"] { color: var(--akzent); }
+
+/* Ein Formular, das so breit wird wie der Rahmen, liest sich nicht.
+   Vier Seiten hielten ihre Breite deshalb per Inline-Stil fest. */
+.schmal { max-width: 32rem; }
 
 /* --- 15. Schmale Schirme (Telefon) --------------------------------------
    Prüfmaß 390 px: 16 px Seitenabstand, kein waagerechtes Rollen der Seite. */

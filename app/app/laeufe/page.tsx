@@ -146,7 +146,7 @@ export default async function Laeufe() {
   return (
     <main>
       <div className="titelzeile">
-        <h1>Läufe</h1>
+        <h1>Automatik</h1>
         <span className="zaehler">
           {zeilen.length === 0 ? "noch keine" : `${zeilen.length} zuletzt`}
         </span>

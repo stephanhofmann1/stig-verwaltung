@@ -148,7 +148,7 @@ export default async function Mahnwesen() {
   return (
     <main>
       <div className="titelzeile">
-        <h1>Mahnwesen</h1>
+        <h1>Rückstände</h1>
         <span className="zaehler">
           {stand.length === 0
             ? "keine Rückstände"

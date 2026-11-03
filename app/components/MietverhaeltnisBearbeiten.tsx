@@ -20,7 +20,10 @@ import { useRouter } from "next/navigation";
  *   vertragsdaten_aendern    voller_name, geburtsdatum, geburtsort,
  *                            anschrift_vorher, melde_zusatz,
  *                            vertrag_datum, moeblierungszuschlag, kaution
- *                            -- ohne Sollstellungslauf
+ *                            -- zieht sie nur nach, wenn der
+ *                               Moeblierungszuschlag dabei ist; der zaehlt
+ *                               in die Sollmiete, die uebrigen sieben
+ *                               Felder beruehren kein Geld
  *
  * Hier stehen beide in einem Formular, weil ein Vermieter nicht in
  * Aktionen denkt, sondern in "was muss ich nachtragen". Gespeichert wird
@@ -28,19 +31,32 @@ import { useRouter } from "next/navigation";
  * die Vertragsdaten liegen und die Mieterhoehung nicht, muss dastehen und
  * nicht hinter einer pauschalen Erfolgsmeldung verschwinden.
  *
- * REIHENFOLGE IST NICHT BELIEBIG
+ * REIHENFOLGE: ERST VERTRAGSDATEN, DANN GELD UND LAUFZEIT
  *
- * Erst die Vertragsdaten, dann Geld und Laufzeit. Grund: Der
- * Moeblierungszuschlag geht in `sollGesamt()` ein (lib/sollstellung.ts).
- * Liefe `mietverhaeltnis_aendern` zuerst, stellte sein Sollstellungslauf
- * noch mit dem alten Zuschlag -- und die neue Zahl stuende in den
- * Stammdaten, waehrend die Forderung die alte waere.
+ * Die Begruendung hat sich geaendert, die Reihenfolge nicht.
  *
- * Aendert sich NUR der Zuschlag, laeuft gar kein Lauf (die Aktion macht
- * bewusst keinen). Dann schickt dieses Formular hinterher ein
- * `mietverhaeltnis_aendern`, das kein Feld mitgibt: Alle Werte sind null,
- * COALESCE laesst alles stehen, und nur der Sollstellungslauf passiert.
- * Sonst stuende ein Zuschlag in den Stammdaten, den keine Forderung kennt.
+ * Frueher war sie tragend: Der Moeblierungszuschlag geht ueber
+ * `summePosten()` in die Sollstellung ein (lib/sollstellung.ts), und
+ * `vertragsdaten_aendern` loeste keinen Sollstellungslauf aus. Wurde der
+ * Zuschlag nach dem Lauf von `mietverhaeltnis_aendern` geschrieben, stand
+ * er in den Stammdaten und keine Forderung kannte ihn. Dieses Formular
+ * hat das eine Zeit lang mit einem zusaetzlichen, feldlosen
+ * `mietverhaeltnis_aendern` aufgefangen -- eine Kruecke, die nur den Lauf
+ * ausloeste.
+ *
+ * Beides ist weg. `vertragsdaten_aendern` loest den Lauf jetzt selbst
+ * aus, wenn `moeblierungszuschlag` im Koerper steht, und gibt dessen
+ * Ergebnis als `soll` zurueck (sonst `soll: null`). Fuer die Richtigkeit
+ * der Forderung ist die Reihenfolge damit gleichgueltig:
+ * `erzeugeSollstellungen()` liest die Tabellen frisch, der letzte Lauf
+ * einer Speicherung rechnet also in jeder Richtung mit den dann gueltigen
+ * Werten.
+ *
+ * Geblieben ist sie aus einem kleineren Grund: `mietverhaeltnis_aendern`
+ * laeuft immer mit einem Lauf, `vertragsdaten_aendern` nur bedingt. Steht
+ * es hinten, endet eine gemischte Speicherung verlaesslich mit einer
+ * Neuberechnung ueber den Endstand -- ohne dass das davon abhaengt,
+ * welche Felder gerade im Koerper lagen.
  *
  * EIGENART BEIDER AKTIONEN: COALESCE
  *
@@ -267,12 +283,19 @@ export function MietverhaeltnisBearbeiten(p: Props) {
   const anzahl = anzahlMiete + anzahlVertrag;
   const bereit = anzahl > 0 && fehlerhaft.length === 0;
 
-  // Der Zuschlag geht in die Sollstellung ein. Aendert sich sonst nichts
-  // an Geld oder Laufzeit, laeuft von allein kein Lauf -- siehe Kopf.
-  const brauchtNachlauf =
-    "moeblierungszuschlag" in aenderungen.vertrag && anzahlMiete === 0;
-
-  async function sende(koerper: Record<string, unknown>): Promise<string | null> {
+  /**
+   * Ein Aufruf der Stammdatenschnittstelle.
+   *
+   * Gibt `soll` mit heraus und nicht nur den Fehler: Daran haengt die
+   * Meldung ueber den Sollstellungslauf. Beide Aktionen liefern das Feld
+   * -- `mietverhaeltnis_aendern` immer, `vertragsdaten_aendern` nur, wenn
+   * der Moeblierungszuschlag im Koerper stand, sonst null. Das Formular
+   * behauptet damit keinen Lauf mehr, von dem es nur annimmt, dass er
+   * passiert ist.
+   */
+  async function sende(
+    koerper: Record<string, unknown>,
+  ): Promise<{ fehler: string | null; soll: { erzeugt?: number } | null }> {
     const r = await fetch("/api/stammdaten", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -281,9 +304,12 @@ export function MietverhaeltnisBearbeiten(p: Props) {
     const d = (await r.json().catch(() => ({}))) as {
       ok?: boolean;
       fehler?: string;
+      soll?: { erzeugt?: number } | null;
     };
-    if (!r.ok || !d.ok) return d.fehler ?? "Das hat nicht geklappt.";
-    return null;
+    if (!r.ok || !d.ok) {
+      return { fehler: d.fehler ?? "Das hat nicht geklappt.", soll: null };
+    }
+    return { fehler: null, soll: d.soll ?? null };
   }
 
   async function speichern() {
@@ -291,53 +317,57 @@ export function MietverhaeltnisBearbeiten(p: Props) {
     setErgebnis(null);
     const teile: Teilergebnis[] = [];
     try {
-      // Erst die Vertragsdaten: Der Moeblierungszuschlag muss stehen,
-      // bevor der Sollstellungslauf der anderen Aktion rechnet.
+      // Erst die Vertragsdaten, dann Geld und Laufzeit -- siehe Kopf.
+      let sollAusVertrag: { erzeugt?: number } | null = null;
       if (anzahlVertrag > 0) {
-        const fehler = await sende({
+        const a = await sende({
           aktion: "vertragsdaten_aendern",
           mietverhaeltnis_id: p.id,
           ...aenderungen.vertrag,
         });
+        sollAusVertrag = a.soll;
         teile.push({
           was: "Vertragsdaten",
-          ok: fehler === null,
+          ok: a.fehler === null,
           text:
-            fehler ??
+            a.fehler ??
             `${anzahlVertrag} Feld${anzahlVertrag === 1 ? "" : "er"} gespeichert.`,
         });
       }
 
       if (anzahlMiete > 0) {
-        const fehler = await sende({
+        const a = await sende({
           aktion: "mietverhaeltnis_aendern",
           mietverhaeltnis_id: p.id,
           ...aenderungen.miete,
         });
         teile.push({
           was: "Geld und Laufzeit",
-          ok: fehler === null,
+          ok: a.fehler === null,
           text:
-            fehler ??
+            a.fehler ??
             `${anzahlMiete} Feld${anzahlMiete === 1 ? "" : "er"} gespeichert, ` +
               "die Sollstellungen sind nachgezogen.",
         });
-      } else if (brauchtNachlauf) {
-        // Kein Feld im Koerper: alle Werte null, COALESCE laesst alles
-        // stehen. Dieser Aufruf aendert nichts und loest nur den
-        // Sollstellungslauf aus, damit der neue Zuschlag auch gefordert
-        // wird und nicht bloss in den Stammdaten steht.
-        const fehler = await sende({
-          aktion: "mietverhaeltnis_aendern",
-          mietverhaeltnis_id: p.id,
-        });
+      } else if (sollAusVertrag) {
+        // Kein eigener Aufruf mehr, nur eine Meldung: Dass der Lauf
+        // passiert ist, sagt `soll` in der Antwort von
+        // `vertragsdaten_aendern` -- die Aktion loest ihn selbst aus, wenn
+        // der Moeblierungszuschlag im Koerper steht.
+        //
+        // Nur in diesem Zweig, denn lief auch `mietverhaeltnis_aendern`,
+        // nennt dessen Zeile den Lauf schon. Zweimal dasselbe zu melden
+        // liest sich wie zwei Laeufe.
+        const erzeugt = sollAusVertrag.erzeugt;
         teile.push({
           was: "Sollstellungen",
-          ok: fehler === null,
+          ok: true,
           text:
-            fehler ??
             "Nachgezogen — der neue Möblierungszuschlag geht in die " +
-              "Forderung ein.",
+            "Forderung ein" +
+            (typeof erzeugt === "number"
+              ? `, ${erzeugt} Sollstellung${erzeugt === 1 ? "" : "en"} neu.`
+              : "."),
         });
       }
 
