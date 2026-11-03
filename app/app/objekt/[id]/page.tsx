@@ -9,6 +9,8 @@ import {
   mieteDerEinheit,
   objektKennzahlen,
 } from "@/lib/objekte";
+import { objektWirtschaft } from "@/lib/rendite";
+import { ObjektWirtschaft } from "@/components/ObjektWirtschaft";
 import { Bildergalerie } from "@/components/Bildergalerie";
 import { DokumentListe } from "@/components/DokumentListe";
 import { DokumentHochladen } from "@/components/DokumentHochladen";
@@ -80,6 +82,10 @@ export default async function Objektseite({
   const mitVertrag = eigeneMietverhaeltnisse(einheiten);
 
   const dokumente = await dokumenteFuer({ objekt_id: id });
+  // Kaufpreis, Finanzierung und die daraus gerechnete Lage. Gibt null
+  // zurueck, wenn es das Objekt nicht gibt -- das ist oben schon
+  // abgefangen, der Zweig bleibt trotzdem stehen.
+  const wirtschaft = await objektWirtschaft(id);
   const bilder = dokumente.filter((d) => istBild(d.mime_typ));
   const akten = dokumente.filter((d) => !istBild(d.mime_typ));
 
@@ -118,9 +124,28 @@ export default async function Objektseite({
       <div className="karten">
         <div className="karte">
           <div className="kennzahl">
-            <span className="kennzahl-schild">Soll je Monat</span>
+            <span className="kennzahl-schild">Soll je Monat (warm)</span>
             <span className="kennzahl-wert ziffern">
               {euroGenau(zahlen.sollMonat)}
+            </span>
+            {/* Kalt und BK getrennt, und was sich NICHT aufteilen laesst
+                als eigener Posten. Rund zwei Drittel der WG-Zimmer sind
+                als Inklusivmiete vermietet und haben gar keine getrennte
+                Kaltmiete; dazu kommen Moeblierungszuschlaege. Wer diesen
+                Teil in die Kaltspalte schiebt, schreibt eine Kaltmiete
+                hin, die niemand vereinbart hat -- und aus der spaeter
+                eine Mieterhoehung begruendet wird. Dieselbe Trennung wie
+                im Mietenbuch, aus derselben Ableitung in lib/objekte.ts. */}
+            <span className="erklaerung ziffern">
+              Kalt {euroGenau(zahlen.sollMonatKalt)} · BK{" "}
+              {euroGenau(zahlen.sollMonatNebenkosten)}
+              {zahlen.sollMonatOhneAufteilung !== 0 && (
+                <>
+                  {" "}
+                  · ohne Aufteilung{" "}
+                  {euroGenau(zahlen.sollMonatOhneAufteilung)}
+                </>
+              )}
             </span>
             <span className="erklaerung">
               {zahlen.belegt} von {zahlen.einzeln} Einheiten belegt
@@ -257,6 +282,30 @@ export default async function Objektseite({
           );
         })}
       </div>
+
+      {/* --- Wirtschaft ---
+          Was das Haus traegt. Steht bewusst NACH den Einheiten: Die
+          Rendite ist das Ergebnis der Belegung darueber, nicht ihr
+          Ausgangspunkt. Ohne erfassten Kaufpreis zeigt der Abschnitt
+          keine geschaetzte Zahl, sondern Gedankenstriche und den Satz,
+          was fehlt -- und das Formular, mit dem man es nachtraegt. */}
+      {wirtschaft && (
+        <div className="abschnitt">
+          <div className="titelzeile">
+            <h2>Wirtschaft</h2>
+            <span className="zaehler">
+              {wirtschaft.stamm.kaufpreis === null
+                ? "Kaufpreis nicht erfasst"
+                : "Stand der erfassten Werte"}
+            </span>
+          </div>
+          <ObjektWirtschaft
+            objektId={id}
+            stamm={wirtschaft.stamm}
+            lage={wirtschaft.lage}
+          />
+        </div>
+      )}
 
       {/* --- Dokumente --- */}
       <div className="titelzeile">

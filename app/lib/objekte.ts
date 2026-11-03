@@ -1,5 +1,6 @@
 import { query } from "@/lib/db";
 import { mietzusammensetzung } from "@/lib/dokumente";
+import { sollGesamt, summePosten } from "@/lib/sollstellung";
 
 /**
  * Objekte als eigene Ebene der Anwendung.
@@ -65,6 +66,15 @@ export interface ObjektZeile {
 export interface ObjektKennzahlen {
   /** Summe der heute gueltigen Mieten aller laufenden Mietverhaeltnisse. */
   sollMonat: number;
+  /** Kaltmieteanteil des monatlichen Solls, soweit er aus den Verträgen hervorgeht. */
+  sollMonatKalt: number;
+  /** Nebenkostenvorauszahlungen im monatlichen Soll. */
+  sollMonatNebenkosten: number;
+  /**
+   * Soll ohne Aufteilung: Inklusivmieten und Möblierungszuschläge.
+   * Dieser Teil darf NIE in sollMonatKalt wandern.
+   */
+  sollMonatOhneAufteilung: number;
   /** Einheiten ohne Gemeinschaftsflaechen -- das, was einzeln vermietet wird. */
   einzeln: number;
   /** Davon belegt (eigener Vertrag oder Vertrag ueber die WG-Etage). */
@@ -148,6 +158,93 @@ export function mieteDerEinheit(e: ObjektEinheit): number | null {
   }).summe;
 }
 
+/**
+ * Das Soll eines Mietverhaeltnisses, aufgeteilt in Kalt, Nebenkosten und Rest.
+ *
+ * Gefordert war: "Soll je Monat sollte in Kalt und Warm angezeigt werden."
+ * Die Aufteilung ist dabei die eigentliche Arbeit, denn sie gelingt nicht
+ * immer -- und wo sie nicht gelingt, darf sie nicht erfunden werden.
+ *
+ * Die Regel, welcher Betrag ueberhaupt geschuldet ist, wird hier NICHT
+ * nachgebaut: `sollGesamt()` aus lib/sollstellung.ts entscheidet sie, und
+ * `summePosten()` liest und rundet die einzelnen Posten. Ist im Vertrag eine
+ * Gesamtmiete zugesagt, gilt diese -- auch wenn die Summe der Einzelposten
+ * daneben liegt (die Abweichung meldet der Sollstellungslauf).
+ *
+ * Daraus ergeben sich drei Faelle, und alle drei fallen aus derselben
+ * Rechnung heraus:
+ *
+ *   1. Inklusivmiete ("500 EUR all-in"): gesamtmiete gesetzt, Kalt und
+ *      Nebenkosten leer. Kalt und NK sind 0, der ganze Betrag landet in
+ *      `ohneAufteilung`.
+ *   2. Gesamtmiete UND Posten gesetzt: Kalt und NK in ihre Felder, der Rest
+ *      (gesamt minus Kalt minus NK) nach `ohneAufteilung`. Darin steckt der
+ *      Moeblierungszuschlag oder eine Abweichung zwischen Zusage und
+ *      Herleitung.
+ *   3. Keine Gesamtmiete: Kalt und NK in ihre Felder, der
+ *      Moeblierungszuschlag nach `ohneAufteilung`.
+ *
+ * Der Moeblierungszuschlag gehoert ausdruecklich NICHT in die Kaltmiete
+ * dieser Anzeige. Rechtlich ist er Teil der Grundmiete, aber er ist kein
+ * Betrag, aus dem sich ein Quadratmeterpreis oder eine Mieterhoehung
+ * ableiten laesst -- und genau dafuer wird eine Spalte "Kalt" gelesen.
+ *
+ * `ohneAufteilung` kann negativ werden, naemlich wenn die zugesagte
+ * Gesamtmiete unter der Summe der Posten liegt. Das ist ein Tippfehler in
+ * den Stammdaten, und er bleibt sichtbar: Die drei Teile ergeben immer
+ * genau `summe`, auch im Fehlerfall. Eine stillschweigende Klemmung auf 0
+ * wuerde die Summe zerstoeren, und dann wuerde die Seite eine andere Zahl
+ * zeigen als das Mietenbuch.
+ */
+export interface SollAufteilung {
+  /** Das geschuldete Soll -- dieselbe Zahl wie bisher. */
+  summe: number;
+  kalt: number;
+  nebenkosten: number;
+  /** Inklusivmiete, Moeblierungszuschlag, Abweichung. Nie in `kalt`. */
+  ohneAufteilung: number;
+}
+
+export function sollAufteilung(w: {
+  kaltmiete: string | number | null;
+  nebenkosten: string | number | null;
+  moeblierung?: string | number | null;
+  gesamtmiete?: string | number | null;
+}): SollAufteilung {
+  const summe = sollGesamt(w);
+  // summePosten() ist hier dreimal der Leser: Es macht aus Text, null und
+  // leerem Feld eine Zahl und rundet auf Cent. Ein eigener Parser daneben
+  // waere eine zweite Stelle, an der sich "" und null unterscheiden
+  // koennten.
+  const kalt = summePosten({
+    kaltmiete: w.kaltmiete,
+    nebenkosten: null,
+    moeblierung: null,
+  });
+  const nebenkosten = summePosten({
+    kaltmiete: null,
+    nebenkosten: w.nebenkosten,
+    moeblierung: null,
+  });
+  return {
+    summe,
+    kalt,
+    nebenkosten,
+    ohneAufteilung: Math.round((summe - kalt - nebenkosten) * 100) / 100,
+  };
+}
+
+/** Die Aufteilung einer Einheit; ohne laufenden Vertrag sind alle Teile 0. */
+export function aufteilungDerEinheit(e: ObjektEinheit): SollAufteilung {
+  if (!e.mv_id) return { summe: 0, kalt: 0, nebenkosten: 0, ohneAufteilung: 0 };
+  return sollAufteilung({
+    kaltmiete: e.m_kalt,
+    nebenkosten: e.m_nk,
+    moeblierung: e.m_moebel,
+    gesamtmiete: e.m_gesamt,
+  });
+}
+
 /** Die Einheiten mit eigenem laufenden Mietverhaeltnis. */
 export function eigeneMietverhaeltnisse(
   einheiten: ObjektEinheit[],
@@ -182,6 +279,16 @@ export function objektKennzahlen(
     0,
   );
 
+  // Die Aufteilung desselben Solls. Jeder Teil wird einzeln summiert und
+  // einzeln auf Cent gerundet; weil jeder Posten aus numeric(10,2) kommt,
+  // ist jeder Teil ein exaktes Vielfaches von einem Cent, und die drei
+  // Teile ergeben wieder genau sollMonat. tests/rendite.test.ts haelt das
+  // ueber eine gemischte Belegung fest -- Inklusivmiete, aufgeteilte Miete,
+  // Miete mit Moeblierungszuschlag.
+  const teile = einheiten.map(aufteilungDerEinheit);
+  const summiere = (f: (t: SollAufteilung) => number) =>
+    Math.round(teile.reduce((s, t) => s + f(t), 0) * 100) / 100;
+
   // Leerstand nur dort, wo die Belegung gepflegt ist und die Einheit
   // ueberhaupt angeboten wird. Eine Gemeinschaftsflaeche steht nie leer --
   // sie wird gar nicht einzeln vermietet.
@@ -210,6 +317,9 @@ export function objektKennzahlen(
 
   return {
     sollMonat: Math.round(sollMonat * 100) / 100,
+    sollMonatKalt: summiere((t) => t.kalt),
+    sollMonatNebenkosten: summiere((t) => t.nebenkosten),
+    sollMonatOhneAufteilung: summiere((t) => t.ohneAufteilung),
     einzeln: einzelnVermietet.length,
     belegt: einzelnVermietet.filter(belegt).length,
     angebotenFrei,

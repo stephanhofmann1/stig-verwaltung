@@ -43,6 +43,15 @@ export default async function Objektuebersicht() {
   const objekte = await objektUebersicht();
 
   const sollGesamt = objekte.reduce((s, o) => s + o.zahlen.sollMonat, 0);
+  const kaltGesamt = objekte.reduce((s, o) => s + o.zahlen.sollMonatKalt, 0);
+  const bkGesamt = objekte.reduce(
+    (s, o) => s + o.zahlen.sollMonatNebenkosten,
+    0,
+  );
+  const ohneGesamt = objekte.reduce(
+    (s, o) => s + o.zahlen.sollMonatOhneAufteilung,
+    0,
+  );
   const freiGesamt = objekte.reduce(
     (s, o) => s + o.zahlen.angebotenFrei.length,
     0,
@@ -72,13 +81,21 @@ export default async function Objektuebersicht() {
           <div className="karten">
             <div className="karte">
               <div className="kennzahl">
-                <span className="kennzahl-schild">Soll je Monat</span>
+                <span className="kennzahl-schild">Soll je Monat (warm)</span>
                 <span className="kennzahl-wert ziffern">
                   {euroGenau(sollGesamt)}
                 </span>
+                <span className="erklaerung ziffern">
+                  Kalt {euroGenau(kaltGesamt)} · BK {euroGenau(bkGesamt)}
+                  {ohneGesamt !== 0 && (
+                    <> · ohne Aufteilung {euroGenau(ohneGesamt)}</>
+                  )}
+                </span>
                 <span className="erklaerung">
                   Summe aller laufenden Mietverhältnisse, zum heute
-                  gültigen Preis.
+                  gültigen Preis.{" "}
+                  {ohneGesamt !== 0 &&
+                    "„Ohne Aufteilung“ sind Inklusivmieten und Möblierungszuschläge — sie haben keine vereinbarte Kaltmiete und dürfen nicht als eine gelesen werden."}
                 </span>
               </div>
             </div>
@@ -118,6 +135,22 @@ export default async function Objektuebersicht() {
                     <span className="ziffern">
                       {z.belegt} von {z.einzeln} Einheiten belegt
                     </span>
+                    {/* Woraus das Soll besteht. Kalt und BK getrennt, und
+                        was sich nicht aufteilen laesst als eigener Posten
+                        -- Inklusivmieten und Moeblierungszuschlaege.
+                        Dieselbe Trennung wie im Mietenbuch und auf der
+                        Objektseite, aus derselben Ableitung; eine zweite
+                        Rechnung derselben Zahl liefe davon weg. Kostet
+                        keine zusaetzliche Abfrage: die Posten liegen in
+                        objektKennzahlen() schon vor. */}
+                    {z.sollMonat > 0 && (
+                      <span className="ziffern">
+                        Kalt {euroGenau(z.sollMonatKalt)} · BK{" "}
+                        {euroGenau(z.sollMonatNebenkosten)}
+                        {z.sollMonatOhneAufteilung !== 0 &&
+                          ` · o. A. ${euroGenau(z.sollMonatOhneAufteilung)}`}
+                      </span>
+                    )}
                     {z.angebotenFrei.length > 0 ? (
                       <span className="marker" data-art="warn">
                         {z.angebotenFrei.length} frei und angeboten
