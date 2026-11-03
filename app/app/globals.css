@@ -3,6 +3,15 @@
    der Navigation eine engere Stimme, ohne eine zweite Schrift zu laden --
    und ohne fremdes CDN, was bei Mieterdaten ohnehin ausschiede. */
 @import "@fontsource-variable/archivo/wdth.css";
+/* Das Mietenbuch-Raster. Lag bis zum 03.11.2026 als 137 Zeilen
+   Zeichenkette in MietenbuchRaster.tsx und wurde bei jedem Rendern ins
+   Dokument geschoben -- die groesste und dichteste Tabelle der Anwendung
+   stand damit ausserhalb des Gestaltungssystems, und jede Ueberarbeitung
+   hier liess sie unveraendert.
+   @import muss am Dateianfang stehen: raster.css kommt also VOR diesen
+   Regeln, bei gleicher Spezifitaet gewinnt globals.css. Die Regeln dort
+   sind deshalb bewusst eine Stufe spezifischer. */
+@import "./raster.css";
 
 /* ===========================================================================
    STIG Verwaltung — Gestaltungssystem
