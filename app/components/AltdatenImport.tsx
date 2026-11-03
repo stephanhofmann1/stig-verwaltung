@@ -10,20 +10,33 @@ interface Antwort {
   fehler?: string;
 }
 
-/** Farbe nach Art der Zeile. Der Bericht ist lang -- das Auge muss ihn
- *  überfliegen können, ohne jede Zeile zu lesen. */
-function farbe(z: string): string | undefined {
-  if (z.startsWith("ANGELEGT") || z.startsWith("GESETZT")) return "#1b6b3a";
-  if (z.startsWith("WÜRDE")) return "#1a4f8a";
+/**
+ * Art der Zeile. Der Bericht ist lang -- das Auge muss ihn überfliegen
+ * können, ohne jede Zeile zu lesen.
+ *
+ * Vorher standen hier fünf feste Hexwerte, die als Inline-Farbe ins Markup
+ * gingen. Eine Inline-Farbe entzieht sich dem Dunkelmodus: #1b6b3a auf
+ * dunklem Grund ist nicht mehr lesbar. Darum benennt die Funktion jetzt nur
+ * die Art, und .rueckmeldung[data-art] färbt sie aus den Marken -- hell
+ * und dunkel.
+ *
+ * "info" (vormals #1a4f8a, der Akzent) hat in globals.css noch keine Regel.
+ * Bis sie da ist, bleibt die Zeile im ruhigen Grau von .rueckmeldung --
+ * lesbar, nur ohne eigene Farbe. Das gilt auch für die "vorhanden"-Zeilen
+ * (vormals #6b6b6b): Grau ist bei .rueckmeldung schon der Normalfall, die
+ * eigene Abfrage dafuer war überflüssig.
+ */
+function art(z: string): "gut" | "info" | "fehler" | undefined {
+  if (z.startsWith("ANGELEGT") || z.startsWith("GESETZT")) return "gut";
+  if (z.startsWith("WÜRDE")) return "info";
   if (
     z.includes("FEHLT") ||
     z.includes("EINHEIT FEHLT") ||
     z.startsWith("OFFEN") ||
     z.includes("ÜBERSPRUNGEN")
   ) {
-    return "#b3261e";
+    return "fehler";
   }
-  if (z.startsWith("vorhanden") || z.startsWith("Objekt vorhanden")) return "#6b6b6b";
   return undefined;
 }
 
@@ -77,7 +90,7 @@ export function AltdatenImport() {
         echter Mieter stehen.
       </p>
 
-      <label style={{ display: "block", marginBottom: "0.75rem" }}>
+      <label>
         Datei
         <input
           type="file"
@@ -87,11 +100,15 @@ export function AltdatenImport() {
             setAntwort(null);
             setFehler("");
           }}
-          style={{ display: "block", marginTop: "0.25rem" }}
+          className="feld"
         />
       </label>
 
-      {fehler && <p style={{ color: "#b3261e" }}>{fehler}</p>}
+      {fehler && (
+        <p className="rueckmeldung" data-art="fehler">
+          {fehler}
+        </p>
+      )}
 
       {!probeGelaufen && !uebernommen && (
         <button onClick={() => schicke(false)} disabled={!datei || stand !== "bereit"}>
@@ -100,29 +117,21 @@ export function AltdatenImport() {
       )}
 
       {antwort?.bericht && (
-        <div style={{ marginTop: "1rem" }}>
-          <h3 style={{ marginBottom: "0.25rem" }}>
-            {uebernommen ? "Übernommen" : "Probelauf"}
-          </h3>
+        <div className="abschnitt">
+          <h3>{uebernommen ? "Übernommen" : "Probelauf"}</h3>
           {antwort.bloecke && (
-            <p className="hinweis" style={{ marginTop: 0 }}>
+            <p className="hinweis">
               Gefundene Blöcke: {antwort.bloecke.join(", ")}
             </p>
           )}
-          <pre
-            style={{
-              maxHeight: "28rem",
-              overflow: "auto",
-              background: "#fafafa",
-              border: "1px solid #e3e3e3",
-              padding: "0.75rem",
-              fontSize: "0.8rem",
-              lineHeight: 1.5,
-              whiteSpace: "pre-wrap",
-            }}
-          >
+          {/* .protokoll bringt Rollhöhe, Fläche, Rand und Zeilenmaß des
+              Protokollblocks mit -- vorher stand das alles inline, mit
+              #fafafa und #e3e3e3 als festen Farben. */}
+          <pre className="protokoll">
             {antwort.bericht.map((z, i) => (
-              <div key={i} style={{ color: farbe(z) }}>{z || " "}</div>
+              <div key={i} className="rueckmeldung" data-art={art(z)}>
+                {z || " "}
+              </div>
             ))}
           </pre>
 

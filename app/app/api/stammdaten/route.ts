@@ -26,6 +26,16 @@ export async function POST(req: Request) {
     zahlt_im_voraus?: boolean;
     zahlungsnotiz?: string;
     muster?: string;
+    // Felder, an denen Mietvertrag und Wohnungsgeberbestaetigung haengen.
+    // Sie standen bisher in keiner Aktion -- die Pruefliste benannte den
+    // Mangel, und es gab keinen Weg, ihn zu beheben ausser SQL.
+    voller_name?: string;
+    geburtsdatum?: string;
+    geburtsort?: string;
+    anschrift_vorher?: string;
+    melde_zusatz?: string;
+    vertrag_datum?: string;
+    moeblierungszuschlag?: number;
   } | null;
 
   if (!b?.aktion) {
@@ -87,6 +97,74 @@ export async function POST(req: Request) {
         );
         const soll = await erzeugeSollstellungen();
         return NextResponse.json({ ok: true, soll });
+      }
+
+      /**
+       * Die Felder, ohne die Mietvertrag und Wohnungsgeberbestaetigung
+       * nicht gedruckt werden koennen.
+       *
+       * Eigene Aktion statt einer Erweiterung von mietverhaeltnis_aendern:
+       * Die aendert Geld und Laufzeit und zieht danach die Sollstellungen
+       * nach. Hier aendert sich nichts am Geld -- ein Lauf ueber alle
+       * Sollstellungen waere nur Last ohne Wirkung.
+       *
+       * COALESCE wie dort: Ein nicht geschicktes Feld bleibt unveraendert.
+       * Leeren geht ueber diesen Weg also nicht; das ist gewollt, weil ein
+       * versehentlich leeres Formularfeld sonst einen gepflegten Wert
+       * loeschen koennte.
+       */
+      case "vertragsdaten_aendern": {
+        if (!b.mietverhaeltnis_id) {
+          return NextResponse.json(
+            { fehler: "mietverhaeltnis_id fehlt" },
+            { status: 400 },
+          );
+        }
+        const mv = await one<{ kontakt_id: string }>(
+          `SELECT kontakt_id::text FROM mietverhaeltnis WHERE id = $1`,
+          [b.mietverhaeltnis_id],
+        );
+        if (!mv) {
+          return NextResponse.json(
+            { fehler: "Mietverhältnis unbekannt" },
+            { status: 404 },
+          );
+        }
+        await tx(async (c) => {
+          await c.query(
+            `UPDATE mietverhaeltnis
+                SET anschrift_vorher    = COALESCE($2, anschrift_vorher),
+                    melde_zusatz        = COALESCE($3, melde_zusatz),
+                    vertrag_datum       = COALESCE($4::date, vertrag_datum),
+                    moeblierungszuschlag= COALESCE($5::numeric, moeblierungszuschlag),
+                    kaution             = COALESCE($6::numeric, kaution)
+              WHERE id = $1`,
+            [
+              b.mietverhaeltnis_id,
+              b.anschrift_vorher?.trim() || null,
+              b.melde_zusatz?.trim() || null,
+              b.vertrag_datum || null,
+              b.moeblierungszuschlag ?? null,
+              b.kaution ?? null,
+            ],
+          );
+          // Passname, Geburtsdatum und Geburtsort haengen am Kontakt, nicht
+          // am Mietverhaeltnis -- derselbe Mensch kann mehrere haben.
+          await c.query(
+            `UPDATE kontakt
+                SET anzeigename  = COALESCE($2, anzeigename),
+                    geburtsdatum = COALESCE($3::date, geburtsdatum),
+                    geburtsort   = COALESCE($4, geburtsort)
+              WHERE id = $1`,
+            [
+              mv.kontakt_id,
+              b.voller_name?.trim() || null,
+              b.geburtsdatum || null,
+              b.geburtsort?.trim() || null,
+            ],
+          );
+        });
+        return NextResponse.json({ ok: true });
       }
 
       case "zahlerkennung_anlegen": {

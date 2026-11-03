@@ -321,6 +321,13 @@ table.mb-raster {
    nimmt die Tastatur mit: Wer sich durch die Verweise einer Zeile tabbt,
    sieht dieselbe Zeile markiert.                                          */
 
+/* Taktlinie: jede fuenfte Einheit. Die staerkere Linie gibt dem Auge beim
+   Wandern nach rechts einen Halt -- Zebrastreifen koennen das hier nicht
+   leisten, weil die Zustandsflaechen die Zeilen schon einfaerben. */
+.mb-raster tbody tr[data-takt="ja"] > * {
+  border-bottom: 1px solid var(--linie-stark);
+}
+
 .mb-raster tbody tr:not(.mb-gruppe):hover > *,
 .mb-raster tbody tr:not(.mb-gruppe):focus-within > * {
   box-shadow: inset 0 0 0 100vmax

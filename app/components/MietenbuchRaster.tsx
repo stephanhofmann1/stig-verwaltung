@@ -460,8 +460,12 @@ function ObjektBlock({
         </th>
       </tr>
 
-      {g.zeilen.map((z) => (
-        <tr key={z.einheit.id}>
+      {g.zeilen.map((z, i) => (
+        /* Jede fünfte Zeile bekommt eine stärkere Linie -- wie die
+           Hilfslinien im Kontobuch. Bei 38 Einheiten über 12 Spalten ist
+           das Verrutschen um eine Zeile der eigentliche Fehler, nicht das
+           Rechnen. */
+        <tr key={z.einheit.id} data-takt={(i + 1) % 5 === 0 ? "ja" : undefined}>
           <th scope="row" className="mb-einheit">
             <Link href={`/einheit/${z.einheit.id}`}>{z.bezeichnung}</Link>
             {z.untertitel && <span className="mb-unter">{z.untertitel}</span>}

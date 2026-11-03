@@ -60,7 +60,9 @@ export function BankAbruf({ zugang, name }: { zugang: string; name: string }) {
   }
 
   return (
-    <div style={{ marginTop: "0.6rem" }}>
+    // .knopfreihe statt marginTop: Abstand nach oben, und die kurze
+    // Rueckmeldung stellt sich von allein neben den Knopf.
+    <div className="knopfreihe">
       {stand !== "tan" && (
         <button onClick={abrufen} disabled={stand === "laeuft"} data-art="still">
           {stand === "laeuft" ? "läuft …" : `${name} jetzt abrufen`}
@@ -68,8 +70,8 @@ export function BankAbruf({ zugang, name }: { zugang: string; name: string }) {
       )}
 
       {stand === "tan" && (
-        <form onSubmit={tanSenden} style={{ marginTop: "0.5rem" }}>
-          <p style={{ margin: "0 0 0.5rem" }}>
+        <form onSubmit={tanSenden}>
+          <p>
             <strong>Die Bank verlangt eine TAN.</strong>
             <br />
             <span className="hinweis">{hinweis}</span>
@@ -80,19 +82,22 @@ export function BankAbruf({ zugang, name }: { zugang: string; name: string }) {
               </>
             ) : null}
           </p>
-          <input
-            value={tan}
-            onChange={(e) => setTan(e.target.value)}
-            placeholder="TAN"
-            autoComplete="one-time-code"
-            inputMode="numeric"
-            autoFocus
-            style={{ width: "10rem", marginRight: "0.5rem" }}
-          />
-          <button type="submit" disabled={tan.trim() === ""}>
-            TAN senden
-          </button>
-          <p className="hinweis" style={{ marginTop: "0.5rem" }}>
+          {/* Feld und Knopf in der Knopfreihe: den Abstand dazwischen
+              traegt deren gap, vorher stand er als marginRight im Feld. */}
+          <div className="knopfreihe">
+            <input
+              value={tan}
+              onChange={(e) => setTan(e.target.value)}
+              placeholder="TAN"
+              autoComplete="one-time-code"
+              inputMode="numeric"
+              autoFocus
+            />
+            <button type="submit" disabled={tan.trim() === ""}>
+              TAN senden
+            </button>
+          </div>
+          <p className="hinweis">
             Bei einem entkoppelten Verfahren (Push-TAN-App) genügt die
             Bestätigung in der App; dann hier eine beliebige Ziffer eintragen
             und senden.
@@ -101,14 +106,14 @@ export function BankAbruf({ zugang, name }: { zugang: string; name: string }) {
       )}
 
       {ergebnis?.art === "fertig" && (
-        <p style={{ marginTop: "0.6rem" }}>
+        <p>
           <strong>{ergebnis.neu} neue Buchungen</strong>
           {ergebnis.bekannt > 0 ? `, ${ergebnis.bekannt} schon bekannt` : ""} —
           Zeitraum {ergebnis.von} bis {ergebnis.bis}.
           {ergebnis.gekuerzt && (
             <>
               <br />
-              <span style={{ color: "#8a5a00" }}>
+              <span className="rueckmeldung" data-art="warn">
                 Der Zeitraum war länger, als ohne TAN möglich ist, und wurde
                 gekürzt. Es fehlt Historie — die muss über einen Dateiexport
                 nachgeholt werden.
@@ -119,7 +124,7 @@ export function BankAbruf({ zugang, name }: { zugang: string; name: string }) {
       )}
 
       {ergebnis?.art === "fehler" && (
-        <p style={{ marginTop: "0.6rem", color: "#b3261e" }}>
+        <p className="rueckmeldung" data-art="fehler">
           {ergebnis.meldung}
         </p>
       )}

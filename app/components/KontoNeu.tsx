@@ -33,31 +33,33 @@ export function KontoNeu({ objekte }: { objekte: { id: string; name: string }[] 
     return <button onClick={() => setOffen(true)}>Konto anlegen</button>;
   }
 
-  const feld = { display: "block", width: "100%", marginBottom: "0.75rem" };
-
+  // Das Stilobjekt `feld` ist weg -- .feld aus Abschnitt 12 von globals.css
+  // macht dasselbe. Die Formularbreite bleibt als einziger Inline-Stil:
+  // fuer "schmale Spalte" fehlt im Stylesheet eine Klasse, und ohne
+  // Begrenzung waere jedes Feld so breit wie der Rahmen (72 rem).
   return (
     <form onSubmit={absenden} style={{ maxWidth: "32rem" }}>
       <label>Bezeichnung
-        <input name="bezeichnung" required placeholder="z. B. Hausbank Geschäftskonto" style={feld} />
+        <input name="bezeichnung" required placeholder="z. B. Hausbank Geschäftskonto" className="feld" />
         <span className="hinweis">
           Unter diesem Namen sucht der Import sein Konto. Am besten so, wie
           du das Konto selbst nennst.
         </span>
       </label>
       <label>Art
-        <select name="art" defaultValue="bank" style={feld}>
+        <select name="art" defaultValue="bank" className="feld">
           <option value="bank">Bankkonto</option>
           <option value="barkasse">Barkasse</option>
         </select>
       </label>
       <label>Gehört zu Objekt (optional)
-        <select name="objekt_id" defaultValue="" style={feld}>
+        <select name="objekt_id" defaultValue="" className="feld">
           <option value="">— keinem bestimmten —</option>
           {objekte.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
         </select>
       </label>
       <label>IBAN (optional)
-        <input name="iban_kurz" placeholder="DE…" style={feld} />
+        <input name="iban_kurz" placeholder="DE…" className="feld" />
         <span className="hinweis">
           Es werden nur die letzten vier Stellen gespeichert, zum
           Wiedererkennen in der Liste. Die ganze IBAN einfügen ist in
@@ -65,10 +67,14 @@ export function KontoNeu({ objekte }: { objekte: { id: string; name: string }[] 
         </span>
       </label>
       <label>Notiz (optional)
-        <input name="notizen" style={feld} />
+        <input name="notizen" className="feld" />
       </label>
 
-      {fehler && <p style={{ color: "#b3261e" }}>{fehler}</p>}
+      {fehler && (
+        <p className="rueckmeldung" data-art="fehler">
+          {fehler}
+        </p>
+      )}
 
       <button type="submit" disabled={stand === "laeuft"}>
         {stand === "laeuft" ? "speichert …" : "Konto anlegen"}
