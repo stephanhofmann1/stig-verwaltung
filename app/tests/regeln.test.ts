@@ -2,8 +2,10 @@ import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  findeStichwort,
   normalisiereBetreff,
   parseMessageIds,
+  schneideFundstelle,
   SCHLUESSELWOERTER,
 } from "../lib/einordnung";
 import { zielmonat, vergleichbar } from "../lib/zuordnung";
@@ -580,5 +582,140 @@ describe("Stichwort behoerde", () => {
       "veranlasst. Geben Sie mir dazu noch Bescheid. Anschliessend " +
       "erhalten Sie die Korrektur und die Rechnung.";
     assert.equal(trifft(text), false);
+  });
+});
+
+/**
+ * Die Einordnung sagt, WORAUF sie beruht.
+ *
+ * Bis zum 03.11.2026 nahm ordneEin() vom Stichworttreffer nur den
+ * Wahrheitswert (`muster.test(text)`). Welches Wort entschieden hat, war
+ * hinterher nicht feststellbar -- und damit war der teuerste Fehler
+ * dieser Automatik unerklaerbar: Eine Mail des Messdienstleisters lag als
+ * Behoerdenpost in der Akte, war dadurch heikel, der Agent durfte dort
+ * nichts vorschreiben, und auf der Oberflaeche stand nichts.
+ *
+ * Der Schaden war nicht die falsche Kategorie -- die passiert bei
+ * Mustererkennung -- sondern dass niemand erfuhr, warum die Automatik
+ * aufhoerte zu arbeiten. Diese Tests halten fest, dass der Treffer samt
+ * Fundstelle herauskommt und dass es der TATSAECHLICH wirksame ist.
+ */
+describe("Stichwort mit Fundstelle", () => {
+  test("der Treffer wird als Text zurueckgegeben, nicht als Wahrheitswert", () => {
+    const t = findeStichwort("Betreff\nAnbei die Rechnung Nr. 4711 zur Zahlung.");
+    assert.equal(t?.kategorie, "rechnung");
+    assert.equal(t?.stichwort, "Rechnung");
+    assert.ok(
+      t && t.position >= 0,
+      "Ohne Position laesst sich keine Fundstelle schneiden",
+    );
+  });
+
+  test("die Fundstelle zeigt die Umgebung, in der das Wort stand", () => {
+    // "Bescheid hat getroffen" sagt nichts. Erst der Ausschnitt macht
+    // eine falsche Einordnung erklaerbar -- und erst dann weiss der
+    // Mensch, ob er die Kategorie berichtigen muss.
+    const t = findeStichwort(
+      "Angebot Heizungstausch\nSehr geehrte Damen und Herren, " +
+        "hier ist unser Angebot fuer den Austausch.",
+    );
+    assert.equal(t?.kategorie, "handwerker");
+    assert.ok(t?.fundstelle.includes("Angebot"));
+    assert.ok(
+      !/\n/.test(t!.fundstelle),
+      "Die Fundstelle steht einzeilig in einer Tabellenzelle -- ein " +
+        "umgebrochener Mailtext sprengt sie",
+    );
+  });
+
+  test("bei mehreren moeglichen Mustern kommt das wirksame heraus", () => {
+    // Hier passen zwei: mahnwesen ("Mahnung") und rechnung ("Rechnung").
+    // Die Reihenfolge von SCHLUESSELWOERTER entscheidet, und sie ist
+    // Absicht -- das Heiklere gewinnt. Gaebe findeStichwort() das
+    // falsche Muster zurueck, stuende auf der Oberflaeche eine
+    // Begruendung, die nicht die wirksame war: schlimmer als keine,
+    // weil man ihr glaubt.
+    const t = findeStichwort("Mahnung zur Rechnung 4711");
+    assert.equal(t?.kategorie, "mahnwesen");
+    assert.equal(t?.stichwort?.toLowerCase(), "mahnung");
+  });
+
+  test("eine Schadensmeldung schlaegt das Gewerk", () => {
+    // Steht im Quelltext von lib/einordnung.ts als Begruendung der
+    // Musterreihenfolge: "Heizung defekt" ist eine Meldung des Mieters,
+    // "Angebot Heizung" ein Handwerker. Hier stehen beide Worte drin.
+    const t = findeStichwort("Heizung defekt - bitte Angebot einholen");
+    assert.equal(t?.kategorie, "mieter");
+    assert.equal(t?.stichwort, "defekt");
+  });
+
+  test("ohne Treffer kommt null -- und keine erfundene Kategorie", () => {
+    assert.equal(findeStichwort("Guten Tag, nur ein kurzer Gruss."), null);
+  });
+
+  /**
+   * Der Fall vom 03.11.2026, jetzt auf dem neuen Weg geprueft.
+   *
+   * Der bestehende Block "Stichwort behoerde" prueft das Muster
+   * unmittelbar. Dieser hier prueft, dass auch findeStichwort() -- die
+   * Funktion, die ordneEin() seit dem 03.11. benutzt -- die Mail nicht
+   * bei behoerde ablegt. Ohne diesen Test koennte das Muster richtig
+   * bleiben und der Weg darueber trotzdem falsch werden.
+   */
+  test("„Geben Sie mir Bescheid“ landet weiterhin nicht bei behoerde", () => {
+    const text =
+      "AW: Rueckfragen vor Weitergabe - Abrechnung 2025\n" +
+      "Der Heizverbrauch wurde nun geschaetzt und eine Geraetepruefung " +
+      "veranlasst. Geben Sie mir dazu noch Bescheid. Anschliessend " +
+      "erhalten Sie die Korrektur und die Rechnung.";
+    const t = findeStichwort(text);
+    assert.notEqual(
+      t?.kategorie,
+      "behoerde",
+      "Der Fehler vom 03.11.2026 ist zurueck: Die Mail wird als " +
+        "Behoerdenpost eingeordnet, dadurch heikel, und der Agent " +
+        "schreibt dort nichts mehr vor -- ohne dass es jemandem auffaellt.",
+    );
+  });
+
+  test("ein echter Bescheid wird weiterhin als Behoerde erkannt", () => {
+    // Die Gegenprobe. Eine Behoerdenfrist zu uebersehen waere der
+    // teurere Fehler.
+    const t = findeStichwort("Anbei der Bescheid des Finanzamts zur Pruefung");
+    assert.equal(t?.kategorie, "behoerde");
+    assert.ok(t?.stichwort?.toLowerCase().includes("bescheid"));
+  });
+
+  test("findeStichwort liefert beim zweiten Aufruf dasselbe", () => {
+    // Die Muster tragen bewusst kein /g. Truege eines eines, haette es
+    // einen eigenen lastIndex, und derselbe Text ergaebe beim zweiten
+    // Mal ein anderes Ergebnis -- ein Fehler, der nur unter Last
+    // auftritt und nie reproduzierbar ist.
+    for (const { muster } of SCHLUESSELWOERTER) {
+      assert.ok(
+        !muster.flags.includes("g"),
+        `Muster mit /g gefunden: ${muster}. Es wuerde seinen lastIndex ` +
+          "ueber Aufrufe hinweg behalten.",
+      );
+    }
+    const text = "Anbei die Rechnung 4711";
+    assert.deepEqual(findeStichwort(text), findeStichwort(text));
+  });
+});
+
+describe("Fundstelle schneiden", () => {
+  test("gekuerzte Raender bekommen ein Auslassungszeichen", () => {
+    const text = "a".repeat(200) + "TREFFER" + "b".repeat(200);
+    const f = schneideFundstelle(text, 200, 7, 10);
+    assert.ok(f.startsWith("… "), "Links gekuerzt, aber nicht gekennzeichnet");
+    assert.ok(f.endsWith(" …"), "Rechts gekuerzt, aber nicht gekennzeichnet");
+    assert.ok(f.includes("TREFFER"));
+  });
+
+  test("ein kurzer Text kommt ohne Auslassungszeichen durch", () => {
+    // Sonst haelt der Leser den Ausschnitt fuer gekuerzt und sucht
+    // weiter, wo nichts mehr ist.
+    const f = schneideFundstelle("Nur Rechnung hier", 4, 8, 60);
+    assert.equal(f, "Nur Rechnung hier");
   });
 });

@@ -70,16 +70,34 @@ interface ProtokollZeile {
 }
 
 /** Nur die drei Ereignisse, die von dieser Seite aus entstehen. */
+/*
+  Welche Protokollereignisse in der Akte erscheinen.
+
+  Die Liste ist eine Auswahl und keine Vollstaendigkeit -- geschrieben
+  wird mehr, als hier steht. Sie hat aber eine Tuecke: Ein neues Ereignis
+  erscheint NICHT von selbst. Es wird geschrieben, ist im Protokoll
+  vorhanden, und in der Akte fehlt es trotzdem. Wer eine Zeile vermisst,
+  sucht dann an der falschen Stelle -- naemlich beim Schreiben.
+
+  Deshalb stehen hier auch die beiden Ereignisse aus db/031: Dass jemand
+  einen Vorgang ohne Antwort geschlossen hat, und dass ein Entwurf auf
+  Anweisung neu erzeugt wurde. Beides sind Entscheidungen eines Menschen
+  ueber eine Korrespondenz, und beide will man im Streitfall nachlesen.
+*/
 const PROTOKOLL_EREIGNISSE = [
   "vorgang_status_geaendert",
   "vorgang_kategorie_geaendert",
   "vorgang_heikel_geaendert",
+  "vorgang_ohne_antwort_geschlossen",
+  "entwurf_neu_erzeugt",
 ];
 
 const EREIGNIS_TEXT: Record<string, string> = {
   vorgang_status_geaendert: "Status geändert",
   vorgang_kategorie_geaendert: "Kategorie geändert",
   vorgang_heikel_geaendert: "Sperre für die Automatik geändert",
+  vorgang_ohne_antwort_geschlossen: "Ohne Antwort geschlossen",
+  entwurf_neu_erzeugt: "Entwurf auf Anweisung neu erzeugt",
 };
 
 /**

@@ -103,7 +103,15 @@ const GRUPPEN: Gruppe[] = [
   },
   {
     titel: "System",
-    punkte: [{ href: "/laeufe", text: "Automatik" }],
+    punkte: [
+      { href: "/laeufe", text: "Automatik" },
+      // Die Dauerweisungen an die Entwurfserzeugung. Sie stehen unter
+      // System und nicht unter Vermietung: Sie betreffen kein einzelnes
+      // Mietverhaeltnis, sondern wie die Anwendung ueberhaupt
+      // formuliert -- und sie wirken still auf jeden kuenftigen Entwurf.
+      // Etwas, das unsichtbar mitschreibt, braucht einen sichtbaren Ort.
+      { href: "/weisungen", text: "Weisungen" },
+    ],
   },
 ];
 

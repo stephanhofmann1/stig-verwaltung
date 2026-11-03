@@ -1828,6 +1828,93 @@ p.hinweis.abschnitt { margin-top: var(--abstand-7); }
   outline-offset: -2px;
 }
 
+/* --- 14i. Was das Postfach gebraucht hat -----------------------------
+   Fuenf Regeln aus einem Befund: Es waren die Stellen, an denen ein
+   Bauteil sich mit einem Inline-Stil beholfen haette, weil es nichts
+   gab, wogegen man ihn tauschen konnte. */
+
+/* Abschnittskopf eine Stufe kleiner.
+   "Sperre fuer die Automatik" und "Hier nicht antworten" sind Ueber-
+   schriften INNERHALB einer Akte, nicht neben ihr. Bisher loeste das
+   ein style={{fontSize:"1rem"}} im Markup -- und jede Ueberschrift, die
+   das vergass, sprang eine Stufe hoch. */
+.titelzeile[data-rang="klein"] {
+  margin-top: var(--abstand-6);
+}
+.titelzeile[data-rang="klein"] h2,
+.titelzeile[data-rang="klein"] h3 {
+  font-size: var(--t-lese);
+  font-weight: var(--g-kopf);
+  margin: 0;
+}
+
+/* Ein Textausschnitt im Fliesstext -- die Fundstelle, an der ein
+   Stichwort getroffen hat, oder ein Stueck des alten Entwurfs.
+
+   Bisher behalf sich das mit .protokoll. Das ist ein Block mit 22rem
+   Hoechsthoehe und eigenem Rollbalken; in einer Tabellenzelle oder
+   einer Rasterzelle ist das viel zu schwer. Hier reicht eine ruhige
+   Flaeche mit Zitatkante. */
+.zitat {
+  display: block;
+  background: var(--flaeche-ruhig);
+  border-left: 2px solid var(--linie-stark);
+  padding: var(--abstand-2) var(--abstand-3);
+  font-size: var(--t-klein);
+  line-height: var(--zh-klein);
+  color: var(--fg-leise);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+/* Ein Ausschnitt mit hervorgehobener Fundstelle. <mark> faerbt sonst
+   grellgelb und bringt eine Farbe mit, die dem Dunkelmodus entgeht. */
+.zitat mark {
+  background: var(--akzent-flaeche);
+  color: var(--akzent);
+  font-weight: var(--g-kopf);
+  padding: 0 0.15em;
+}
+
+/* Knoepfe in einer Registerzeile.
+   .posten ist als Verweiszeile gebaut -- ein Knopf darin saesse sonst
+   auf der Grundlinie des Flies-textes und klebte am Rand. */
+.posten-aktionen {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--abstand-2);
+  align-items: center;
+  margin-top: var(--abstand-2);
+}
+
+/* Eine Aufzaehlung in der Wertspalte eines Datenblatts -- etwa die
+   Weisungen, die auf einen Entwurf gewirkt haben. Sie ist eine Liste
+   (die Reihenfolge ist die Reihenfolge im Prompt und damit Information),
+   aber sie braucht keine Punkte und keinen Einzug. */
+.datenblatt dd > ul,
+.datenblatt dd > ol {
+  list-style: none;
+  margin: 0;
+  padding-left: 0;
+}
+.datenblatt dd > ul > li,
+.datenblatt dd > ol > li {
+  margin-top: var(--abstand-1);
+}
+.datenblatt dd > ul > li:first-child,
+.datenblatt dd > ol > li:first-child {
+  margin-top: 0;
+}
+
+/* Ein mehrzeiliges Feld im Formularraster. .feld war auf block/100%
+   beschraenkt und hat textarea nicht wie input und select geformt --
+   das Anweisungsfeld am Entwurf ist aber genau so eines. */
+.feld textarea,
+.feldraster textarea {
+  width: 100%;
+  min-height: 4.5rem;
+  resize: vertical;
+}
+
 /* --- 15. Schmale Schirme (Telefon) --------------------------------------
    Prüfmaß 390 px: 16 px Seitenabstand, kein waagerechtes Rollen der Seite. */
 

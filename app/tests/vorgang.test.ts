@@ -4,13 +4,16 @@ import { readFileSync } from "node:fs";
 
 import {
   BEGRUENDUNG_MINDESTLAENGE,
+  OHNE_ANTWORT_MINDESTLAENGE,
   STATUS_WEGE,
   erlaubteStatus,
   hebtSperreAuf,
   istKategorie,
   istStatus,
+  ohneAntwortGeschlossen,
   pruefeAenderung,
   statusKnopf,
+  zaehltAlsOffen,
   type Ist,
 } from "../lib/vorgangstatus";
 import { darf } from "../proxy";
@@ -34,7 +37,13 @@ import { darf } from "../proxy";
 const WER = "pruefer";
 
 function ist(teil: Partial<Ist> = {}): Ist {
-  return { status: "offen", kategorie: "sonstige", heikel: false, ...teil };
+  return {
+    status: "offen",
+    kategorie: "sonstige",
+    heikel: false,
+    ohne_antwort_grund: null,
+    ...teil,
+  };
 }
 
 /** Kurzform: das Ergebnis muss erlaubt sein, sonst sagt die Meldung warum. */
@@ -387,15 +396,60 @@ describe("Die neue Schnittstelle ist abgesichert", () => {
     assert.doesNotMatch(route, /erledigt'\s*,\s*'wartet/);
   });
 
-  test("es gibt nur PATCH -- kein GET, das die Akte offenlegt", () => {
+  /**
+   * GEAENDERT AM 03.11.2026 -- bitte gegenlesen.
+   *
+   * Dieser Test lautete vorher "es gibt nur PATCH -- kein GET, das die
+   * Akte offenlegt" und verbot alle vier uebrigen Methoden. Seit dem
+   * 03.11.2026 hat die Route ein GET, und zwar fuer die Schalter in der
+   * Akte (components/VorgangSchalter.tsx): Sie brauchen die Herkunft der
+   * Einordnung, den Grund eines ohne Antwort geschlossenen Vorgangs und
+   * die Frage, ob ein Entwurf nachgezogen werden kann. Die Seite, die
+   * den Schalter rendert, gehoert nicht zu dieser Aenderung und konnte
+   * die Werte nicht als Eigenschaft durchgeben.
+   *
+   * Das Anliegen des alten Tests bleibt und wird hier scharf
+   * aufgeschrieben, statt weggenommen: Das GET gibt KEINE Korrespondenz
+   * heraus. Kein Betreff, kein Absender, kein Name, kein Mailtext --
+   * nur den Steuerungsstand des Vorgangs, den die Akte ohnehin anzeigt.
+   * Und schreibend bleibt es bei PATCH allein.
+   */
+  test("schreibend gibt es nur PATCH", () => {
     assert.match(route, /export async function PATCH/);
-    for (const m of ["GET", "POST", "PUT", "DELETE"]) {
+    for (const m of ["POST", "PUT", "DELETE"]) {
       assert.doesNotMatch(
         route,
         new RegExp(`export async function ${m}\\b`),
-        `${m} ist nicht vorgesehen`,
+        `${m} ist nicht vorgesehen -- geaendert wird ueber PATCH`,
       );
     }
+  });
+
+  test("das GET gibt keine Korrespondenz heraus", () => {
+    const ab = route.indexOf("export async function GET");
+    if (ab < 0) return; // kein GET -- dann ist nichts zu pruefen
+    const block = route.slice(ab);
+    for (const spalte of [
+      "koerper_text",
+      "von_email",
+      "von_name",
+      "anzeigename",
+      "an_emails",
+      "v.betreff",
+    ]) {
+      assert.ok(
+        !block.includes(spalte),
+        `Das GET liest ${spalte}. Damit legte es die Akte offen -- genau ` +
+          "das sollte diese Route nie tun. Der Steuerungsstand darf " +
+          "heraus, der Schriftverkehr nicht.",
+      );
+    }
+    assert.match(
+      block,
+      /angemeldeteSitzung/,
+      "Auch das GET prueft die Anmeldung selbst und verlaesst sich nicht " +
+        "auf den Proxy.",
+    );
   });
 
   test("der Aufgabenschluessel oeffnet sie nicht", () => {
@@ -424,5 +478,223 @@ describe("Die Rollenweiche deckt die neue Schnittstelle", () => {
     for (const m of ["GET", "PATCH"]) {
       assert.equal(darf(pfad, "mieter", m), false, `Mieter darf nicht ${m}`);
     }
+  });
+});
+
+/**
+ * "Hier nicht antworten" -- und der Vorgang zaehlt nicht mehr als offen.
+ *
+ * Der Fehler, gegen den dieser Block schuetzt, ist eine Arbeitsliste, die
+ * unbrauchbar wird. Bis zum 03.11.2026 gab es nur beantworten oder
+ * liegenlassen. Liegenlassen sah aus wie Arbeit, die noch wartet: Die
+ * Kennzahl "wartet auf Freigabe" (lib/kennzahlen.ts, ladeFreigabestand)
+ * zaehlte jeden Vorgang mit, der auf "offen" stand und keine Antwort
+ * hatte. Eine Mail, auf die bewusst nicht geantwortet wird -- ein
+ * Rundschreiben, eine Kenntnisnahme, eine Fehlzustellung -- blieb damit
+ * fuer immer in der Liste. Nach einem halben Jahr ist die Haelfte der
+ * Liste nicht mehr gemeint, und dann wird keine Zeile mehr gelesen,
+ * auch nicht die wichtige.
+ *
+ * Der zweite Fehler ist der stille: Ein Vorgang wird geschlossen und
+ * niemand kann in einem Jahr sagen, warum nicht geantwortet wurde.
+ * Deshalb ist der Grund Pflicht.
+ */
+describe("ohne Antwort schliessen", () => {
+  test("ein offener Vorgang wird mit Grund auf erledigt gesetzt", () => {
+    const e = erlaubt(
+      pruefeAenderung(
+        ist(),
+        { ohne_antwort: "Nur zur Kenntnis, Rundschreiben des Versorgers" },
+        WER,
+      ),
+    );
+    assert.equal(e.soll.status, "erledigt");
+    assert.equal(
+      e.soll.ohne_antwort_grund,
+      "Nur zur Kenntnis, Rundschreiben des Versorgers",
+    );
+  });
+
+  test("der so geschlossene Vorgang zaehlt nicht mehr als offen", () => {
+    // Das ist die eigentliche Zusage. Sie haelt ohne Zutun, weil "ohne
+    // Antwort schliessen" den Status auf "erledigt" setzt und keinen
+    // vierten Status einfuehrt -- jede bestehende Bedingung
+    // `status = 'offen'` greift damit weiterhin richtig.
+    const e = erlaubt(
+      pruefeAenderung(ist(), { ohne_antwort: "Fehlzustellung, falscher Empfaenger" }, WER),
+    );
+    assert.equal(zaehltAlsOffen(ist()), true, "vorher zaehlte er mit");
+    assert.equal(
+      zaehltAlsOffen(e.soll),
+      false,
+      "Nach dem Schliessen darf er in keiner Zaehlung offener Faelle mehr " +
+        "auftauchen -- sonst verlangt die Liste jeden Tag erneut eine " +
+        "Entscheidung, die getroffen ist",
+    );
+    assert.equal(ohneAntwortGeschlossen(e.soll), true);
+  });
+
+  test("ein gewoehnlich erledigter Vorgang gilt nicht als ohne Antwort geschlossen", () => {
+    // Die Unterscheidung muss in beide Richtungen tragen: Sonst saehe
+    // jeder beantwortete Vorgang wie eine Kenntnisnahme aus.
+    const e = erlaubt(pruefeAenderung(ist(), { status: "erledigt" }, WER));
+    assert.equal(zaehltAlsOffen(e.soll), false);
+    assert.equal(ohneAntwortGeschlossen(e.soll), false);
+  });
+
+  test("ohne Grund wird nicht geschlossen", () => {
+    const e = pruefeAenderung(ist(), { ohne_antwort: "ok" }, WER);
+    assert.equal(e.ok, false);
+    if (!e.ok) {
+      assert.match(e.fehler, new RegExp(String(OHNE_ANTWORT_MINDESTLAENGE)));
+      assert.equal(e.code, 400);
+    }
+  });
+
+  test("ein leerer Grund ist kein Grund", () => {
+    const e = pruefeAenderung(ist(), { ohne_antwort: "          " }, WER);
+    assert.equal(e.ok, false);
+  });
+
+  test("der Grund steht im Protokoll, mit Namen", () => {
+    const e = erlaubt(
+      pruefeAenderung(
+        ist({ status: "wartet" }),
+        { ohne_antwort: "Erledigt sich von selbst, Mieter hat angerufen" },
+        WER,
+      ),
+    );
+    const schluss = e.eintraege.find(
+      (x) => x.ereignis === "vorgang_ohne_antwort_geschlossen",
+    );
+    assert.ok(schluss, "Es muss einen eigenen Eintrag geben");
+    assert.equal(schluss!.details.wer, WER);
+    assert.equal(
+      schluss!.details.nachher,
+      "Erledigt sich von selbst, Mieter hat angerufen",
+    );
+    // Und der Statuswechsel selbst steht auch da -- mit demselben Grund.
+    const wechsel = e.eintraege.find(
+      (x) => x.ereignis === "vorgang_status_geaendert",
+    );
+    assert.equal(wechsel!.details.vorher, "wartet");
+    assert.equal(wechsel!.details.nachher, "erledigt");
+    assert.equal(wechsel!.details.ohne_antwort, true);
+  });
+
+  test("ein bereits erledigter Vorgang bekommt nur den Grund nachgetragen", () => {
+    const e = erlaubt(
+      pruefeAenderung(
+        ist({ status: "erledigt" }),
+        { ohne_antwort: "War nur eine Kenntnisnahme" },
+        WER,
+      ),
+    );
+    assert.deepEqual(
+      e.eintraege.map((x) => x.ereignis),
+      ["vorgang_ohne_antwort_geschlossen"],
+      "Kein Statuswechsel, der keiner ist -- ein Protokoll voller " +
+        "Nichtaenderungen ist nach einem Jahr unlesbar",
+    );
+  });
+
+  test("derselbe Grund zweimal ist keine Aenderung", () => {
+    const e = pruefeAenderung(
+      ist({ status: "erledigt", ohne_antwort_grund: "War nur eine Kenntnisnahme" }),
+      { ohne_antwort: "War nur eine Kenntnisnahme" },
+      WER,
+    );
+    assert.equal(e.ok, false);
+  });
+
+  test("ein widersprechender Status in derselben Anfrage wird abgewiesen", () => {
+    // Lieber abweisen als eine der beiden Absichten stillschweigend
+    // verwerfen. Welche von beiden gewonnen haette, waere im Protokoll
+    // nicht mehr zu sehen.
+    const e = pruefeAenderung(
+      ist(),
+      { ohne_antwort: "Nur zur Kenntnis genommen", status: "wartet" },
+      WER,
+    );
+    assert.equal(e.ok, false);
+    if (!e.ok) assert.equal(e.code, 409);
+  });
+
+  test("ein mitgeschicktes status=erledigt erzeugt keinen zweiten Eintrag", () => {
+    const e = erlaubt(
+      pruefeAenderung(
+        ist(),
+        { ohne_antwort: "Nur zur Kenntnis genommen", status: "erledigt" },
+        WER,
+      ),
+    );
+    assert.equal(
+      e.eintraege.filter((x) => x.ereignis === "vorgang_status_geaendert").length,
+      1,
+    );
+  });
+
+  test("ein Grund, der kein Text ist, wird abgewiesen", () => {
+    for (const falsch of [42, true, { grund: "x" }, ["x"]]) {
+      const e = pruefeAenderung(ist(), { ohne_antwort: falsch }, WER);
+      assert.equal(e.ok, false, `${JSON.stringify(falsch)} ist kein Grund`);
+    }
+  });
+});
+
+/**
+ * Die Kennzahlen zaehlen den geschlossenen Vorgang nicht mit.
+ *
+ * Geprueft am Quelltext und bewusst nicht an einer Datenbank -- derselbe
+ * Grund wie in tests/zurueckgestellt.test.ts: Es geht nicht um die
+ * Rechnung, sondern darum, DASS die Bedingung auf `status = 'offen'`
+ * steht. Genau daran haengt, dass "ohne Antwort schliessen" ohne
+ * Aenderung an lib/kennzahlen.ts wirkt.
+ *
+ * Faellt dieser Test, ist entweder die Bedingung dort aufgeweicht worden
+ * -- dann zaehlt ein geschlossener Vorgang wieder mit -- oder es wurde
+ * doch ein vierter Status eingefuehrt, und dann muessen alle Zaehlungen
+ * nachgezogen werden.
+ */
+describe("ladeFreigabestand zaehlt nur offene Vorgaenge", () => {
+  const kennzahlen = readFileSync(
+    new URL("../lib/kennzahlen.ts", import.meta.url),
+    "utf8",
+  );
+  const stand = kennzahlen.slice(
+    kennzahlen.indexOf("async function ladeFreigabestand"),
+  );
+  const block = stand.slice(0, stand.indexOf("export async function ladeCockpit"));
+
+  test("die Zaehlung der unbeantworteten Faelle prueft status = 'offen'", () => {
+    assert.ok(block.length > 100, "ladeFreigabestand nicht gefunden");
+    assert.match(
+      block,
+      /v\.status = 'offen'/,
+      "lib/kennzahlen.ts zaehlt die unbeantworteten Faelle nicht mehr " +
+        "ueber status = 'offen'. Dann faellt ein ohne Antwort " +
+        "geschlossener Vorgang nicht mehr von selbst aus der Zahl.",
+    );
+  });
+
+  test("die Zaehlung der Entwuerfe haengt an nachricht.status", () => {
+    // Bewusst festgehalten, weil es der verbleibende Haken ist: Diese
+    // Zahl sieht den Vorgangsstatus nicht an. Deshalb verwirft
+    // api/vorgang/[id] beim Schliessen ohne Antwort einen noch offenen
+    // Entwurf -- ohne das stuende er weiter in der Zahl.
+    assert.match(block, /FROM nachricht WHERE status = 'entwurf'/);
+  });
+
+  test("die Route verwirft offene Entwuerfe beim Schliessen ohne Antwort", () => {
+    const route = readFileSync(
+      new URL("../app/api/vorgang/[id]/route.ts", import.meta.url),
+      "utf8",
+    );
+    assert.match(
+      route,
+      /UPDATE nachricht SET status = 'verworfen'/,
+      "Ohne das bliebe ein Entwurf in der Freigabe stehen, bei einem " +
+        "Vorgang, auf den bewusst nicht geantwortet wird",
+    );
   });
 });

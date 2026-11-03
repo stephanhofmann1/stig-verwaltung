@@ -47,6 +47,18 @@ import {
  */
 export const BEGRUENDUNG_MINDESTLAENGE = 10;
 
+/**
+ * So lang muss der Grund fuer "hier nicht antworten" mindestens sein.
+ *
+ * Dieselbe Zahl wie oben und derselbe Zweck: Ein Textfeld, das erst
+ * gefuellt werden muss, verhindert das Schliessen mit einem Klick. Der
+ * Grund ist hier aber nicht nur Dokumentation -- er ist die einzige
+ * Auskunft darueber, was mit dieser Mail geschehen ist. "Erledigt" ohne
+ * gesendete Antwort und ohne Grund sieht in einem Jahr wie ein
+ * vergessener Vorgang aus.
+ */
+export const OHNE_ANTWORT_MINDESTLAENGE = 10;
+
 /** Von welchem Status aus welcher erreichbar ist. */
 export const STATUS_WEGE: Record<VorgangStatus, VorgangStatus[]> = {
   offen: ["wartet", "erledigt"],
@@ -77,7 +89,8 @@ export function statusKnopf(ist: VorgangStatus, ziel: VorgangStatus): string {
 export type Ereignis =
   | "vorgang_status_geaendert"
   | "vorgang_kategorie_geaendert"
-  | "vorgang_heikel_geaendert";
+  | "vorgang_heikel_geaendert"
+  | "vorgang_ohne_antwort_geschlossen";
 
 /** Ein faelliger Protokolleintrag, fertig zum Schreiben. */
 export interface ProtokollEintrag {
@@ -90,6 +103,12 @@ export interface Ist {
   status: VorgangStatus;
   kategorie: Kategorie;
   heikel: boolean;
+  /**
+   * Gesetzt, wenn der Vorgang ausdruecklich ohne Antwort geschlossen
+   * wurde (db/031). Optional, weil die Spalte neu ist und jeder
+   * Aufrufer, der sie nicht kennt, weiterhin uebersetzt.
+   */
+  ohne_antwort_grund?: string | null;
 }
 
 /**
@@ -103,6 +122,11 @@ export interface Wunsch {
   kategorie?: unknown;
   heikel?: unknown;
   begruendung?: unknown;
+  /**
+   * Der Grund, aus dem hier nicht geantwortet wird. Gesetzt heisst:
+   * Vorgang schliessen, ohne zu antworten.
+   */
+  ohne_antwort?: unknown;
 }
 
 export type Pruefung =
@@ -144,6 +168,76 @@ export function pruefeAenderung(ist: Ist, wunsch: Wunsch, wer: string): Pruefung
   const eintraege: ProtokollEintrag[] = [];
   const soll: Ist = { ...ist };
 
+  // --- "Hier nicht antworten" -----------------------------------------
+  //
+  // Bisher gab es beantworten oder liegenlassen, und Liegenlassen sah aus
+  // wie Arbeit, die noch wartet: Die Kennzahl "Wartet auf Freigabe"
+  // (lib/kennzahlen.ts, ladeFreigabestand) zaehlte den Vorgang mit,
+  // solange er auf "offen" stand. Eine Mail, auf die bewusst nicht
+  // geantwortet wird, blieb damit fuer immer in der Liste der offenen
+  // Faelle -- und eine Liste, in der die Haelfte nicht mehr gemeint ist,
+  // wird nicht mehr gelesen.
+  //
+  // Bewusst KEIN vierter Status. Der Vorgang geht auf "erledigt" und
+  // faellt damit aus jeder Zaehlung, die auf status = 'offen' prueft --
+  // ohne dass eine einzige Abfrage angefasst werden muss. Was den Fall
+  // von einem beantworteten unterscheidet, ist allein der Grund, und der
+  // steht jetzt am Vorgang statt nur im Protokoll.
+  if (wunsch.ohne_antwort !== undefined && wunsch.ohne_antwort !== null) {
+    if (typeof wunsch.ohne_antwort !== "string") {
+      return nein("Der Grund muss Text sein.");
+    }
+    const grund = wunsch.ohne_antwort.trim();
+    if (grund.length < OHNE_ANTWORT_MINDESTLAENGE) {
+      return nein(
+        "Ohne Antwort schliessen braucht einen Grund von mindestens " +
+          `${OHNE_ANTWORT_MINDESTLAENGE} Zeichen. In einem Jahr ist der ` +
+          "Grund die einzige Auskunft darueber, was mit dieser Mail " +
+          "geschehen ist.",
+      );
+    }
+    // Ein gleichzeitig gesendeter, anderer Status waere ein Widerspruch
+    // in derselben Anfrage. Dann lieber abweisen als eine der beiden
+    // Absichten stillschweigend verwerfen.
+    if (
+      wunsch.status !== undefined &&
+      wunsch.status !== null &&
+      wunsch.status !== "erledigt"
+    ) {
+      return nein(
+        "Ohne Antwort schliessen setzt den Vorgang auf „Erledigt“. Ein " +
+          "anderer Status in derselben Anfrage widerspricht dem.",
+        409,
+      );
+    }
+
+    if (ist.status !== "erledigt") {
+      soll.status = "erledigt";
+      eintraege.push({
+        ereignis: "vorgang_status_geaendert",
+        details: {
+          vorher: ist.status,
+          nachher: "erledigt",
+          wer,
+          begruendung: grund,
+          ohne_antwort: true,
+        },
+      });
+    }
+    if ((ist.ohne_antwort_grund ?? null) !== grund) {
+      soll.ohne_antwort_grund = grund;
+      eintraege.push({
+        ereignis: "vorgang_ohne_antwort_geschlossen",
+        details: {
+          vorher: ist.ohne_antwort_grund ?? null,
+          nachher: grund,
+          wer,
+          begruendung: grund,
+        },
+      });
+    }
+  }
+
   // --- Status ---------------------------------------------------------
   if (wunsch.status !== undefined && wunsch.status !== null) {
     if (!istStatus(wunsch.status)) {
@@ -151,7 +245,10 @@ export function pruefeAenderung(ist: Ist, wunsch: Wunsch, wer: string): Pruefung
         `Unbekannter Status. Möglich sind: ${STATUS_WERTE.join(", ")}.`,
       );
     }
-    if (wunsch.status !== ist.status) {
+    // soll.status statt ist.status: Hat der Block darueber schon auf
+    // "erledigt" gesetzt, ist ein mitgeschicktes status="erledigt" keine
+    // zweite Aenderung und darf keinen zweiten Protokolleintrag erzeugen.
+    if (wunsch.status !== soll.status) {
       if (!erlaubteStatus(ist.status).includes(wunsch.status)) {
         return nein(
           `Von „${STATUS_LABEL[ist.status]}“ führt kein Weg direkt auf ` +
@@ -259,4 +356,27 @@ export function pruefeAenderung(ist: Ist, wunsch: Wunsch, wer: string): Pruefung
  */
 export function hebtSperreAuf(ist: Ist, wunsch: Wunsch): boolean {
   return ist.heikel === true && wunsch.heikel === false;
+}
+
+/**
+ * Zaehlt dieser Vorgang noch als offener Fall?
+ *
+ * Eine Zeile, und trotzdem eine eigene Funktion mit eigenem Test. Der
+ * Grund: Die Antwort steht an drei Stellen in SQL (lib/kennzahlen.ts,
+ * lib/lagebericht.ts, components/FreigabeListe.tsx), und die Frage
+ * "faellt ein ohne Antwort geschlossener Vorgang wirklich aus der
+ * Zaehlung" soll sich an einem Ort beantworten lassen, ohne Postgres.
+ *
+ * Die Antwort lautet ja, und zwar ohne Zutun: Weil "ohne Antwort
+ * schliessen" den Status auf "erledigt" setzt und nicht einen vierten
+ * Status einfuehrt, greift jede bestehende Bedingung `status = 'offen'`
+ * weiterhin richtig. Genau das war der Grund fuer diese Bauweise.
+ */
+export function zaehltAlsOffen(ist: Ist): boolean {
+  return ist.status === "offen";
+}
+
+/** Wurde dieser Vorgang ausdruecklich ohne Antwort geschlossen? */
+export function ohneAntwortGeschlossen(ist: Ist): boolean {
+  return ist.status === "erledigt" && !!(ist.ohne_antwort_grund ?? "").trim();
 }

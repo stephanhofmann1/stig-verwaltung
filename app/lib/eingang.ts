@@ -103,13 +103,34 @@ export async function verarbeiteEingang(
       );
     } else {
       const v = await c.query<{ id: string; nummer: number }>(
-        `INSERT INTO vorgang (betreff, kategorie, heikel, kontakt_id)
-         VALUES ($1, $2, $3, $4) RETURNING id, nummer`,
+        // Die Herkunft der Einordnung wird HIER festgehalten, beim
+        // Anlegen -- nicht spaeter rekonstruiert.
+        //
+        // Der Grund steht in db/031: Die Oberflaeche soll sagen koennen,
+        // welches Stichwort diesen Vorgang zu einem Mahnwesen- oder
+        // Behoerdenfall gemacht hat. Am 03.11.2026 landete eine Mail des
+        // Messdienstleisters als Behoerdenpost in der Akte, weil darin
+        // "Geben Sie mir Bescheid" stand; sie wurde dadurch heikel
+        // markiert, und dadurch durfte der Agent dort keinen Entwurf mehr
+        // schreiben. Der Schaden war still -- die Automatik hoerte auf zu
+        // arbeiten, ohne dass jemand erfuhr warum.
+        //
+        // Nachtraeglich laesst sich das nicht sauber nachholen: Die Regeln
+        // aendern sich (genau dieses Muster wurde danach berichtigt), und
+        // ein heute gerechnetes Stichwort waere eine Begruendung fuer eine
+        // Entscheidung, die eine andere Fassung getroffen hat.
+        `INSERT INTO vorgang (betreff, kategorie, heikel, kontakt_id,
+                              einordnung_quelle, einordnung_stichwort,
+                              einordnung_fundstelle, einordnung_am)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, now()) RETURNING id, nummer`,
         [
           (mail.betreff ?? "").trim() || "(ohne Betreff)",
           einordnung.kategorie,
           einordnung.heikel,
           kontaktId,
+          einordnung.quelle,
+          einordnung.stichwort,
+          einordnung.fundstelle,
         ],
       );
       vorgangId = v.rows[0].id;

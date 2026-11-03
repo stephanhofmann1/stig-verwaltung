@@ -81,10 +81,99 @@ export const SCHLUESSELWOERTER: Array<{ kategorie: Kategorie; muster: RegExp }> 
   },
 ];
 
+/**
+ * Ein Stichworttreffer mit Fundstelle.
+ *
+ * Bis zum 03.11.2026 wurde vom Treffer nur der Wahrheitswert genommen
+ * (`muster.test(text)`), und damit war die teuerste Frage nicht mehr zu
+ * beantworten: WAS hat getroffen. An jenem Tag landete eine Mail des
+ * Messdienstleisters als Behoerdenpost in der Akte, weil sie "Geben Sie
+ * mir Bescheid" enthielt -- wurde dadurch heikel markiert, der Agent
+ * durfte dort nichts mehr vorschreiben, und niemand erfuhr warum. Der
+ * Schaden war nicht die falsche Kategorie, sondern das Schweigen danach.
+ *
+ * `stichwort` ist deshalb der tatsaechlich getroffene Text und nicht die
+ * Quelle des Musters: "Bescheid" sagt nichts, "Geben Sie mir Bescheid"
+ * erklaert den Fehler in einer Zeile.
+ */
+export interface Treffer {
+  kategorie: Kategorie;
+  /** Der tatsaechlich getroffene Text. */
+  stichwort: string;
+  /** Der Ausschnitt, in dem er stand -- mit Auslassungszeichen am Rand. */
+  fundstelle: string;
+  /** Zeichenposition im geprueften Text (Betreff + Koerper). */
+  position: number;
+  /** Stelle in SCHLUESSELWOERTER -- welche Zeile der Liste gewonnen hat. */
+  musterNr: number;
+}
+
+/** So viele Zeichen Umgebung kommen links und rechts in die Fundstelle. */
+export const FUNDSTELLE_UMGEBUNG = 60;
+
+/**
+ * Schneidet den Ausschnitt um einen Treffer heraus.
+ *
+ * Zeilenumbrueche und Mehrfachleerzeichen fallen weg: Die Fundstelle steht
+ * einzeilig in einer Tabellenzelle, und ein umgebrochener Mailtext sprengt
+ * sie. Gekuerzte Raender bekommen ein Auslassungszeichen, damit niemand
+ * den Ausschnitt fuer die ganze Nachricht haelt.
+ */
+export function schneideFundstelle(
+  text: string,
+  position: number,
+  laenge: number,
+  umgebung = FUNDSTELLE_UMGEBUNG,
+): string {
+  const von = Math.max(0, position - umgebung);
+  const bis = Math.min(text.length, position + laenge + umgebung);
+  const kern = text.slice(von, bis).replace(/\s+/g, " ").trim();
+  return `${von > 0 ? "… " : ""}${kern}${bis < text.length ? " …" : ""}`;
+}
+
+/**
+ * Das erste Stichwortmuster, das wirklich trifft -- samt Fundstelle.
+ *
+ * Die Reihenfolge von SCHLUESSELWOERTER entscheidet: Das erste Muster
+ * gewinnt, auch wenn ein spaeteres ebenfalls passen wuerde. Das ist
+ * Absicht und steht in den Kommentaren dort (Schadensmeldung vor
+ * Handwerker).
+ *
+ * `exec` statt `test`: Beides prueft dasselbe, aber nur `exec` gibt den
+ * Treffer und seine Stelle heraus. Die Muster tragen bewusst kein /g --
+ * sonst truege jedes einen eigenen lastIndex, und derselbe Aufruf
+ * lieferte beim zweiten Mal ein anderes Ergebnis.
+ */
+export function findeStichwort(text: string): Treffer | null {
+  for (let i = 0; i < SCHLUESSELWOERTER.length; i++) {
+    const { kategorie, muster } = SCHLUESSELWOERTER[i];
+    const t = muster.exec(text);
+    if (!t) continue;
+    return {
+      kategorie,
+      stichwort: t[0],
+      fundstelle: schneideFundstelle(text, t.index, t[0].length),
+      position: t.index,
+      musterNr: i,
+    };
+  }
+  return null;
+}
+
 export interface Einordnung {
   kategorie: Kategorie;
   heikel: boolean;
   begruendung: string;
+  /**
+   * Worauf die Kategorie beruht. Die Frage des Eigentuemers lautete
+   * woertlich "auf welcher Basis erstellen die sich" -- sie ist hier
+   * beantwortet und nicht nur im Kopf des Entwicklers.
+   */
+  quelle: "regel" | "kontakt" | "keine";
+  /** Der getroffene Text, falls die Regel entschieden hat. */
+  stichwort: string | null;
+  /** Der Ausschnitt um den Treffer. */
+  fundstelle: string | null;
 }
 
 /**
@@ -110,14 +199,25 @@ export async function ordneEin(
     [vonEmail],
   );
 
-  for (const { kategorie, muster } of SCHLUESSELWOERTER) {
-    if (!muster.test(text)) continue;
+  // Dieselbe Entscheidung wie vorher, nur dass der Treffer nicht mehr
+  // weggeworfen wird. Die alte Schleife brach beim ersten passenden
+  // Muster ab, sobald ein Kontakt mit echter Rolle vorlag -- nur das
+  // erste Muster war also je wirksam. findeStichwort() liefert genau
+  // dieses erste.
+  const treffer = findeStichwort(text);
+  if (treffer) {
+    const { kategorie, stichwort, fundstelle } = treffer;
     // Heikles gewinnt immer, egal wer schreibt.
     if (HEIKLE_KATEGORIEN.includes(kategorie)) {
       return {
         kategorie,
         heikel: true,
-        begruendung: `Stichwort für "${kategorie}" gefunden — wird nicht automatisch beantwortet.`,
+        begruendung:
+          `Stichwort „${stichwort}“ für "${kategorie}" gefunden — wird ` +
+          "nicht automatisch beantwortet.",
+        quelle: "regel",
+        stichwort,
+        fundstelle,
       };
     }
     // Ein Kontakt mit der Rolle "sonstige" ist nur automatisch angelegt
@@ -127,11 +227,13 @@ export async function ordneEin(
         kategorie,
         heikel: false,
         begruendung: kontakt
-          ? `Stichwort für "${kategorie}" gefunden; der Absender ist noch keiner Rolle zugeordnet.`
-          : `Stichwort für "${kategorie}" gefunden, Absender unbekannt.`,
+          ? `Stichwort „${stichwort}“ für "${kategorie}" gefunden; der Absender ist noch keiner Rolle zugeordnet.`
+          : `Stichwort „${stichwort}“ für "${kategorie}" gefunden, Absender unbekannt.`,
+        quelle: "regel",
+        stichwort,
+        fundstelle,
       };
     }
-    break;
   }
 
   if (kontakt) {
@@ -148,6 +250,12 @@ export async function ordneEin(
       kategorie,
       heikel: HEIKLE_KATEGORIEN.includes(kategorie),
       begruendung: `Bekannter Kontakt: ${kontakt.anzeigename} (${kontakt.rolle}).`,
+      quelle: "kontakt",
+      // Hier hat kein Stichwort entschieden, auch wenn eines getroffen
+      // haben mag. Es hier mitzuschreiben wuerde eine Begruendung
+      // behaupten, die nicht die wirksame war.
+      stichwort: null,
+      fundstelle: null,
     };
   }
 
@@ -155,6 +263,9 @@ export async function ordneEin(
     kategorie: "sonstige",
     heikel: false,
     begruendung: "Kein Stichwort getroffen, Absender unbekannt.",
+    quelle: "keine",
+    stichwort: null,
+    fundstelle: null,
   };
 }
 
