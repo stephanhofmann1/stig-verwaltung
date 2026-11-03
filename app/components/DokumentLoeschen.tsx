@@ -11,15 +11,22 @@ import { useRouter } from "next/navigation";
  * ihn gelesen hat. Gelöscht wird nur die Zeile und, wenn keine andere mehr
  * auf dieselbe Datei zeigt, auch die Datei.
  */
+/*
+ * Die Eigenschaft `still` ist entfallen. Sie hat den Knopf per Inline-Stil
+ * randlos und ohne Innenabstand gemacht, damit er in einer Zeile aus Links
+ * nicht auffaellt -- und damit war das Tippziel auf dem Telefon nur so gross
+ * wie das Wort "Loeschen". Jetzt ist es der stille Knopf des Systems
+ * (data-art="still"): umrandet, ohne Gewicht, mit richtigem Tippziel. Wer
+ * den randlosen Textknopf zurueck will, braucht dafuer eine Klasse im
+ * Stylesheet (etwa button[data-art="leise"]) -- nicht einen Stil im Markup.
+ */
 export function DokumentLoeschen({
   id,
   was,
-  still = false,
 }: {
   id: string;
   /** Was gelöscht wird -- steht in der Rückfrage. */
   was: string;
-  still?: boolean;
 }) {
   const router = useRouter();
   const [gefragt, setGefragt] = useState(false);
@@ -50,19 +57,14 @@ export function DokumentLoeschen({
 
   if (!gefragt) {
     return (
-      <button
-        type="button"
-        data-art="still"
-        onClick={() => setGefragt(true)}
-        style={still ? { border: "none", padding: 0 } : undefined}
-      >
+      <button type="button" data-art="still" onClick={() => setGefragt(true)}>
         Löschen
       </button>
     );
   }
 
   return (
-    <span style={{ display: "inline-flex", gap: "0.5rem", alignItems: "center" }}>
+    <span className="knopfreihe">
       <span className="hinweis">{was} wirklich löschen?</span>
       <button type="button" onClick={loesche} disabled={laeuft}>
         {laeuft ? "löscht …" : "Ja, löschen"}

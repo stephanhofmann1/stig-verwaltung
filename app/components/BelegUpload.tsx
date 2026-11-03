@@ -81,9 +81,9 @@ const euro = (w: string | number) =>
   );
 
 /*
- * Das Stilobjekt `feld` ist ersatzlos weg. Es setzte var(--papier) -- den
- * SEITENhintergrund -- als Feldfarbe und ueberschrieb den kraeftigen
- * Feldrand mit der Haarlinie: graue Felder mit kaum sichtbarem Rand.
+ * Das Stilobjekt `feld` ist ersatzlos weg. Es setzte die Altmarke fuer den
+ * SEITENhintergrund als Feldfarbe und ueberschrieb den kraeftigen Feldrand
+ * mit der Haarlinie: graue Felder mit kaum sichtbarem Rand.
  * Abschnitt 12 von globals.css gestaltet die Felder vollstaendig, .feld
  * gibt ihnen die ganze Spaltenbreite.
  */

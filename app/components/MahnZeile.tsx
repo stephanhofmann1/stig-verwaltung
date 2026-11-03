@@ -129,14 +129,10 @@ export function MahnZeile(p: Props) {
 
   return (
     <section className="karte">
-      <div
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          gap: "0.5rem 1rem",
-          alignItems: "baseline",
-        }}
-      >
+      {/* .entwurf-kopf ist genau diese Zeile: Flex, Umbruch, gleiche
+          Grundlinie, graue Nebenangaben -- und strong darin bleibt
+          vollfarbig. Vorher stand das vierfach inline. */}
+      <div className="entwurf-kopf">
         <strong>{z.kontakt_name}</strong>
         <span className="hinweis">{z.einheit}</span>
         <span className="betrag">{z.offen > 0 ? euro(z.offen) : "—"}</span>
@@ -152,9 +148,7 @@ export function MahnZeile(p: Props) {
 
       {/* Wörtlich aus lib/mahnstufen.ts -- das ist die Begründung, auf die
           sich die Entscheidung stützt. */}
-      <p className="hinweis" style={{ marginTop: "var(--abstand-2)" }}>
-        {z.begruendung}
-      </p>
+      <p className="hinweis">{z.begruendung}</p>
 
       {z.offen_ohne_daten >= 1 && (
         <p className="hinweis">

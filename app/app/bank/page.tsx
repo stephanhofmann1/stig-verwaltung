@@ -64,7 +64,7 @@ export default async function Bank() {
         </span>
       </div>
 
-      {/* Hier stand bis hierhin die Einrichtungsanleitung des Betreibers:
+      {/* Hier stand bis zuletzt die Einrichtungsanleitung des Betreibers:
           die Namen der beiden Umgebungsvariablen FINTS_PRODUKT_ID und
           FINTS_SCHLUESSEL und der openssl-Befehl, mit dem der Schluessel
           erzeugt wird (64 Hexzeichen: `openssl rand -hex 32`). Das liest

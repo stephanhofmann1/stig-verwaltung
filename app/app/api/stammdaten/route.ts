@@ -104,9 +104,19 @@ export async function POST(req: Request) {
        * nicht gedruckt werden koennen.
        *
        * Eigene Aktion statt einer Erweiterung von mietverhaeltnis_aendern:
-       * Die aendert Geld und Laufzeit und zieht danach die Sollstellungen
-       * nach. Hier aendert sich nichts am Geld -- ein Lauf ueber alle
-       * Sollstellungen waere nur Last ohne Wirkung.
+       * Die aendert Geld und Laufzeit. Sieben der acht Felder hier
+       * beruehren das Geld nicht -- ein Lauf ueber alle Sollstellungen
+       * waere dann nur Last ohne Wirkung.
+       *
+       * Eine Ausnahme gibt es, und sie war in der ersten Fassung dieser
+       * Aktion uebersehen: Der Moeblierungszuschlag geht ueber
+       * summePosten() in die gestellte Soll ein, solange keine
+       * gesamtmiete vereinbart ist. Wer nur ihn aendert, haette ihn
+       * sonst in den Stammdaten stehen, und keine Forderung kennt ihn --
+       * genau der Fehler, den fehlendeFelder() schon einmal benennt
+       * ("in der Sollstellung fehlt er dann jeden Monat"). Deshalb hier
+       * derselbe Nachlauf wie bei mietverhaeltnis_aendern, aber nur wenn
+       * der Zuschlag dabei war.
        *
        * COALESCE wie dort: Ein nicht geschicktes Feld bleibt unveraendert.
        * Leeren geht ueber diesen Weg also nicht; das ist gewollt, weil ein
@@ -164,7 +174,10 @@ export async function POST(req: Request) {
             ],
           );
         });
-        return NextResponse.json({ ok: true });
+        const zuschlagGeaendert = b.moeblierungszuschlag !== undefined
+          && b.moeblierungszuschlag !== null;
+        const soll = zuschlagGeaendert ? await erzeugeSollstellungen() : null;
+        return NextResponse.json({ ok: true, soll });
       }
 
       case "zahlerkennung_anlegen": {

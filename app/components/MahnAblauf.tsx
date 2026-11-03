@@ -16,6 +16,8 @@
  * Serverkomponente.
  */
 
+import { Fragment } from "react";
+
 const VON_SELBST: [string, string][] = [
   [
     "Kontoabruf",
@@ -106,14 +108,20 @@ function Spalte({
         <span className="punkt" data-art={art} />
         {titel}
       </h3>
-      <dl style={{ margin: 0 }}>
+      {/* Begriff und Erklaerung stehen uebereinander, nicht nebeneinander:
+          .datenblatt waere die zugesagte Klasse, legt aber Begriff und Wert
+          in zwei Spalten -- in einer 23 rem breiten Karte mit Begriffen wie
+          "Unklare Zuordnungen klaeren" bleiben fuer den Satz daneben keine
+          zehn Zeichen. Darum hier das nackte dl: das Gewicht traegt strong,
+          den Einzug der dd, und kein Stil steht mehr im Markup. */}
+      <dl>
         {zeilen.map(([was, wie]) => (
-          <div key={was} style={{ marginBottom: "var(--abstand-3)" }}>
-            <dt style={{ fontWeight: 600 }}>{was}</dt>
-            <dd className="hinweis" style={{ margin: 0 }}>
-              {wie}
-            </dd>
-          </div>
+          <Fragment key={was}>
+            <dt>
+              <strong>{was}</strong>
+            </dt>
+            <dd className="hinweis">{wie}</dd>
+          </Fragment>
         ))}
       </dl>
     </section>

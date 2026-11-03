@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
  * Hier standen zwei Stilobjekte (`feld` und `beschriftung`). Sie sind
  * ersatzlos weg: Abschnitt 12 von globals.css gestaltet label, input und
  * select vollstaendig. Die Objekte arbeiteten ausserdem gegen das System --
- * sie setzten var(--papier), den SEITENhintergrund, als Feldfarbe und
+ * sie setzten die Altmarke fuer den SEITENhintergrund als Feldfarbe und
  * ueberschrieben den kraeftigen Feldrand mit der Haarlinie. Ergebnis waren
  * graue Felder mit kaum sichtbarem Rand, obwohl das Stylesheet weisse mit
  * 3:1-Rand vorsieht. Breite ueber die ganze Spalte macht jetzt .feld.

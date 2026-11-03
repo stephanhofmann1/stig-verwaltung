@@ -23,8 +23,8 @@ interface Props {
 
 /*
  * Die beiden Felder trugen ihre Gestaltung Eigenschaft fuer Eigenschaft im
- * Markup -- mit var(--papier) als Feldfarbe (das ist der SEITENhintergrund)
- * und der Haarlinie als Rand. Beides kommt jetzt aus Abschnitt 12 von
+ * Markup -- mit der Altmarke fuer den SEITENhintergrund als Feldfarbe und
+ * der Haarlinie als Rand. Beides kommt jetzt aus Abschnitt 12 von
  * globals.css. Die Breitenangaben sind mitgefallen: fuer "schmales
  * Zahlenfeld" gibt es keine Klasse, in der Knopfreihe schrumpfen die Felder
  * von allein mit.

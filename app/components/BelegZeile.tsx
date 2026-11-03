@@ -22,8 +22,8 @@ interface Props {
 }
 
 /*
- * Das Stilobjekt `feld` ist ersatzlos weg -- es setzte var(--papier), den
- * SEITENhintergrund, als Feldfarbe und ueberschrieb den Feldrand. Abschnitt
+ * Das Stilobjekt `feld` ist ersatzlos weg -- es setzte die Altmarke fuer
+ * den SEITENhintergrund als Feldfarbe und ueberschrieb den Feldrand. Abschnitt
  * 12 von globals.css gestaltet select und input vollstaendig.
  *
  * Mit dem Objekt sind auch die Breitenangaben gefallen (maxWidth 30rem,

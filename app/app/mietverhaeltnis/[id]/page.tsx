@@ -35,9 +35,14 @@ export const dynamic = "force-dynamic";
  * sie, statt ein Dokument mit leeren Feldern zu drucken.
  *
  * Nicht auf dieser Seite: Ausweis- und Passnummern. Die werden nicht
- * gespeichert und nicht angezeigt. Geburtsdatum und Geburtsort stehen im
- * Mietvertrag und bleiben dort; fehlen sie, meldet es die Prüfliste beim
- * Mietvertrag -- dafür müssen sie hier nicht stehen.
+ * gespeichert und nicht angezeigt.
+ *
+ * Geburtsdatum und Geburtsort stehen nicht im Datenblatt. Sie gehören in
+ * den Mietvertrag und nicht auf eine Seite, die beim Draufschauen offen
+ * liegt. Seit es ein Bearbeiten-Formular gibt, werden sie aber geladen:
+ * Nachtragen kann niemand, was er nicht sieht. Sie stehen deshalb
+ * ausschließlich in den Eingabefeldern unten -- nur für die Rolle
+ * "verwalter", und nur wenn das Formular geöffnet ist.
  */
 
 interface Kopf {
@@ -64,6 +69,10 @@ interface Kopf {
   rufname: string | null;
   anschrift: string | null;
   telefon: string | null;
+  // Nur fuer das Bearbeiten-Formular, nicht fuer das Datenblatt:
+  geburtsdatum: string | null;
+  geburtsort: string | null;
+  anschrift_vorher: string | null;
   einheit_id: string;
   einheit: string;
   etage: string | null;
@@ -114,12 +123,13 @@ export default async function Mietverhaeltnisseite({
             mv.vertrag_datum::text, mv.kuendigungsverzicht_monate,
             mv.kaution::text, mv.kaution_raten, mv.moebliert,
             mv.melde_zusatz, mv.wgb_uebergeben_am::text,
-            mv.zahlt_im_voraus, mv.notizen,
+            mv.zahlt_im_voraus, mv.notizen, mv.anschrift_vorher,
             mv.kaltmiete::text, mv.nebenkosten::text,
             mv.moeblierungszuschlag::text AS moeblierung,
             mv.gesamtmiete::text,
             k.id AS kontakt_id, k.anzeigename AS mieter, k.rufname,
             k.anschrift, k.telefon,
+            k.geburtsdatum::text, k.geburtsort,
             e.id AS einheit_id, e.bezeichnung AS einheit, e.etage,
             o.id AS objekt_id, o.name AS objekt, o.strasse, o.plz, o.ort,
             o.zahlungsdaten_ab::text
@@ -636,10 +646,20 @@ export default async function Mietverhaeltnisseite({
         <MietverhaeltnisBearbeiten
           id={id}
           beginn={kopf.beginn}
-          ende={kopf.ende}
-          kaltmiete={kopf.kaltmiete}
-          nebenkosten={kopf.nebenkosten}
-          moeblierungszuschlag={kopf.moeblierung}
+          stand={{
+            ende: kopf.ende,
+            kaltmiete: kopf.kaltmiete,
+            nebenkosten: kopf.nebenkosten,
+            // Passname, nicht Rufname -- daran haengen die Dokumente.
+            voller_name: kopf.mieter,
+            geburtsdatum: kopf.geburtsdatum,
+            geburtsort: kopf.geburtsort,
+            anschrift_vorher: kopf.anschrift_vorher,
+            melde_zusatz: kopf.melde_zusatz,
+            vertrag_datum: kopf.vertrag_datum,
+            moeblierungszuschlag: kopf.moeblierung,
+            kaution: kopf.kaution,
+          }}
           fehltVertrag={fehltVertrag}
           fehltWgb={fehltWgb}
         />

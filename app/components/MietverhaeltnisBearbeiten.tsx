@@ -4,80 +4,185 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 /**
- * Das Mietverhaeltnis aendern -- Mieterhoehung, Auszug, Nebenkosten.
+ * Das Mietverhaeltnis aendern -- Mieterhoehung, Auszug, Vertragsdaten.
  *
- * Bis hierhin ging das nur per SQL. Die Aktion dafuer gab es schon
- * (`mietverhaeltnis_aendern` in app/api/stammdaten/route.ts), aufgerufen
- * hat sie niemand: null Treffer in app/ und components/. Das Anlegeformular
- * sagte dem Nutzer woertlich, er solle "ein Enddatum eintragen" -- ein Feld,
- * das es nirgends gab.
+ * Bis hierhin ging das nur per SQL. Die Aktion `mietverhaeltnis_aendern`
+ * gab es schon, aufgerufen hat sie niemand: null Treffer in app/ und
+ * components/. Das Anlegeformular sagte dem Nutzer woertlich, er solle
+ * "ein Enddatum eintragen" -- ein Feld, das es nirgends gab.
  *
- * WAS DIESES FORMULAR SPEICHERN KANN, UND WAS NICHT
+ * ZWEI AKTIONEN, EIN FORMULAR
  *
- * Die Aktion kennt genau fuenf Spalten: ende, kaltmiete, nebenkosten,
- * zahlt_im_voraus und zahlungsnotiz. Sie kennt NICHT
- * moeblierungszuschlag, vertrag_datum, befristet, kaution, melde_zusatz,
- * anschrift_vorher und auch nichts an kontakt (Geburtsdatum, Geburtsort)
- * oder kontakt_email. Genau diese Felder stehen aber in der Pruefliste,
- * die Mietvertrag und Wohnungsgeberbestaetigung blockiert.
+ * Die Schnittstelle trennt, was fachlich zusammengehoert:
  *
- * Darum stehen sie hier als Text und nicht als Eingabefeld. Ein Feld, das
- * sich fuellen laesst und beim Speichern verschwindet, waere derselbe
- * stille Fehler, den diese Seite abstellen soll -- nur an einer neuen
- * Stelle. Die Liste unten sagt zu jeder fehlenden Angabe, ob sie hier zu
- * beheben ist.
+ *   mietverhaeltnis_aendern  ende, kaltmiete, nebenkosten
+ *                            -- zieht danach die Sollstellungen nach
+ *   vertragsdaten_aendern    voller_name, geburtsdatum, geburtsort,
+ *                            anschrift_vorher, melde_zusatz,
+ *                            vertrag_datum, moeblierungszuschlag, kaution
+ *                            -- ohne Sollstellungslauf
  *
- * ZWEITE EIGENART DER AKTION: COALESCE
+ * Hier stehen beide in einem Formular, weil ein Vermieter nicht in
+ * Aktionen denkt, sondern in "was muss ich nachtragen". Gespeichert wird
+ * dann nacheinander, und jeder Teil meldet sein eigenes Ergebnis: Dass
+ * die Vertragsdaten liegen und die Mieterhoehung nicht, muss dastehen und
+ * nicht hinter einer pauschalen Erfolgsmeldung verschwinden.
  *
- * Die Aktion schreibt `ende = COALESCE($2::date, ende)`. Ein leeres Feld
- * heisst also "unveraendert" und nicht "leeren". Ein gesetztes Enddatum
- * laesst sich darueber nicht mehr zuruecknehmen. Das steht als Hinweis in
- * der Oberflaeche, statt es den Nutzer herausfinden zu lassen.
+ * REIHENFOLGE IST NICHT BELIEBIG
+ *
+ * Erst die Vertragsdaten, dann Geld und Laufzeit. Grund: Der
+ * Moeblierungszuschlag geht in `sollGesamt()` ein (lib/sollstellung.ts).
+ * Liefe `mietverhaeltnis_aendern` zuerst, stellte sein Sollstellungslauf
+ * noch mit dem alten Zuschlag -- und die neue Zahl stuende in den
+ * Stammdaten, waehrend die Forderung die alte waere.
+ *
+ * Aendert sich NUR der Zuschlag, laeuft gar kein Lauf (die Aktion macht
+ * bewusst keinen). Dann schickt dieses Formular hinterher ein
+ * `mietverhaeltnis_aendern`, das kein Feld mitgibt: Alle Werte sind null,
+ * COALESCE laesst alles stehen, und nur der Sollstellungslauf passiert.
+ * Sonst stuende ein Zuschlag in den Stammdaten, den keine Forderung kennt.
+ *
+ * EIGENART BEIDER AKTIONEN: COALESCE
+ *
+ * Beide schreiben `spalte = COALESCE($n, spalte)`. Ein leeres Feld heisst
+ * also "unveraendert" und nicht "leeren". Ein gesetztes Enddatum laesst
+ * sich darueber nicht mehr zuruecknehmen. Das steht als Hinweis in der
+ * Oberflaeche, statt es den Nutzer herausfinden zu lassen.
  */
+
+/** Der gespeicherte Stand, wie ihn die Seite aus der Datenbank liest. */
+export interface MietverhaeltnisStand {
+  ende: string | null;
+  kaltmiete: string | null;
+  nebenkosten: string | null;
+  voller_name: string | null;
+  geburtsdatum: string | null;
+  geburtsort: string | null;
+  anschrift_vorher: string | null;
+  melde_zusatz: string | null;
+  vertrag_datum: string | null;
+  moeblierungszuschlag: string | null;
+  kaution: string | null;
+}
 
 interface Props {
   id: string;
   /** Mietbeginn -- untere Grenze fuer das Enddatum. */
   beginn: string;
-  ende: string | null;
-  kaltmiete: string | null;
-  nebenkosten: string | null;
-  moeblierungszuschlag: string | null;
+  stand: MietverhaeltnisStand;
   /** fehlendeFelder() vom Mietvertrag, im Wortlaut der Pruefung. */
   fehltVertrag: string[];
   /** fehlendeFelderWgb() von der Wohnungsgeberbestaetigung. */
   fehltWgb: string[];
 }
 
+type Schluessel = keyof MietverhaeltnisStand;
+type Gruppe = "miete" | "vertrag";
+
 /**
- * Welche Eintraege der Pruefliste dieses Formular wirklich beheben kann.
+ * Ein Feld des Formulars.
  *
- * Verglichen wird ueber den Anfang des Textes, weil fehlendeFelder() bei
- * zwei Eintraegen eine Begruendung anhaengt ("Enddatum (Vertrag ist als
- * befristet erfasst)").
+ * Als Beschreibung und nicht als elfmal abgeschriebenes JSX: Welche Felder
+ * es gibt, in welche Aktion sie gehen und wie ihr Wert zu lesen ist, steht
+ * dann an einer Stelle. Ein neues Feld in der Schnittstelle ist hier eine
+ * Zeile -- und kann nicht versehentlich aus der Aenderungserkennung
+ * herausfallen, weil dieselbe Liste beides speist.
  */
-const BEHEBBAR: Array<{ anfang: string; feld: string }> = [
-  { anfang: "Enddatum", feld: "Ende des Mietverhältnisses" },
-  { anfang: "Nettokaltmiete", feld: "Kaltmiete" },
-  { anfang: "Betriebskostenpauschale", feld: "Nebenkosten" },
-  // Die Gesamtmiete steht nicht als Spalte im Formular: lib/sollstellung.ts
-  // rechnet sie aus Kalt + Nebenkosten + Zuschlag. Wer die beiden Betraege
-  // hier eintraegt, behebt sie mit.
-  { anfang: "Gesamtmiete", feld: "Kaltmiete und Nebenkosten" },
+interface Feld {
+  name: Schluessel;
+  titel: string;
+  art: "text" | "datum" | "zahl";
+  gruppe: Gruppe;
+  platzhalter?: string;
+}
+
+const FELDER: Feld[] = [
+  // --- mietverhaeltnis_aendern ---
+  { name: "ende", titel: "Ende (Auszug)", art: "datum", gruppe: "miete" },
+  { name: "kaltmiete", titel: "Kaltmiete (EUR je Monat)", art: "zahl", gruppe: "miete", platzhalter: "z. B. 420" },
+  { name: "nebenkosten", titel: "Nebenkosten (EUR je Monat)", art: "zahl", gruppe: "miete", platzhalter: "z. B. 80" },
+  // --- vertragsdaten_aendern ---
+  { name: "voller_name", titel: "Voller Name (wie im Pass)", art: "text", gruppe: "vertrag" },
+  { name: "geburtsdatum", titel: "Geburtsdatum", art: "datum", gruppe: "vertrag" },
+  { name: "geburtsort", titel: "Geburtsort", art: "text", gruppe: "vertrag", platzhalter: "z. B. Marburg" },
+  { name: "anschrift_vorher", titel: "Anschrift vor Einzug", art: "text", gruppe: "vertrag", platzhalter: "Straße, PLZ Ort" },
+  { name: "melde_zusatz", titel: "Meldezusatz (Lage im Haus)", art: "text", gruppe: "vertrag", platzhalter: "z. B. 4. OG links" },
+  { name: "vertrag_datum", titel: "Vertrag vom", art: "datum", gruppe: "vertrag" },
+  { name: "moeblierungszuschlag", titel: "Möblierungszuschlag (EUR je Monat)", art: "zahl", gruppe: "vertrag", platzhalter: "z. B. 50" },
+  { name: "kaution", titel: "Kaution (EUR)", art: "zahl", gruppe: "vertrag", platzhalter: "z. B. 840" },
 ];
 
-function behebbarDurch(eintrag: string): string | null {
-  const t = BEHEBBAR.find((b) => eintrag.startsWith(b.anfang));
-  return t ? t.feld : null;
+/**
+ * Welcher Eintrag der Pruefliste wo zu erledigen ist.
+ *
+ * Erste Regel gewinnt, deshalb ist die Reihenfolge wichtig:
+ * "Kautionsraten: 2 vereinbart ..." faengt mit "Kaution" an und muss
+ * davor stehen, sonst behauptet die Liste, die Raten seien hier zu
+ * aendern -- und das waere falsch, kaution_raten nimmt keine Aktion an.
+ *
+ * `feld === null` heisst: geht weiterhin nur per SQL. Der Grund steht
+ * dabei, damit niemand ihn raten muss.
+ */
+const REGELN: Array<{ anfang: string; feld: string | null; grund?: string }> = [
+  {
+    anfang: "Kautionsraten",
+    feld: null,
+    grund: "kaution_raten nimmt keine der beiden Aktionen an",
+  },
+  { anfang: "Voller Name", feld: "Voller Name (wie im Pass)" },
+  { anfang: "Anschrift vor Einzug", feld: "Anschrift vor Einzug" },
+  { anfang: "Geburtsdatum", feld: "Geburtsdatum" },
+  { anfang: "Geburtsort", feld: "Geburtsort" },
+  { anfang: "Vertragsdatum", feld: "Vertrag vom" },
+  { anfang: "Meldezusatz", feld: "Meldezusatz (Lage im Haus)" },
+  { anfang: "Möblierungszuschlag", feld: "Möblierungszuschlag (EUR je Monat)" },
+  { anfang: "Kaution", feld: "Kaution (EUR)" },
+  { anfang: "Enddatum", feld: "Ende (Auszug)" },
+  { anfang: "Nettokaltmiete", feld: "Kaltmiete (EUR je Monat)" },
+  { anfang: "Betriebskostenpauschale", feld: "Nebenkosten (EUR je Monat)" },
+  // Die Gesamtmiete ist keine eigene Spalte im Formular: lib/sollstellung.ts
+  // rechnet sie aus Kalt + Nebenkosten + Zuschlag. Wer die drei eintraegt,
+  // behebt sie mit.
+  { anfang: "Gesamtmiete", feld: "Kaltmiete, Nebenkosten und Möblierungszuschlag" },
+  {
+    anfang: "E-Mail-Adresse",
+    feld: null,
+    grund: "hängt an kontakt_email, nicht am Mietverhältnis",
+  },
+  {
+    anfang: "Zimmernummer",
+    feld: null,
+    grund: "wird aus einheit.bezeichnung abgeleitet (zimmernummer())",
+  },
+  {
+    anfang: "Mietbeginn",
+    feld: null,
+    grund: "beginn nimmt keine der beiden Aktionen an",
+  },
+  {
+    anfang: "Einzugsdatum",
+    feld: null,
+    grund: "ist der Mietbeginn, und den nimmt keine der beiden Aktionen an",
+  },
+];
+
+function regelFuer(eintrag: string) {
+  return (
+    REGELN.find((r) => eintrag.startsWith(r.anfang)) ?? {
+      anfang: "",
+      feld: null,
+      grund: "zu dieser Angabe gibt es hier kein Feld",
+    }
+  );
 }
 
 /**
  * "1250,50" und "1250.50" werden beide zu 1250.5.
  *
- * Die Aktion erwartet eine Zahl (`$3::numeric` mit `b.kaltmiete ?? null`),
- * kein Text. Ein deutsches Komma, als Zeichenkette geschickt, landete
- * sonst als NaN im Koerper und damit als null -- und null heisst in der
- * Aktion "unveraendert". Die Eingabe waere stillschweigend verschwunden.
+ * Beide Aktionen erwarten eine Zahl (`$n::numeric` mit `?? null`), keinen
+ * Text. Ein deutsches Komma, als Zeichenkette geschickt, landete sonst als
+ * NaN im Koerper und damit als null -- und null heisst "unveraendert". Die
+ * Eingabe waere stillschweigend verschwunden.
  */
 function alsZahl(text: string): number | null {
   const t = text.trim().replace(",", ".");
@@ -87,118 +192,192 @@ function alsZahl(text: string): number | null {
 }
 
 /** Numerischer Text aus der Datenbank, aufbereitet fuer ein Eingabefeld. */
-const insFeld = (wert: string | null) =>
-  wert === null || wert === undefined ? "" : String(Number(wert));
+const insFeld = (wert: string | null, art: Feld["art"]) => {
+  if (wert === null || wert === undefined) return "";
+  return art === "zahl" ? String(Number(wert)) : String(wert);
+};
 
-const euro = (betrag: number) =>
-  new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(
-    betrag,
-  );
+type Teilergebnis = { was: string; ok: boolean; text: string };
 
 export function MietverhaeltnisBearbeiten(p: Props) {
   const router = useRouter();
   const [laeuft, start] = useTransition();
   const [busy, setBusy] = useState(false);
   const [offen, setOffen] = useState(false);
-  const [meldung, setMeldung] = useState<
-    { art: "gut" | "fehler"; text: string } | null
-  >(null);
+  const [ergebnis, setErgebnis] = useState<Teilergebnis[] | null>(null);
 
-  const [ende, setEnde] = useState(p.ende ?? "");
-  const [kaltmiete, setKaltmiete] = useState(insFeld(p.kaltmiete));
-  const [nebenkosten, setNebenkosten] = useState(insFeld(p.nebenkosten));
+  function frisch(): Record<Schluessel, string> {
+    const o = {} as Record<Schluessel, string>;
+    for (const f of FELDER) o[f.name] = insFeld(p.stand[f.name], f.art);
+    return o;
+  }
+  const [werte, setWerte] = useState<Record<Schluessel, string>>(frisch);
 
   const blockiert = busy || laeuft;
+  const setzen = (name: Schluessel, wert: string) =>
+    setWerte((w) => ({ ...w, [name]: wert }));
 
-  const zahlen = {
-    kaltmiete: alsZahl(kaltmiete),
-    nebenkosten: alsZahl(nebenkosten),
+  // --- Was hat sich gegenueber dem gespeicherten Stand geaendert? --------
+  //
+  // Nur das wird geschickt. Beide Aktionen deuten einen nicht gesendeten
+  // Wert als "unveraendert", und so bleibt eine Spalte, die hier niemand
+  // angefasst hat, auch wirklich unberuehrt.
+  const aenderungen: Record<Gruppe, Record<string, string | number>> = {
+    miete: {},
+    vertrag: {},
   };
-
-  // Was sich gegenueber dem Stand in der Datenbank geaendert hat. Nur das
-  // wird geschickt: Die Aktion deutet jeden nicht gesendeten Wert als
-  // "unveraendert", und so bleibt eine Spalte, die hier nicht angefasst
-  // wurde, auch wirklich unberuehrt.
-  const aenderungen: Record<string, string | number> = {};
-  if (ende !== "" && ende !== (p.ende ?? "")) aenderungen.ende = ende;
-  if (
-    zahlen.kaltmiete !== null &&
-    zahlen.kaltmiete !== (p.kaltmiete === null ? null : Number(p.kaltmiete))
-  ) {
-    aenderungen.kaltmiete = zahlen.kaltmiete;
-  }
-  if (
-    zahlen.nebenkosten !== null &&
-    zahlen.nebenkosten !== (p.nebenkosten === null ? null : Number(p.nebenkosten))
-  ) {
-    aenderungen.nebenkosten = zahlen.nebenkosten;
-  }
-
   const fehlerhaft: string[] = [];
-  if (kaltmiete.trim() !== "" && zahlen.kaltmiete === null) {
-    fehlerhaft.push("Die Kaltmiete ist keine Zahl.");
+
+  for (const f of FELDER) {
+    const roh = werte[f.name];
+    const gespeichert = p.stand[f.name];
+
+    if (f.art === "zahl") {
+      const n = alsZahl(roh);
+      if (roh.trim() !== "" && n === null) {
+        fehlerhaft.push(`„${f.titel}“ ist keine Zahl.`);
+        continue;
+      }
+      if (n === null) continue;
+      if (n < 0) {
+        fehlerhaft.push(`„${f.titel}“ kann nicht negativ sein.`);
+        continue;
+      }
+      const alt = gespeichert === null ? null : Number(gespeichert);
+      if (n !== alt) aenderungen[f.gruppe][f.name] = n;
+      continue;
+    }
+
+    const neu = f.art === "datum" ? roh : roh.trim();
+    if (neu === "") continue;
+    if (neu !== (gespeichert ?? "")) aenderungen[f.gruppe][f.name] = neu;
   }
-  if (nebenkosten.trim() !== "" && zahlen.nebenkosten === null) {
-    fehlerhaft.push("Die Nebenkosten sind keine Zahl.");
-  }
-  if (zahlen.kaltmiete !== null && zahlen.kaltmiete < 0) {
-    fehlerhaft.push("Eine negative Kaltmiete gibt es nicht.");
-  }
-  if (zahlen.nebenkosten !== null && zahlen.nebenkosten < 0) {
-    fehlerhaft.push("Negative Nebenkosten gibt es nicht.");
-  }
-  if (ende !== "" && ende < p.beginn) {
+
+  if (werte.ende !== "" && werte.ende < p.beginn) {
     fehlerhaft.push("Das Enddatum liegt vor dem Mietbeginn.");
   }
+  if (werte.geburtsdatum !== "" && werte.geburtsdatum >= p.beginn) {
+    // Ein Geburtsdatum nach dem Einzug ist ein Tippfehler, und zwar einer,
+    // der ungeprueft in den Mietvertrag wandert.
+    fehlerhaft.push("Das Geburtsdatum liegt nach dem Mietbeginn.");
+  }
 
-  const anzahl = Object.keys(aenderungen).length;
+  const anzahlMiete = Object.keys(aenderungen.miete).length;
+  const anzahlVertrag = Object.keys(aenderungen.vertrag).length;
+  const anzahl = anzahlMiete + anzahlVertrag;
   const bereit = anzahl > 0 && fehlerhaft.length === 0;
+
+  // Der Zuschlag geht in die Sollstellung ein. Aendert sich sonst nichts
+  // an Geld oder Laufzeit, laeuft von allein kein Lauf -- siehe Kopf.
+  const brauchtNachlauf =
+    "moeblierungszuschlag" in aenderungen.vertrag && anzahlMiete === 0;
+
+  async function sende(koerper: Record<string, unknown>): Promise<string | null> {
+    const r = await fetch("/api/stammdaten", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(koerper),
+    });
+    const d = (await r.json().catch(() => ({}))) as {
+      ok?: boolean;
+      fehler?: string;
+    };
+    if (!r.ok || !d.ok) return d.fehler ?? "Das hat nicht geklappt.";
+    return null;
+  }
 
   async function speichern() {
     setBusy(true);
-    setMeldung(null);
+    setErgebnis(null);
+    const teile: Teilergebnis[] = [];
     try {
-      const r = await fetch("/api/stammdaten", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      // Erst die Vertragsdaten: Der Moeblierungszuschlag muss stehen,
+      // bevor der Sollstellungslauf der anderen Aktion rechnet.
+      if (anzahlVertrag > 0) {
+        const fehler = await sende({
+          aktion: "vertragsdaten_aendern",
+          mietverhaeltnis_id: p.id,
+          ...aenderungen.vertrag,
+        });
+        teile.push({
+          was: "Vertragsdaten",
+          ok: fehler === null,
+          text:
+            fehler ??
+            `${anzahlVertrag} Feld${anzahlVertrag === 1 ? "" : "er"} gespeichert.`,
+        });
+      }
+
+      if (anzahlMiete > 0) {
+        const fehler = await sende({
           aktion: "mietverhaeltnis_aendern",
           mietverhaeltnis_id: p.id,
-          ...aenderungen,
-        }),
-      });
-      const d = (await r.json().catch(() => ({}))) as {
-        ok?: boolean;
-        fehler?: string;
-        soll?: unknown;
-      };
-      if (!r.ok || !d.ok) {
-        setMeldung({ art: "fehler", text: d.fehler ?? "Das hat nicht geklappt." });
-        return;
+          ...aenderungen.miete,
+        });
+        teile.push({
+          was: "Geld und Laufzeit",
+          ok: fehler === null,
+          text:
+            fehler ??
+            `${anzahlMiete} Feld${anzahlMiete === 1 ? "" : "er"} gespeichert, ` +
+              "die Sollstellungen sind nachgezogen.",
+        });
+      } else if (brauchtNachlauf) {
+        // Kein Feld im Koerper: alle Werte null, COALESCE laesst alles
+        // stehen. Dieser Aufruf aendert nichts und loest nur den
+        // Sollstellungslauf aus, damit der neue Zuschlag auch gefordert
+        // wird und nicht bloss in den Stammdaten steht.
+        const fehler = await sende({
+          aktion: "mietverhaeltnis_aendern",
+          mietverhaeltnis_id: p.id,
+        });
+        teile.push({
+          was: "Sollstellungen",
+          ok: fehler === null,
+          text:
+            fehler ??
+            "Nachgezogen — der neue Möblierungszuschlag geht in die " +
+              "Forderung ein.",
+        });
       }
-      setMeldung({
-        art: "gut",
-        text:
-          "Gespeichert. Die Sollstellungen sind nachgezogen — ab dem " +
-          "nächsten Monat rechnet der Kontoabgleich mit den neuen Beträgen.",
-      });
-      setOffen(false);
+
+      setErgebnis(teile);
+      if (teile.every((t) => t.ok)) setOffen(false);
       start(() => router.refresh());
     } finally {
       setBusy(false);
     }
   }
 
-  const zuschlag =
-    p.moeblierungszuschlag === null ? null : Number(p.moeblierungszuschlag);
-
   // Beide Prueflisten in einer Ansicht, ohne Doppelung: Steht "Voller
-  // Name" in beiden, soll er einmal mit dem Vermerk erscheinen, dass er
-  // beide Dokumente blockiert.
+  // Name" in beiden, erscheint er einmal mit dem Vermerk, dass er beide
+  // Dokumente blockiert.
   const prueflisten = new Map<string, string[]>();
   for (const e of p.fehltVertrag) prueflisten.set(e, ["Mietvertrag"]);
   for (const e of p.fehltWgb) {
     prueflisten.set(e, [...(prueflisten.get(e) ?? []), "Wohnungsgeberbestätigung"]);
+  }
+  const nurSql = [...prueflisten.keys()].filter((e) => regelFuer(e).feld === null);
+
+  function gruppe(g: Gruppe) {
+    return (
+      <div className="feldraster">
+        {FELDER.filter((f) => f.gruppe === g).map((f) => (
+          <label className="feld" key={f.name}>
+            {f.titel}
+            <input
+              type={f.art === "datum" ? "date" : "text"}
+              inputMode={f.art === "zahl" ? "decimal" : undefined}
+              value={werte[f.name]}
+              min={f.name === "ende" ? p.beginn : undefined}
+              placeholder={f.platzhalter}
+              onChange={(e) => setzen(f.name, e.target.value)}
+              disabled={blockiert}
+            />
+          </label>
+        ))}
+      </div>
+    );
   }
 
   return (
@@ -218,51 +397,33 @@ export function MietverhaeltnisBearbeiten(p: Props) {
             Mietverhältnis bearbeiten
           </button>
           <span className="rueckmeldung">
-            Mieterhöhung, Nebenkosten und Auszug — Enddatum eintragen beendet
-            das Mietverhältnis.
+            Mieterhöhung, Nebenkosten, Auszug und die Vertragsangaben, an
+            denen Mietvertrag und Wohnungsgeberbestätigung hängen.
           </span>
         </div>
       ) : (
         <>
-          <div className="feldraster">
-            <label className="feld">
-              Ende (Auszug)
-              <input
-                type="date"
-                value={ende}
-                min={p.beginn}
-                onChange={(e) => setEnde(e.target.value)}
-                disabled={blockiert}
-              />
-            </label>
-            <label className="feld">
-              Kaltmiete (EUR je Monat)
-              <input
-                type="text"
-                inputMode="decimal"
-                value={kaltmiete}
-                onChange={(e) => setKaltmiete(e.target.value)}
-                placeholder="z. B. 420"
-                disabled={blockiert}
-              />
-            </label>
-            <label className="feld">
-              Nebenkosten (EUR je Monat)
-              <input
-                type="text"
-                inputMode="decimal"
-                value={nebenkosten}
-                onChange={(e) => setNebenkosten(e.target.value)}
-                placeholder="z. B. 80"
-                disabled={blockiert}
-              />
-            </label>
+          <div className="titelzeile" style={{ marginTop: "0.5rem" }}>
+            <h2 style={{ fontSize: "1rem" }}>Geld und Laufzeit</h2>
           </div>
+          {gruppe("miete")}
+
+          <div className="titelzeile" style={{ marginTop: "1.5rem" }}>
+            <h2 style={{ fontSize: "1rem" }}>Vertragsdaten</h2>
+          </div>
+          {gruppe("vertrag")}
+          <p className="erklaerung">
+            Geburtsdatum und Geburtsort stehen nur in diesem Formular und
+            nicht im Datenblatt oben — sie gehören in den Mietvertrag und
+            nicht auf eine Seite, die beim Draufschauen offen liegt. Der
+            volle Name ist der Passname: Er steht an sechs Stellen im
+            Vertrag und über der Unterschriftslinie.
+          </p>
 
           <p className="erklaerung">
             Ein leeres Feld heißt <strong>unverändert</strong>, nicht
-            &bdquo;leeren&ldquo;: Die Schnittstelle schreibt{" "}
-            <code>COALESCE</code> und lässt den alten Wert stehen. Ein
+            &bdquo;leeren&ldquo;: Beide Aktionen schreiben{" "}
+            <code>COALESCE</code> und lassen den alten Wert stehen. Ein
             gesetztes Enddatum lässt sich hier deshalb nicht mehr
             zurücknehmen — dafür braucht es weiterhin die Datenbank.
           </p>
@@ -282,9 +443,8 @@ export function MietverhaeltnisBearbeiten(p: Props) {
               data-art="still"
               onClick={() => {
                 setOffen(false);
-                setEnde(p.ende ?? "");
-                setKaltmiete(insFeld(p.kaltmiete));
-                setNebenkosten(insFeld(p.nebenkosten));
+                setWerte(frisch());
+                setErgebnis(null);
               }}
               disabled={blockiert}
             >
@@ -297,43 +457,44 @@ export function MietverhaeltnisBearbeiten(p: Props) {
             )}
             {anzahl > 0 && fehlerhaft.length === 0 && (
               <span className="rueckmeldung" data-art="warn">
-                {anzahl} Feld{anzahl === 1 ? "" : "er"} wird überschrieben.
+                {anzahlVertrag > 0 && anzahlMiete > 0
+                  ? `${anzahlVertrag} Vertragsangabe(n) und ${anzahlMiete} Betrag/Datum — zwei Aufrufe, getrennt gemeldet.`
+                  : `${anzahl} Feld${anzahl === 1 ? "" : "er"} wird überschrieben.`}
               </span>
             )}
           </div>
         </>
       )}
 
-      {meldung && (
+      {/* Jeder Teil meldet sein eigenes Ergebnis. Eine pauschale
+          Erfolgsmeldung waere falsch, sobald einer der beiden Aufrufe
+          scheitert -- und genau dann braucht der Nutzer die Wahrheit. */}
+      {ergebnis && ergebnis.length > 0 && (
         <div
           className="meldung"
-          data-art={meldung.art === "gut" ? "gut" : "fehler"}
+          data-art={
+            ergebnis.every((t) => t.ok)
+              ? "gut"
+              : ergebnis.some((t) => t.ok)
+                ? "warnung"
+                : "fehler"
+          }
         >
           <strong>
-            {meldung.art === "gut" ? "Gespeichert" : "Nicht gespeichert"}
+            {ergebnis.every((t) => t.ok)
+              ? "Gespeichert"
+              : ergebnis.some((t) => t.ok)
+                ? "Teils gespeichert"
+                : "Nicht gespeichert"}
           </strong>
-          {meldung.text}
+          {ergebnis.map((t) => (
+            <span key={t.was} style={{ display: "block" }}>
+              {t.was}: {t.ok ? "" : "nicht gespeichert — "}
+              {t.text}
+            </span>
+          ))}
         </div>
       )}
-
-      {/* --- Möblierungszuschlag: sichtbar, aber hier nicht änderbar --- */}
-      <dl className="datenblatt" style={{ marginTop: "1.25rem" }}>
-        <dt className="hinweis">Möblierungszuschlag</dt>
-        <dd>
-          {zuschlag === null ? (
-            <span className="hinweis">nicht eingetragen</span>
-          ) : (
-            <span className="ziffern">{euro(zuschlag)}</span>
-          )}
-        </dd>
-      </dl>
-      <p className="erklaerung">
-        Der Möblierungszuschlag steht hier nur zum Lesen. Die Aktion{" "}
-        <code>mietverhaeltnis_aendern</code> nimmt das Feld nicht an — ein
-        Eingabefeld dafür würde sich füllen lassen und beim Speichern
-        verschwinden, und das ist genau der stille Fehler, den diese Seite
-        abstellen soll. Zum Ändern fehlt der Schnittstelle eine Zeile.
-      </p>
 
       {/* --- Prüfliste: was die Dokumente blockiert -------------------- */}
       {prueflisten.size > 0 && (
@@ -343,22 +504,20 @@ export function MietverhaeltnisBearbeiten(p: Props) {
           </div>
           <div className="register">
             {[...prueflisten.entries()].map(([eintrag, dokumente]) => {
-              const feld = behebbarDurch(eintrag);
+              const r = regelFuer(eintrag);
               return (
                 <div className="posten" data-still="ja" key={eintrag}>
-                  <span className="nummer">
-                    {feld ? "hier" : "SQL"}
-                  </span>
+                  <span className="nummer">{r.feld ? "hier" : "SQL"}</span>
                   <span className="betreff">{eintrag}</span>
                   <span className="unterzeile">
                     <span>{dokumente.join(" · ")}</span>
-                    {feld ? (
+                    {r.feld ? (
                       <span className="rueckmeldung" data-art="gut">
-                        über das Feld „{feld}“ oben zu beheben
+                        über das Feld „{r.feld}“ oben zu beheben
                       </span>
                     ) : (
                       <span className="rueckmeldung" data-art="warn">
-                        noch nicht über dieses Formular
+                        nur per SQL — {r.grund}
                       </span>
                     )}
                   </span>
@@ -369,13 +528,20 @@ export function MietverhaeltnisBearbeiten(p: Props) {
           <p className="erklaerung">
             Die Liste ist der Wortlaut von <code>fehlendeFelder()</code> und{" "}
             <code>fehlendeFelderWgb()</code> — derselben Prüfung, die das
-            Erzeugen verhindert. Die mit &bdquo;SQL&ldquo; gekennzeichneten
-            Angaben liegen an Spalten, die <code>mietverhaeltnis_aendern</code>{" "}
-            nicht annimmt (Vertragsdatum, Kaution, Meldezusatz, Anschrift vor
-            Einzug) oder gar nicht am Mietverhältnis hängen (Geburtsdatum,
-            Geburtsort, E-Mail, Zimmernummer). Dass sie hier stehen, ist
-            Absicht: Der Mangel soll benannt bleiben, auch solange er hier
-            nicht zu beheben ist.
+            Erzeugen verhindert.{" "}
+            {nurSql.length === 0 ? (
+              <>
+                Alles davon ist hier zu beheben; ein Weg in die Datenbank ist
+                für keine dieser Angaben mehr nötig.
+              </>
+            ) : (
+              <>
+                Die mit &bdquo;SQL&ldquo; gekennzeichneten Angaben nimmt
+                keine der beiden Aktionen an. Dass sie hier stehen, ist
+                Absicht: Der Mangel soll benannt bleiben, auch solange er
+                hier nicht zu beheben ist.
+              </>
+            )}
           </p>
         </>
       )}

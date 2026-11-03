@@ -14,16 +14,16 @@ interface Antwort {
  * Art der Zeile. Der Bericht ist lang -- das Auge muss ihn überfliegen
  * können, ohne jede Zeile zu lesen.
  *
- * Vorher standen hier fünf feste Hexwerte, die als Inline-Farbe ins Markup
- * gingen. Eine Inline-Farbe entzieht sich dem Dunkelmodus: #1b6b3a auf
- * dunklem Grund ist nicht mehr lesbar. Darum benennt die Funktion jetzt nur
- * die Art, und .rueckmeldung[data-art] färbt sie aus den Marken -- hell
- * und dunkel.
+ * Vorher gab die Funktion fünf feste Farbwerte zurück, die als Stil ins
+ * Markup gingen. Eine Farbe im Markup kippt im Dunkelmodus nicht mit: das
+ * Dunkelgrün der Erfolgszeilen war auf dunklem Grund nicht mehr lesbar.
+ * Darum benennt die Funktion jetzt nur die Art, und .rueckmeldung[data-art]
+ * färbt sie aus den Marken -- hell und dunkel.
  *
- * "info" (vormals #1a4f8a, der Akzent) hat in globals.css noch keine Regel.
- * Bis sie da ist, bleibt die Zeile im ruhigen Grau von .rueckmeldung --
- * lesbar, nur ohne eigene Farbe. Das gilt auch für die "vorhanden"-Zeilen
- * (vormals #6b6b6b): Grau ist bei .rueckmeldung schon der Normalfall, die
+ * "info" (vormals das Registerblau des Akzents) hat in globals.css noch
+ * keine Regel. Bis sie da ist, bleibt die Zeile im ruhigen Grau von
+ * .rueckmeldung -- lesbar, nur ohne eigene Farbe. Das gilt auch für die
+ * "vorhanden"-Zeilen: Grau ist bei .rueckmeldung schon der Normalfall, die
  * eigene Abfrage dafuer war überflüssig.
  */
 function art(z: string): "gut" | "info" | "fehler" | undefined {
@@ -125,8 +125,8 @@ export function AltdatenImport() {
             </p>
           )}
           {/* .protokoll bringt Rollhöhe, Fläche, Rand und Zeilenmaß des
-              Protokollblocks mit -- vorher stand das alles inline, mit
-              #fafafa und #e3e3e3 als festen Farben. */}
+              Protokollblocks mit -- vorher stand das alles im Markup, mit
+              zwei festen Grauwerten für Fläche und Rand. */}
           <pre className="protokoll">
             {antwort.bericht.map((z, i) => (
               <div key={i} className="rueckmeldung" data-art={art(z)}>
