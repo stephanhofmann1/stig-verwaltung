@@ -1,4 +1,5 @@
-import { anteil, spitze, type CashflowBalken } from "@/lib/kennzahlen";
+import { spitze, type CashflowBalken } from "@/lib/kennzahlen";
+import { Stapelbalken } from "@/components/Diagramm";
 import {
   CockpitKarte,
   Erklaerung,
@@ -10,29 +11,27 @@ import {
 /**
  * Cashflow der letzten zwoelf Monate.
  *
- * Reines SVG, keine Diagrammbibliothek. Die Balkenmasse stehen im Markup,
- * weil sie Daten sind; Farbe kommt ueber currentColor, damit die Gestaltung
- * sie weiter in der Hand hat -- auch im dunklen Modus.
+ * Die Karte zeichnet nicht mehr selbst: Skala, Stapel und Beschriftung
+ * kommen aus dem Baukasten (components/Diagramm.tsx) und aus lib/diagramm.ts.
+ * Der Grund ist derselbe, aus dem die Rechnerei in lib/kennzahlen.ts von den
+ * Abfragen getrennt ist -- eine Skala in einer Komponente laesst sich nur im
+ * Browser pruefen, und die Spitze war hier bis zuletzt der groesste Balken
+ * und keine lesbare Stufe: Die Achse endete bei 4.731 EUR.
  *
- * Mieteinnahmen und sonstige Einnahmen sind getrennt, aber nur soweit es
- * sich aus den Zuordnungen ergibt: Miete ist, was einer Sollstellung
- * zugeordnet ist. Ein Eingang, den noch niemand zugeordnet hat, erscheint
- * damit als "sonstige" -- das ist keine Schaetzung, sondern der Stand des
- * Abgleichs, und der Hinweis sagt es.
+ * Inhaltlich unveraendert, und die zwei Einschraenkungen bleiben wortgleich
+ * stehen:
  *
- * Eine Aufschluesselung der Ausgaben nach Art gibt es nicht: dafuer muessten
- * die Belege kategorisiert sein, und das sind sie nicht.
+ *   - Mieteinnahmen und sonstige Einnahmen sind getrennt, aber nur soweit es
+ *     sich aus den Zuordnungen ergibt: Miete ist, was einer Sollstellung
+ *     zugeordnet ist. Ein Eingang, den noch niemand zugeordnet hat, erscheint
+ *     damit als "sonstige" -- das ist keine Schaetzung, sondern der Stand des
+ *     Abgleichs, und der Hinweis sagt es.
+ *   - Eine Aufschluesselung der Ausgaben nach Art gibt es nicht: dafuer
+ *     muessten die Belege kategorisiert sein, und das sind sie nicht.
  */
-
-const HOCH = 62; // Hoehe einer Balkenhaelfte in Benutzereinheiten
-const BREIT = 26; // Balkenbreite
-const SPUR = 48; // Platz je Monat
 
 export function CockpitCashflow({ reihe }: { reihe: CashflowBalken[] }) {
   const max = spitze(reihe);
-  const breite = reihe.length * SPUR;
-  const mitte = HOCH + 14;
-
   const summeEin = reihe.reduce((s, b) => s + b.ein, 0);
   const summeAus = reihe.reduce((s, b) => s + b.aus, 0);
   const summeMiete = reihe.reduce((s, b) => s + b.miete, 0);
@@ -76,130 +75,79 @@ export function CockpitCashflow({ reihe }: { reihe: CashflowBalken[] }) {
           Sobald Kontoumsätze eingelesen sind, stehen hier zwölf Monatsbalken.
         </div>
       ) : (
-        <>
-          <svg
-            viewBox={`0 0 ${breite} ${2 * HOCH + 30}`}
-            width="100%"
-            role="img"
-            aria-label={`Einnahmen und Ausgaben der letzten ${reihe.length} Monate: insgesamt ${euro(summeEin)} ein, ${euro(summeAus)} aus. Die Zahlen je Monat stehen in der Tabelle darunter.`}
-          >
-            {/* Nulllinie */}
-            <line
-              x1="0"
-              y1={mitte}
-              x2={breite}
-              y2={mitte}
-              stroke="currentColor"
-              strokeOpacity="0.3"
-            />
-            {reihe.map((b, i) => {
-              const x = i * SPUR + (SPUR - BREIT) / 2;
-              const hMiete = anteil(b.miete, max) * HOCH;
-              const hSonst = anteil(b.sonstige, max) * HOCH;
-              const hAus = anteil(b.aus, max) * HOCH;
-              return (
-                <g key={b.monat}>
-                  <title>
-                    {`${monatKurz(b.monat)}: ${euroGenau(b.miete)} Miete, ${euroGenau(b.sonstige)} sonstige, ${euroGenau(b.aus)} Ausgaben`}
-                  </title>
-                  {/* Einnahmen nach oben, Miete unten im Stapel. */}
-                  <rect
-                    x={x}
-                    y={mitte - hMiete}
-                    width={BREIT}
-                    height={hMiete}
-                    fill="currentColor"
-                    fillOpacity="0.85"
-                  />
-                  <rect
-                    x={x}
-                    y={mitte - hMiete - hSonst}
-                    width={BREIT}
-                    height={hSonst}
-                    fill="currentColor"
-                    fillOpacity="0.3"
-                  />
-                  {/* Ausgaben nach unten, als Umriss. */}
-                  <rect
-                    x={x}
-                    y={mitte}
-                    width={BREIT}
-                    height={hAus}
-                    fill="none"
-                    stroke="currentColor"
-                    strokeOpacity="0.6"
-                  />
-                  <text
-                    x={x + BREIT / 2}
-                    y={2 * HOCH + 26}
-                    textAnchor="middle"
-                    fontSize="10"
-                    fill="currentColor"
-                    fillOpacity="0.6"
-                  >
-                    {monatKurz(b.monat).replace(" ", " ")}
-                  </text>
-                </g>
-              );
-            })}
-          </svg>
-
-          <p className="hinweis">
-            Oben Einnahmen (voll: zugeordnete Miete, blass: sonstige), unten
-            Ausgaben als Umriss. Höchster Balken {euroGenau(max)}. In zwölf
-            Monaten {euroGenau(summeMiete)} zugeordnete Miete und{" "}
-            {euroGenau(summeEin - summeMiete)} sonstige Eingänge.
-          </p>
-
-          {/* Dieselbe Hülle wie die Erklaerungen: zugeklappt, und das summary
-              sagt, was drin steht. Eine Tabelle mit zwölf Zeilen ist kein
-              Lagebild. */}
-          <details className="erklaerung">
-            <summary>Zahlen je Monat</summary>
-            <div className="tabelle-rolle">
-              <table>
-                <caption>
-                  Beträge aus <code>buchung</code>, Miete aus{" "}
-                  <code>zuordnung</code>.
-                </caption>
-                <thead>
-                  <tr>
-                    <th scope="col">Monat</th>
-                    <th scope="col" className="betrag">
-                      Miete
-                    </th>
-                    <th scope="col" className="betrag">
-                      sonstige
-                    </th>
-                    <th scope="col" className="betrag">
-                      Ausgaben
-                    </th>
+        <Stapelbalken
+          posten={reihe.map((b) => ({
+            name: monatKurz(b.monat),
+            titel: `${monatKurz(b.monat)}: ${euroGenau(b.miete)} Miete, ${euroGenau(b.sonstige)} sonstige, ${euroGenau(b.aus)} Ausgaben`,
+            teile: [
+              { name: "zugeordnete Miete", wert: b.miete, art: "akzent" as const },
+              { name: "sonstige Eingänge", wert: b.sonstige, art: "leise" as const },
+            ],
+          }))}
+          gegen={{
+            name: "Ausgaben",
+            werte: reihe.map((b) => b.aus),
+            art: "leise",
+          }}
+          legende={[
+            { name: "zugeordnete Miete", art: "akzent" },
+            { name: "sonstige Eingänge", art: "leise" },
+            { name: "Ausgaben (Umriss, unter der Linie)", art: "leise" },
+          ]}
+          beschriftung={euro}
+          aussage={`Einnahmen und Ausgaben der letzten ${reihe.length} Monate: insgesamt ${euro(summeEin)} ein, ${euro(summeAus)} aus. Davon ${euro(summeMiete)} zugeordnete Miete. Die Zahlen je Monat stehen in der Tabelle darunter.`}
+          hinweis={
+            <>
+              Oben Einnahmen (voll: zugeordnete Miete, blass: sonstige), unten
+              Ausgaben als Umriss. Höchster Balken {euroGenau(max)}. In zwölf
+              Monaten {euroGenau(summeMiete)} zugeordnete Miete und{" "}
+              {euroGenau(summeEin - summeMiete)} sonstige Eingänge.
+            </>
+          }
+          tabelleTitel="Zahlen je Monat"
+          tabelle={
+            /* Dieselbe Tabelle wie bisher: zwölf Zeilen sind kein Lagebild,
+               aber ohne sie ist die Zahl nach dem Zeichnen verloren. */
+            <table>
+              <caption>
+                Beträge aus <code>buchung</code>, Miete aus{" "}
+                <code>zuordnung</code>.
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">Monat</th>
+                  <th scope="col" className="betrag">
+                    Miete
+                  </th>
+                  <th scope="col" className="betrag">
+                    sonstige
+                  </th>
+                  <th scope="col" className="betrag">
+                    Ausgaben
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {reihe.map((b) => (
+                  <tr key={b.monat}>
+                    <th scope="row">{monatKurz(b.monat)}</th>
+                    <td className="betrag">{euroGenau(b.miete)}</td>
+                    <td className="betrag">{euroGenau(b.sonstige)}</td>
+                    <td className="betrag">{euroGenau(b.aus)}</td>
                   </tr>
-                </thead>
-                <tbody>
-                  {reihe.map((b) => (
-                    <tr key={b.monat}>
-                      <th scope="row">{monatKurz(b.monat)}</th>
-                      <td className="betrag">{euroGenau(b.miete)}</td>
-                      <td className="betrag">{euroGenau(b.sonstige)}</td>
-                      <td className="betrag">{euroGenau(b.aus)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr>
-                    <th scope="row">zusammen</th>
-                    <td className="betrag">{euroGenau(summeMiete)}</td>
-                    <td className="betrag">
-                      {euroGenau(summeEin - summeMiete)}
-                    </td>
-                    <td className="betrag">{euroGenau(summeAus)}</td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          </details>
-        </>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <th scope="row">zusammen</th>
+                  <td className="betrag">{euroGenau(summeMiete)}</td>
+                  <td className="betrag">{euroGenau(summeEin - summeMiete)}</td>
+                  <td className="betrag">{euroGenau(summeAus)}</td>
+                </tr>
+              </tfoot>
+            </table>
+          }
+        />
       )}
     </CockpitKarte>
   );

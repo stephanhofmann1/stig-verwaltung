@@ -1632,6 +1632,28 @@ p.hinweis.abschnitt { margin-top: var(--abstand-7); }
   stroke-dasharray: 3 3;
 }
 
+/* Das Lückenband über einer Spalte ohne Aussage.
+
+   Blasses Grau allein trägt die Aussage nicht: Es sieht aus wie ein sehr
+   kleiner Wert, und genau diese Verwechslung soll das Band verhindern.
+   Eine Schraffur ist kein Wert — sie wird als „hier steht nichts"
+   gelesen und bleibt es auch auf einem Schwarzweißausdruck und für ein
+   Auge, das den Grauwert nicht vom Hintergrund trennt.
+
+   Das Muster wird einmal definiert und über fill="url(#luecken-muster)"
+   verwendet; wo das Bauteil stattdessen eine Fläche zeichnet, greift die
+   Deckkraft darunter. */
+.diagramm-luecke {
+  fill: var(--fg-still);
+  fill-opacity: 0.1;
+}
+.diagramm-luecke-strich {
+  stroke: var(--fg-still);
+  stroke-opacity: 0.45;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
 .diagramm-legende {
   display: flex;
   flex-wrap: wrap;
@@ -1639,6 +1661,13 @@ p.hinweis.abschnitt { margin-top: var(--abstand-7); }
   margin-top: var(--abstand-2);
   font-size: var(--t-klein);
   color: var(--fg-leise);
+  /* Die Legende ist als <ul>/<li> ausgezeichnet -- richtig so, es ist
+     eine Aufzaehlung, und eine Vorlesesoftware nennt dann ihre Laenge.
+     Sichtbare Aufzaehlungspunkte neben den Farbtupfern waeren aber zwei
+     Marken je Eintrag. Also Semantik behalten, Punkte weg. */
+  list-style: none;
+  padding-left: 0;
+  margin-bottom: 0;
 }
 .diagramm-marke {
   display: inline-flex;

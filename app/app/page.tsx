@@ -4,6 +4,8 @@ import { CockpitMonat } from "@/components/CockpitMonat";
 import { CockpitRueckstaende } from "@/components/CockpitRueckstaende";
 import { CockpitLeerstand } from "@/components/CockpitLeerstand";
 import { CockpitCashflow } from "@/components/CockpitCashflow";
+import { CockpitVerlauf } from "@/components/CockpitVerlauf";
+import { CockpitMietstruktur } from "@/components/CockpitMietstruktur";
 import { CockpitAutomatik } from "@/components/CockpitAutomatik";
 import { CockpitZahlungen } from "@/components/CockpitZahlungen";
 import { FreigabeListe } from "@/components/FreigabeListe";
@@ -243,6 +245,24 @@ export default async function Cockpit() {
       <CockpitMonat monat={d.monat.monat} geld={d.monat.geld} />
 
       <CockpitAutomatik posten={d.automatik} lagebericht={d.lagebericht} />
+
+      {/* Der Verlauf steht VOR dem Cashflow und nicht dahinter.
+
+          Der Cashflow zeigt, was auf dem Konto war -- eine Kassenlage.
+          Der Soll-/Ist-Verlauf zeigt, ab welchem Monat die Zahlungen
+          hinter der Forderung zurueckblieben, und das ist die Frage, die
+          den Vermieter zuerst angeht. Bis hierhin war sie aus dieser
+          Anwendung ueberhaupt nicht zu beantworten: Es gab den laufenden
+          Monat und zwoelf Monatsbalken aus Buchungen, aber keine
+          Zeitachse, auf der Forderung und Eingang nebeneinanderlaufen.
+
+          Monate ohne Kontodaten erscheinen darin als Luecke und nicht als
+          Einbruch auf Null. Eine Linie, die faellt, weil Auszuege fehlen,
+          wuerde als Rueckstand gelesen -- und daraus entstuende eine
+          Mahnung an jemanden, der bezahlt hat. */}
+      <CockpitVerlauf reihe={d.sollIst} />
+
+      <CockpitMietstruktur struktur={d.mietstruktur} />
 
       <CockpitCashflow reihe={d.cashflow} />
 
