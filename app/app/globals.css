@@ -1399,6 +1399,388 @@ p.hinweis.abschnitt { margin-top: var(--abstand-7); }
    Vier Seiten hielten ihre Breite deshalb per Inline-Stil fest. */
 .schmal { max-width: 32rem; }
 
+/* --- 14e. Kennwerke — eine Zahl, die eine Aussage über Geld macht -------
+   Der Unterschied zur Kennzahl in Abschnitt 9 ist nicht die Größe, sondern
+   die dritte Zeile. Eine Kennzahl im Cockpit zählt etwas ("4 warten auf
+   Freigabe"). Ein Kennwerk behauptet eine wirtschaftliche Größe — eine
+   Netto-Mietrendite, einen Vervielfältiger, einen Cashflow —, und die ist
+   immer nur so gut wie ihre Eingangsgrößen.
+
+   Darum hat jedes Kennwerk Platz für eine Begründungszeile, und die ist
+   nicht Zierde: Eine Rendite, die ohne Kaufpreis gerechnet wurde, ist
+   keine Rendite, sondern eine Zahl. Steht kein Wert zur Verfügung, zeigt
+   das Kennwerk einen Gedankenstrich und sagt in der dritten Zeile, was
+   fehlt — nie eine Null. Eine Null, die "unbekannt" meint, ist die
+   gefährlichste Anzeige dieser Anwendung. */
+.kennwerk {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+}
+.kennwerk-schild {
+  font-size: var(--t-klein);
+  font-weight: var(--g-kopf);
+  color: var(--fg-leise);
+  font-variation-settings: "wdth" var(--b-eng);
+}
+.kennwerk-wert {
+  font-size: var(--t-zahl);
+  line-height: var(--zh-zahl);
+  font-weight: var(--g-titel);
+  letter-spacing: var(--lw-titel);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+/* Die Einheit gehört zur Zahl, drängt sich aber nicht neben sie: halbes
+   Gewicht, zwei Drittel Größe, kein eigener Zeilenumbruch. */
+.kennwerk-wert small,
+.kennwerk-einheit {
+  font-size: 0.6em;
+  font-weight: var(--g-zahl);
+  letter-spacing: var(--lw-null);
+  margin-left: 0.15em;
+  color: var(--fg-leise);
+  white-space: nowrap;
+}
+.kennwerk-wert[data-art="gut"]  { color: var(--gut); }
+.kennwerk-wert[data-art="warn"] { color: var(--warn); }
+.kennwerk-wert[data-art="fehl"] { color: var(--fehl); }
+
+/* Die Begründung. --fg-leise und nicht --fg-still: Dieser Satz trägt die
+   Information, ob man der Zahl darüber glauben darf. Dritte Ebene wäre die
+   falsche Ebene. */
+.kennwerk-grund {
+  font-size: var(--t-klein);
+  line-height: var(--zh-klein);
+  color: var(--fg-leise);
+  text-wrap: pretty;
+}
+
+/* Kein Wert vorhanden: Der Gedankenstrich tritt zurück, damit das Auge
+   nicht eine Zahl zu lesen versucht, die nicht da ist. Der Grund daneben
+   bleibt in voller Lesbarkeit. */
+.kennwerk[data-leer="ja"] .kennwerk-wert { color: var(--fg-still); }
+.kennwerk[data-leer="ja"] .kennwerk-grund { color: var(--fg-leise); }
+
+/* Woraus gerechnet wurde. Steht unter der Begründung, in der dritten
+   Ebene, weil es die Nachprüfung betrifft und nicht die Aussage. */
+.kennwerk-grundlage {
+  font-size: var(--t-mikro);
+  line-height: var(--zh-klein);
+  color: var(--fg-still);
+}
+
+/* --- 14f. Filterleiste --------------------------------------------------
+   Ein Ausschnitt muss aussehen wie ein Ausschnitt. Das Mietenbuch hat bei
+   drei Häusern über fünfzig Zeilen, und wer nach einer Einheit filtert,
+   sieht danach Summen, die nur noch für die sichtbaren Zeilen gelten.
+   Deshalb steht die Leiste über dem Raster und nicht daneben, und was
+   gesetzt ist, steht als abziehbare Marke darin — nicht nur als gefüllte
+   Auswahlliste, die man überliest. */
+.filterleiste {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--abstand-3);
+  background: var(--flaeche);
+  border: 1px solid var(--linie);
+  border-radius: var(--radius-m);
+  padding: var(--abstand-3);
+  margin-bottom: var(--abstand-4);
+}
+.filterleiste-feld {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1875rem;
+  min-width: 0;
+}
+.filterleiste-feld > label,
+.filterleiste-feld > span:first-child {
+  font-size: var(--t-mikro);
+  font-weight: var(--g-kopf);
+  color: var(--fg-leise);
+  font-variation-settings: "wdth" var(--b-eng);
+}
+.filterleiste-feld select,
+.filterleiste-feld input {
+  min-width: 9rem;
+}
+/* Das Freitextfeld darf den Platz nehmen, der übrig ist. */
+.filterleiste-feld[data-breit="ja"] { flex: 1 1 14rem; }
+.filterleiste-feld[data-breit="ja"] input { width: 100%; }
+
+/* Was der Filter weglässt — eine Marke, deren Weg sie wieder entfernt.
+   Bewusst nicht .marker aus Abschnitt 10: Das ist eine Pille für ein
+   Urteil ("kritisch", "heikel"). Ein Filter ist kein Urteil. */
+.filter-marke {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--abstand-1);
+  padding: 0.1875rem 0.5rem;
+  border: 1px solid var(--akzent);
+  border-radius: var(--radius-rund);
+  background: var(--akzent-flaeche);
+  color: var(--akzent);
+  font-size: var(--t-klein);
+  font-weight: var(--g-kopf);
+  line-height: 1.4;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.filter-marke::after {
+  content: "×";
+  font-size: 1.1em;
+  line-height: 1;
+  opacity: 0.75;
+}
+.filter-marke:hover { background: var(--flaeche-tief); }
+.filter-marke:focus-visible { outline: 2px solid var(--akzent); outline-offset: 2px; }
+
+.filter-zurueck {
+  font-size: var(--t-klein);
+  font-weight: var(--g-kopf);
+  color: var(--akzent);
+  text-decoration: none;
+  margin-left: auto;
+  align-self: center;
+}
+.filter-zurueck:hover { text-decoration: underline; }
+
+/* --- 14g. Diagramme ----------------------------------------------------
+   Reines SVG, keine Diagrammbibliothek. Die Maße stehen im Markup, weil
+   sie Daten sind; die Farbe kommt von hier, weil sie Gestaltung ist.
+
+   Das Verfahren: Die Hülle setzt `color`, die Formen zeichnen in
+   `currentColor` und staffeln sich über die Deckkraft. Damit stimmt jedes
+   Diagramm im Dunkelmodus von selbst — ein `fill="#1D3FA0"` im Markup
+   täte das nicht, und niemand prüft ein Diagramm bei Nacht nach. */
+.diagramm {
+  color: var(--akzent);
+  margin: var(--abstand-3) 0;
+}
+.diagramm-flaeche {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+/* Gitter und Nulllinie: sichtbar genug, um Höhen zu vergleichen, blass
+   genug, um nicht mit einer Reihe verwechselt zu werden. */
+.diagramm-gitter {
+  stroke: var(--linie-stark);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+  fill: none;
+}
+.diagramm-achse {
+  fill: var(--fg-still);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+  font-variation-settings: "wdth" var(--b-eng);
+}
+
+/* Die Reihen. Benannt statt eingefärbt: Wer "soll" schreibt, muss nicht
+   wissen, welches Blau gerade gilt. Die Namen decken beide Schreibweisen
+   ab, die in den Bauteilen vorkommen (data-reihe und data-art). */
+.diagramm [data-reihe="soll"],
+.diagramm [data-art="soll"]       { color: var(--fg-leise); }
+.diagramm [data-reihe="ist"],
+.diagramm [data-art="ist"]        { color: var(--akzent); }
+.diagramm [data-reihe="kalt"],
+.diagramm [data-art="kalt"]       { color: var(--akzent); }
+.diagramm [data-reihe="bk"],
+.diagramm [data-art="bk"]         { color: var(--fg-leise); }
+.diagramm [data-reihe="offen"],
+.diagramm [data-art="offen"]      { color: var(--fehl); }
+.diagramm [data-reihe="gut"],
+.diagramm [data-art="gut"]        { color: var(--gut); }
+.diagramm [data-reihe="warn"],
+.diagramm [data-art="warn"]       { color: var(--warn); }
+.diagramm [data-reihe="fehl"],
+.diagramm [data-art="fehl"]       { color: var(--fehl); }
+.diagramm [data-reihe="still"],
+.diagramm [data-art="still"]      { color: var(--fg-still); }
+.diagramm [data-reihe="akzent"],
+.diagramm [data-art="akzent"]     { color: var(--akzent); }
+
+/* Eine Lücke ist keine Null. Ein Monat ohne Kontodaten wird schraffiert
+   statt auf Null gezeichnet — eine Linie, die auf Null fällt, weil Daten
+   fehlen, ist in dieser Anwendung der teuerste Fehler: Aus ihr entsteht
+   eine Mahnung an jemanden, der bezahlt hat. */
+.diagramm [data-luecke="ja"] {
+  color: var(--fg-still);
+  stroke-dasharray: 3 3;
+}
+
+.diagramm-legende {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--abstand-2) var(--abstand-4);
+  margin-top: var(--abstand-2);
+  font-size: var(--t-klein);
+  color: var(--fg-leise);
+}
+.diagramm-marke {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--abstand-2);
+  white-space: nowrap;
+}
+/* Der Farbtupfer nimmt die Farbe der Reihe, die er benennt — dieselbe
+   Regel wie im Diagramm, deshalb dieselben Selektoren oben. */
+.diagramm-marke::before {
+  content: "";
+  width: 0.75rem;
+  height: 0.75rem;
+  flex: 0 0 auto;
+  background: currentColor;
+  border: 1px solid currentColor;
+}
+.diagramm-marke[data-form="umriss"]::before { background: transparent; }
+.diagramm-marke[data-form="linie"]::before {
+  height: 0;
+  border: 0;
+  border-top: 2px solid currentColor;
+  width: 1rem;
+}
+.diagramm-marke[data-form="luecke"]::before {
+  height: 0;
+  background: none;
+  border: 0;
+  border-top: 2px dashed currentColor;
+  width: 1rem;
+}
+/* Die Beschriftung selbst bleibt Text und nimmt nicht die Reihenfarbe an:
+   Ein blaues Wort neben einem blauen Tupfer liest sich schlechter als ein
+   schwarzes. */
+.diagramm-marke > span { color: var(--fg-leise); }
+
+.diagramm-leer {
+  border: 1px dashed var(--linie-stark);
+  padding: var(--abstand-4);
+  color: var(--fg-leise);
+  font-size: var(--t-klein);
+  text-align: center;
+}
+
+/* Sparkline: ein Verlauf in Zeilenhöhe, ohne Achsen. Steht neben einer
+   Kennzahl und sagt nur eines — geht es hinauf oder hinab. */
+.sparkline {
+  display: inline-block;
+  width: 4.5rem;
+  height: 1.125rem;
+  vertical-align: middle;
+  color: var(--fg-leise);
+  overflow: visible;
+}
+
+/* Streifen: ein waagerechter Anteilsbalken. Die Teile grenzen mit einer
+   Haarlinie aneinander statt mit einer Lücke -- es ist ein Ganzes, das
+   geteilt wird, keine Reihe von Kästchen. */
+.streifen {
+  display: flex;
+  width: 100%;
+  height: 1.5rem;
+  border: 1px solid var(--linie-stark);
+  background: var(--flaeche-ruhig);
+  overflow: hidden;
+}
+.streifen-teil {
+  background: currentColor;
+  border-right: 1px solid var(--flaeche);
+  min-width: 1px;
+}
+.streifen-teil:last-child { border-right: 0; }
+.streifen-teil[data-form="umriss"] {
+  background: repeating-linear-gradient(
+    135deg,
+    currentColor 0 2px,
+    transparent 2px 5px
+  );
+}
+
+/* Ring: eine Quote als Kreis mit der Zahl in der Mitte. */
+.ring {
+  display: block;
+  width: 100%;
+  max-width: 8rem;
+  height: auto;
+  margin: 0 auto;
+  color: var(--akzent);
+}
+.ring-bahn  { stroke: var(--linie-stark); fill: none; }
+.ring-anteil { stroke: currentColor; fill: none; stroke-linecap: butt; }
+.ring-zahl {
+  fill: var(--fg);
+  font-size: 15px;
+  font-weight: var(--g-titel);
+  font-variant-numeric: tabular-nums;
+  text-anchor: middle;
+}
+.ring-schild {
+  fill: var(--fg-leise);
+  font-size: 8px;
+  text-anchor: middle;
+}
+
+/* --- 14h. Fußnavigation (Telefon) --------------------------------------
+   Auf dem Telefon ist das eingeklappte Menü am oberen Rand zwei
+   Berührungen je Seitenwechsel, und beide am oberen Bildschirmrand — dort,
+   wo der Daumen nicht hinkommt. Die Fußleiste ist eine Berührung, in
+   Daumenreichweite.
+
+   Auf breiten Geräten gibt es sie nicht: Dort steht die Navigation im
+   Kopf, und zwei Navigationen gleichzeitig wären zwei Antworten auf die
+   Frage, wo man ist. Voreingestellt also aus; Abschnitt 15 schaltet sie
+   ein. */
+.navi-boden { display: none; }
+
+.navi-boden-punkt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.125rem;
+  /* 44 px ist Apples Richtwert für eine Zielfläche. Unterschritten heißt:
+     daneben getippt, und auf dieser Oberfläche liegt neben "Mietenbuch"
+     das Mahnwesen. */
+  min-height: 2.75rem;
+  padding: var(--abstand-2) 0.25rem;
+  color: var(--fg-leise);
+  text-decoration: none;
+  font-size: var(--t-mikro);
+  font-weight: var(--g-kopf);
+  line-height: 1.1;
+  text-align: center;
+}
+.navi-boden-zeichen {
+  width: 1.375rem;
+  height: 1.375rem;
+  display: block;
+  flex: 0 0 auto;
+}
+.navi-boden-wort {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Wo man ist, steht nicht nur in der Farbe: Eine Kante oben am aktiven
+   Punkt bleibt auch auf einem Schwarzweißschirm und für ein Auge sichtbar,
+   das Blau von Grau nicht unterscheidet. */
+.navi-boden-punkt[aria-current="page"] {
+  color: var(--akzent);
+  box-shadow: inset 0 2px 0 0 var(--akzent);
+  background: var(--akzent-flaeche);
+}
+.navi-boden-punkt:focus-visible {
+  outline: 2px solid var(--akzent);
+  outline-offset: -2px;
+}
+
 /* --- 15. Schmale Schirme (Telefon) --------------------------------------
    Prüfmaß 390 px: 16 px Seitenabstand, kein waagerechtes Rollen der Seite. */
 
@@ -1449,6 +1831,65 @@ p.hinweis.abschnitt { margin-top: var(--abstand-7); }
     min-height: 2.75rem;
   }
   button { padding: 0.5rem 1rem; }
+
+  /* --- Die Fußleiste wird sichtbar --------------------------------------
+     Fest am unteren Rand, in Daumenreichweite. padding-bottom aus
+     env(safe-area-inset-bottom): Auf einem iPhone ohne Knopf liegt unter
+     dem Bildschirmrand noch der Streifen für die Wischgeste, und ein Ziel
+     darunter ist nicht treffbar. Der Wert ist auf allen anderen Geräten 0,
+     die Zeile kostet dort also nichts. */
+  .navi-boden {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+    position: fixed;
+    inset: auto 0 0 0;
+    z-index: 30;
+    background: var(--flaeche);
+    border-top: 1px solid var(--linie-stark);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .navi-boden-punkt + .navi-boden-punkt {
+    border-left: 1px solid var(--linie);
+  }
+
+  /* Platz für die Leiste, damit sie nicht die letzte Zeile der Seite
+     verdeckt. Genau das ist der Fehler, den eine feste Leiste macht, wenn
+     niemand daran denkt -- und die letzte Zeile ist hier oft eine
+     Summenzeile. 3.25rem Leiste plus der sichere Bereich. */
+  body {
+    padding-bottom: calc(3.25rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Im Stehen ist eine Kennzahl je Zeile zu wenig und drei zu viel.
+
+     Dabei wechselt das Kennzahlenband das Verfahren für seine Haarlinien:
+     Auf breiten Geräten steht es in einer Reihe, und eine Kante links an
+     jeder Karte außer der ersten genügt. Sobald es umbricht, ist das
+     falsch -- die erste Karte der zweiten Zeile hätte dann keine Kante
+     nach oben, die zweite der ersten Zeile aber eine, und das Raster sähe
+     schief aus. Eine Lücke von 1 px auf der Linienfarbe ist in jeder
+     Anordnung richtig, weil sie nicht an den Karten hängt, sondern
+     zwischen ihnen liegt. */
+  .karten {
+    grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+    gap: 1px;
+    background: var(--linie);
+  }
+  .karten > .karte { border: 0; }
+
+  /* Die Filterleiste wird eine Spalte: Drei Felder nebeneinander sind auf
+     390 px je 110 px breit, und darin steht kein Einheitsname. */
+  .filterleiste { flex-direction: column; align-items: stretch; }
+  .filterleiste-feld select,
+  .filterleiste-feld input { min-width: 0; width: 100%; }
+  .filter-zurueck { margin-left: 0; align-self: flex-start; }
+
+  /* Ein Diagramm darf auf dem Telefon flacher sein, aber nicht enger --
+     overflow: visible lässt die Achsenbeschriftung sonst in den Rand
+     laufen. */
+  .diagramm-flaeche { overflow: hidden; }
+  .sparkline { width: 3.5rem; }
 }
 
 /* Sehr schmal: der zweite Teil der Wortmarke weicht der Navigation. */
@@ -1459,7 +1900,11 @@ p.hinweis.abschnitt { margin-top: var(--abstand-7); }
 /* --- 16. Druck ----------------------------------------------------------- */
 
 @media print {
-  .kopf, .navi { display: none !important; }
+  /* Die Fußleiste ist eine Bedienung, kein Inhalt. Mit ihr weicht
+     auch der Platz, den sie am Bildschirm freihält -- sonst bleibt
+     unten auf jedem Blatt ein leerer Streifen. */
+  .kopf, .navi, .navi-boden, .filterleiste { display: none !important; }
+  body { padding-bottom: 0; }
   body { background: #fff; color: #000; }
   .rahmen { max-width: none; padding: 0; }
   table, .karte, .register, .entwurf, .leer { box-shadow: none; }
