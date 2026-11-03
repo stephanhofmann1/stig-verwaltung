@@ -5,7 +5,8 @@ import Link from "next/link";
  *
  * Gestaltet wird hier nichts: Die Karten benutzen die Klassen aus
  * globals.css -- karte, karten, kennzahl, kennzahl-schild, kennzahl-wert,
- * meldung, marker, register, posten, leer, hinweis, betrag. An der
+ * erklaerung, zeile-frist, verweis, meldung, marker, register, posten, leer,
+ * hinweis, betrag. An der
  * Gestaltung arbeitet jemand anderes; eigene Farben und Abstaende hier
  * wuerden seine Arbeit ueberschreiben und beim naechsten Durchgang
  * auseinanderfallen.
@@ -62,10 +63,40 @@ export function Verweis({ nach, children }: { nach: string; children: React.Reac
   );
 }
 
+/**
+ * Ein langer Erklaertext, zugeklappt.
+ *
+ * Die Begruendungen auf dieser Seite sind nicht ueberfluessig -- ohne sie
+ * liest jemand `offen` als "unbezahlt" und schreibt einem puenktlichen
+ * Altmieter eine Mahnung. Sie sind nur nicht das, was man morgens liest.
+ * Deshalb bleiben sie wortgleich stehen und wandern hinter ein summary.
+ *
+ * Die eine Regel dazu: **Das summary muss fuer sich stehen.** Zugeklappt ist
+ * es der Satz, aufgeklappt der Beweis. "Mehr erfahren" waere keiner von
+ * beidem -- dann muesste man aufklappen, um zu wissen, ob es sich lohnt, und
+ * genau das kostet die zwei Sekunden, um die es hier geht.
+ */
+export function Erklaerung({
+  satz,
+  children,
+}: {
+  /** Zugeklappt lesbar, ohne den Rest zu kennen. */
+  satz: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <details className="erklaerung">
+      <summary>{satz}</summary>
+      {children}
+    </details>
+  );
+}
+
 export function CockpitKarte({
   titel,
   zaehler,
   hinweis,
+  erklaerung,
   mehr,
   mehrText,
   children,
@@ -75,6 +106,11 @@ export function CockpitKarte({
   zaehler?: string;
   /** Ein Satz darunter — was die Karte zeigt und was sie nicht zeigt. */
   hinweis?: React.ReactNode;
+  /**
+   * Die lange Begruendung, zugeklappt. Steht auf jeder Karte an derselben
+   * Stelle -- direkt unter dem Hinweis --, damit man sie nicht sucht.
+   */
+  erklaerung?: React.ReactNode;
   mehr?: string;
   mehrText?: string;
   children: React.ReactNode;
@@ -89,6 +125,7 @@ export function CockpitKarte({
         {zaehler && <span className="zaehler">{zaehler}</span>}
       </div>
       {hinweis && <p className="hinweis">{hinweis}</p>}
+      {erklaerung}
       {children}
       {mehr && (
         <p className="hinweis">
@@ -116,6 +153,40 @@ export interface Kennzahl {
  * darf null sein -- dann steht dort ein Gedankenstrich, und das ist die
  * ehrlichere Angabe als eine Null, die als "nichts offen" gelesen wuerde.
  */
+/**
+ * Die Kennzahlenzeile der Seite -- vier bis fuenf Zahlen, ganz oben.
+ *
+ * Dieselbe Zeile wie im Mietenbuch (app/mietenbuch/page.tsx), bis auf die
+ * Zahlen: `div.karten` mit `div.karte.kennzahl`, Schild, Wert, Nebensatz.
+ * Zwei verschiedene Kennzahlenzeilen in einer Anwendung lernt niemand lesen.
+ *
+ * Darum hier `div` und nicht das `dl` von `Kennzahlen` weiter unten: Das
+ * `dl` gehoert in eine Karte, wo Begriff und Wert paarweise gelesen werden.
+ * Die Zeile ueber der Seite ist kein Begriffsverzeichnis, sondern ein Blick.
+ */
+export function KennzahlenZeile({ posten }: { posten: Kennzahl[] }) {
+  return (
+    <div className="karten">
+      {posten.map((p) => (
+        <div className="karte kennzahl" key={p.begriff}>
+          <span className="kennzahl-schild">{p.begriff}</span>
+          {/* Kein `?? 0`: Ein Gedankenstrich heisst "wir wissen es nicht",
+              eine Null heisst "es ist nichts". Das ist auf dieser Seite der
+              Unterschied zwischen einer Mahnung und keiner Mahnung. */}
+          <span className="kennzahl-wert" data-art={p.art}>
+            {p.wert ?? "—"}
+          </span>
+          {p.dazu && (
+            <span className="hinweis" style={{ margin: 0, maxWidth: "none" }}>
+              {p.dazu}
+            </span>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function Kennzahlen({ posten }: { posten: Kennzahl[] }) {
   return (
     <dl className="karten">

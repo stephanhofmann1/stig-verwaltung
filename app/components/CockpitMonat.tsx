@@ -1,6 +1,7 @@
 import type { MonatsGeld } from "@/lib/kennzahlen";
 import {
   CockpitKarte,
+  Erklaerung,
   Kennzahlen,
   Verweis,
   euroGenau,
@@ -54,18 +55,31 @@ export function CockpitMonat({
       titel={`Geld im ${monatsName(monat)}`}
       zaehler={`${geld.anzahl} Sollstellungen`}
       hinweis={
-        geld.belastbar ? (
-          <>
-            Offen heißt: fällig, Kontoumsätze liegen vor, es ist nichts
-            angekommen. Monate ohne Kontodaten stehen getrennt und werden nicht
-            dazugezählt.
-          </>
-        ) : (
-          <>
-            Für keinen dieser Posten liegen Kontodaten vor. Über offene Beträge
-            ist damit keine Aussage möglich.
-          </>
-        )
+        geld.belastbar
+          ? "Offen heißt: fällig, Kontoumsätze liegen vor, nichts angekommen."
+          : "Für keinen dieser Posten liegen Kontodaten vor."
+      }
+      // Die Unterscheidung bleibt wortgleich erhalten -- sie ist der Grund,
+      // warum diese Karte "—" statt einer Null zeigt. Sie steht nur nicht
+      // mehr vor der ersten Zahl.
+      erklaerung={
+        <Erklaerung satz="Monate ohne Kontodaten werden nicht dazugezählt — sonst stünde eine fehlende Unterlage als Rückstand da">
+          <p className="hinweis">
+            Der Status je Monat kommt aus <code>lib/mieter.ts</code> und
+            unterscheidet zwei Dinge: <strong>offen</strong> heißt fällig,
+            Kontoumsätze liegen vor, es ist nichts angekommen.{" "}
+            <strong>Nicht abgeglichen</strong> heißt, dass es für diesen Monat
+            überhaupt keine Kontodaten gibt.
+          </p>
+          <p className="hinweis">
+            Das zweite ist keine Aussage über Geld, sondern über Unterlagen. Als
+            „offen“ angezeigt wäre es eine Beschuldigung — und bei übernommenen
+            Altmietern eine falsche: Abgerechnet wird ab einem Monat, für den es
+            noch gar keine Kontoumsätze gibt, weil die Mieten davor dem
+            Voreigentümer zuflossen. Deshalb zeigt diese Karte lieber nichts an
+            als eine Null.
+          </p>
+        </Erklaerung>
       }
       mehr="/mietenbuch"
       mehrText="Mietenbuch"
@@ -113,13 +127,16 @@ export function CockpitMonat({
         <div className="meldung" data-art="info">
           <strong>
             {euroGenau(geld.unabgeglichen)} aus {geld.unabgeglichenAnzahl} Posten
-            ohne Kontodaten
+            ohne Kontodaten — kein Rückstand, eine fehlende Unterlage
           </strong>
-          Das ist kein Rückstand, sondern eine fehlende Unterlage: Für diese
-          Monate liegen keine Kontoauszüge vor. Objekte ohne eigenes Konto
-          haben überhaupt keine — dort ist jeder Monat so. Ab welchem Tag die
-          Kontodaten eines Objekts reichen, steht bei den Konten.{" "}
-          <Verweis nach="/konten">Konten</Verweis>
+          <Erklaerung satz="Woran es liegt und wo es steht">
+            <p className="hinweis">
+              Für diese Monate liegen keine Kontoauszüge vor. Objekte ohne
+              eigenes Konto haben überhaupt keine — dort ist jeder Monat so. Ab
+              welchem Tag die Kontodaten eines Objekts reichen, steht bei den
+              Konten. <Verweis nach="/konten">Konten</Verweis>
+            </p>
+          </Erklaerung>
         </div>
       )}
     </CockpitKarte>
