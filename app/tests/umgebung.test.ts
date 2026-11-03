@@ -1,6 +1,7 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 
 /**
  * Tests der Uebergabe von Umgebungswerten an die Container.
@@ -136,4 +137,55 @@ describe("mailabruf: nicht eingerichtet ist kein Fehlschlag", () => {
       "und er muss nennen, was diese zweite Leitung absichert",
     );
   });
+});
+
+/**
+ * Was das Dockerfile kopiert, muss im Paket liegen.
+ *
+ * Am 03.11.2026 brach ein Deploy ab mit
+ *   COPY --from=build /app/public ./public  ->  "/app/public": not found
+ *
+ * Der Weg dorthin bestand aus drei fuer sich richtigen Schritten: Die
+ * Starter-Dateien in app/public wurden geloescht; Git verfolgt keine
+ * leeren Verzeichnisse, also fehlte public im Paket; der Abgleich mit
+ * --delete entfernte es daraufhin vom Server. Das Dockerfile verlangt
+ * es aber.
+ *
+ * Geprueft wird gegen "git ls-files", nicht gegen das Dateisystem --
+ * genau das ist der Unterschied, der den Fehler ausgemacht hat: Das
+ * Verzeichnis lag auf der Platte, aber nicht im Paket.
+ */
+describe("Dockerfile und Paketinhalt", () => {
+  const dockerfile = lies("../Dockerfile");
+
+  /** Pfade, die aus der Build-Stufe uebernommen werden. */
+  const kopiert = [
+    // Die Schalter zwischen "build" und dem Pfad (etwa --chown) muessen
+    // mit: ohne sie fand das Muster nur zwei der vier Zeilen.
+    ...dockerfile.matchAll(/^COPY --from=build(?:\s+--\S+)*\s+\/app\/(\S+)/gm),
+  ].map((m) => m[1]);
+
+  test("das Dockerfile kopiert ueberhaupt etwas aus der Build-Stufe", () => {
+    assert.ok(kopiert.length >= 3, `nur ${kopiert.length} gefunden`);
+  });
+
+  for (const pfad of kopiert) {
+    // .next entsteht erst beim Bauen und liegt zu Recht nicht im Repo.
+    if (pfad.startsWith(".next")) continue;
+
+    test(`/app/${pfad} liegt im Paket, nicht nur auf der Platte`, () => {
+      const verfolgt = execFileSync(
+        "git",
+        ["ls-files", "--", pfad],
+        { cwd: new URL("../", import.meta.url).pathname, encoding: "utf8" },
+      ).trim();
+      assert.notEqual(
+        verfolgt,
+        "",
+        `Das Dockerfile kopiert /app/${pfad}, aber git verfolgt dort keine ` +
+          `einzige Datei. Ein leeres Verzeichnis landet nicht im Paket, und ` +
+          `der Build bricht ab. Abhilfe: eine .gitkeep hineinlegen.`,
+      );
+    });
+  }
 });
