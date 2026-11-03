@@ -1,4 +1,8 @@
 @import "@fontsource-variable/archivo";
+/* Breitenachse derselben Familie. Gibt Monatskoepfen, Tabellenkoepfen und
+   der Navigation eine engere Stimme, ohne eine zweite Schrift zu laden --
+   und ohne fremdes CDN, was bei Mieterdaten ohnehin ausschiede. */
+@import "@fontsource-variable/archivo/wdth.css";
 
 /* ===========================================================================
    STIG Verwaltung — Gestaltungssystem
@@ -89,15 +93,53 @@
   --schatten-1: none;
   --schatten-2: none;
 
-  /* Schriftgrößen */
-  --text-xs:  0.75rem;
-  --text-s:   0.8125rem;
-  --text-m:   0.875rem;
-  --text-n:   0.9375rem;   /* Normalmaß der Anwendung */
-  --text-b:   1rem;
-  --text-l:   1.125rem;
-  --text-xl:  1.375rem;
-  --text-2xl: 1.75rem;
+  /* --- Schrift: acht Stufen, jede mit einer Aufgabe -------------------
+     Die alte Skala hatte vier Stufen zwischen 12 und 15 px, zwei davon
+     1 px auseinander. Eine Skala, die niemand unterscheiden kann, wird
+     umgangen -- sechsmal stand fontSize:"1rem" von Hand im Markup.      */
+  --t-mikro:     0.6875rem;  /* 11  Zellen-Unterzeile, Legende, Rasterjahr */
+  --t-klein:     0.8125rem;  /* 13  Tabellenkörper, Meta, Beschriftung    */
+  --t-grund:     0.9375rem;  /* 15  Normalmaß der Oberfläche              */
+  --t-lese:      1rem;       /* 16  Brieftext, Entwurf                    */
+  --t-abschnitt: 1.0625rem;  /* 17  Abschnittskopf                        */
+  --t-seite:     1.375rem;   /* 22  Seitentitel                           */
+  --t-zahl:      1.75rem;    /* 28  Kennzahl                              */
+  --t-zahl-xl:   2.5rem;     /* 40  einzelne Leitzahl, Aktenzeichen       */
+
+  --zh-klein: 1.45;
+  --zh-grund: 1.55;
+  --zh-lese:  1.65;
+  --zh-kopf:  1.25;
+  --zh-zahl:  1.05;
+
+  /* Vier Gewichte, mehr gibt es nicht. 800 und 900 wirken in einem
+     Zahlenwerk wie Geschrei. */
+  --g-text:  400;
+  --g-zahl:  500;
+  --g-kopf:  600;
+  --g-titel: 700;
+
+  /* Breitenachse: eine engere Stimme fuer Koepfe und Navigation. */
+  --b-eng:    88;
+  --b-normal: 100;
+
+  --lw-titel: -0.015em;
+  --lw-null:  0;
+
+  /* Zellendichte. 38 Einheiten x 12 Monate muessen auf einen Bildschirm --
+     Dichte ist hier Anforderung, nicht Kompromiss. */
+  --zelle:      0.4375rem 0.6875rem;
+  --zelle-weit: 0.6875rem 0.875rem;
+
+  /* Altnamen zeigen auf die neue Skala, damit keine Seite bricht. */
+  --text-xs:  var(--t-mikro);
+  --text-s:   var(--t-klein);
+  --text-m:   var(--t-klein);
+  --text-n:   var(--t-grund);
+  --text-b:   var(--t-grund);
+  --text-l:   var(--t-abschnitt);
+  --text-xl:  var(--t-seite);
+  --text-2xl: var(--t-zahl);
 
   --schrift: "Archivo Variable", ui-sans-serif, system-ui,
              -apple-system, "Segoe UI", sans-serif;
@@ -257,8 +299,10 @@ body {
   background: var(--grund);   /* ausdrücklich, nicht geerbt */
   color: var(--fg);
   font-family: var(--schrift);
-  font-size: var(--text-b);
-  line-height: 1.5;
+  font-size: var(--t-grund);
+  line-height: var(--zh-grund);
+  font-weight: var(--g-text);
+  font-variation-settings: "wdth" var(--b-normal);
   font-synthesis-weight: none;
   overflow-wrap: break-word;
   -webkit-font-smoothing: antialiased;
@@ -311,19 +355,42 @@ hr {
   margin: var(--abstand-6) 0;
 }
 
-/* Überschriften. In dieser Anwendung ist h1 auch eine Abschnittszeile —
-   darum eine ruhige Größe statt des Browservorschlags. */
+/* Überschriften. Vorher lagen alle vier auf Gewicht 700 und fast
+   derselben Größe -- das Auge fand keinen Einstieg. Jetzt trägt jede
+   Ebene eine eigene Aufgabe: Seitentitel, Abschnitt, Untergliederung,
+   Beschriftung. */
 h1, h2, h3, h4 {
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  line-height: 1.25;
   color: var(--fg);
   text-wrap: balance;
 }
-h1 { font-size: var(--text-xl); margin: var(--abstand-6) 0 var(--abstand-3); }
-h2 { font-size: var(--text-l); margin: var(--abstand-6) 0 var(--abstand-3); letter-spacing: -0.015em; }
-h3 { font-size: var(--text-b); margin: var(--abstand-5) 0 var(--abstand-2); letter-spacing: -0.01em; }
-h4 { font-size: var(--text-n); margin: var(--abstand-4) 0 var(--abstand-2); letter-spacing: 0; }
+h1 {
+  font-size: var(--t-seite);
+  line-height: var(--zh-kopf);
+  font-weight: var(--g-titel);
+  letter-spacing: var(--lw-titel);
+  margin: var(--abstand-6) 0 var(--abstand-3);
+}
+h2 {
+  font-size: var(--t-abschnitt);
+  line-height: var(--zh-kopf);
+  font-weight: var(--g-kopf);
+  letter-spacing: var(--lw-null);
+  margin: var(--abstand-6) 0 var(--abstand-3);
+}
+h3 {
+  font-size: var(--t-grund);
+  line-height: var(--zh-kopf);
+  font-weight: var(--g-kopf);
+  margin: var(--abstand-5) 0 var(--abstand-2);
+}
+/* Vierte Ebene ist eine Beschriftung, kein Titel -- deshalb leiser. */
+h4 {
+  font-size: var(--t-klein);
+  line-height: var(--zh-kopf);
+  font-weight: var(--g-kopf);
+  color: var(--fg-leise);
+  margin: var(--abstand-4) 0 var(--abstand-2);
+}
 h1:first-child, h2:first-child, h3:first-child { margin-top: var(--abstand-5); }
 
 p { margin: 0 0 var(--abstand-4); }
@@ -1094,6 +1161,184 @@ input[type="file"] {
    sind für einen Screenreader acht Dokumente. */
 .abschnitt { margin-top: var(--abstand-7); }
 .abschnitt:first-child { margin-top: 0; }
+
+
+/* --- 14c. Hierarchie, Zahlensatz und das Erkennungszeichen --------------
+   Bis hierhin war die Oberfläche eine Fläche: Überschrift, Beschriftung,
+   Wert und Fließtext lagen fast auf derselben Größe, und das Auge fand
+   keinen Einstieg. Dieser Abschnitt gibt den drei Dingen Gewicht, auf die
+   es ankommt — Zahl, Urteil, Weg. */
+
+/* Köpfe und Navigation in der engeren Stimme derselben Familie. Keine
+   Versalien: "SOLL" in Großbuchstaben liest sich langsamer als "Soll"
+   und gewinnt nichts. */
+th,
+.navi a,
+.kennzahl-schild,
+.mb-monat {
+  font-variation-settings: "wdth" var(--b-eng);
+  text-transform: none;
+}
+
+/* --- Zahlensatz ---------------------------------------------------------
+   Der Teil, der über Vertrauen entscheidet. Eine Spalte, die beim Wechsel
+   von Plus zu Minus springt, lässt den Leser zweimal hinsehen. */
+.betrag,
+td.betrag,
+th.betrag,
+.ziffern,
+.kennzahl-wert,
+.aktenzeichen,
+.nummer {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+  font-variant-ligatures: none;
+}
+td.betrag,
+th.betrag {
+  text-align: right;
+  white-space: nowrap;
+  font-weight: var(--g-zahl);
+}
+
+/* Die Kennzahl ist die einzige Stelle, an der eine Zahl laut sein darf. */
+.kennzahl-wert {
+  font-size: var(--t-zahl);
+  line-height: var(--zh-zahl);
+  font-weight: var(--g-titel);
+  letter-spacing: var(--lw-titel);
+}
+.kennzahl-schild {
+  font-size: var(--t-klein);
+  font-weight: var(--g-kopf);
+  color: var(--fg-leise);
+}
+
+/* --- Kennzahlenband -----------------------------------------------------
+   Vier Zahlen einer Aussage sind ein Objekt, keine vier schwebenden
+   Kärtchen. Haarlinien statt Lücken, ein Rahmen außen herum. */
+.karten {
+  gap: 0;
+  border: 1px solid var(--linie);
+  background: var(--flaeche);
+}
+.karten > .karte {
+  border: 0;
+  border-left: 1px solid var(--linie);
+  border-radius: 0;
+  margin: 0;
+  box-shadow: none;
+  padding: var(--abstand-4);
+}
+.karten > .karte:first-child { border-left: 0; }
+
+/* --- Die Randspalte — das Erkennungszeichen -----------------------------
+   Jede Zeile, an der Geld oder eine Frist hängt, trägt links eine Zahl in
+   Tabellenziffern und eine 3 px breite Kante, deren Farbe das Urteil ist:
+   der Haken, den ein Buchhalter an den Rand macht. Die Zahl links ist
+   immer eine Angabe — Resttage, Monat, Laufnummer —, nie eine
+   Ordnungsnummer, die nichts bedeutet. */
+.posten > .nummer,
+.randspalte > .nummer {
+  font-size: var(--t-klein);
+  font-weight: var(--g-zahl);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--fg-still);
+}
+.posten[data-urteil="fehl"]     { border-left-color: var(--fehl); }
+.posten[data-urteil="warn"]     { border-left-color: var(--warn); }
+.posten[data-urteil="gut"]      { border-left-color: var(--gut); }
+.posten[data-urteil="handlung"] { border-left-color: var(--akzent); }
+.posten[data-urteil="fehl"] > .nummer { color: var(--fehl); font-weight: var(--g-kopf); }
+.posten[data-urteil="warn"] > .nummer { color: var(--warn); }
+
+/* --- Verdichtete Fristenzeile -------------------------------------------
+   Eine Frist war ein Block aus Titel, Schild, Betrag und zwei Absätzen.
+   Drei davon passten nicht auf einen Bildschirm. Jetzt eine Zeile, die
+   man überfliegt; die Begründung steht eingeklappt darunter. */
+.zeile-frist {
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr) auto auto;
+  gap: 0 var(--abstand-4);
+  align-items: baseline;
+  padding: var(--zelle-weit);
+  border-bottom: 1px solid var(--linie);
+  border-left: 3px solid transparent;
+}
+.zeile-frist:last-child { border-bottom: 0; }
+.zeile-frist[data-urteil="fehl"] { border-left-color: var(--fehl); }
+.zeile-frist[data-urteil="warn"] { border-left-color: var(--warn); }
+.zeile-frist .rest {
+  font-size: var(--t-klein);
+  font-weight: var(--g-kopf);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--fg-leise);
+}
+.zeile-frist[data-urteil="fehl"] .rest { color: var(--fehl); }
+.zeile-frist .titel { font-weight: var(--g-kopf); }
+.zeile-frist .datum { font-size: var(--t-klein); color: var(--fg-leise); white-space: nowrap; }
+
+/* --- Eingeklappte Erklärung ---------------------------------------------
+   Die langen Erklärtexte sind der Grund, weshalb man dieser Anwendung
+   glaubt — sie sagen, warum eine Zahl so ist. Aber sie gehören nicht vor
+   die Zahl, sondern dahinter. */
+.erklaerung {
+  margin-top: var(--abstand-2);
+  font-size: var(--t-klein);
+  line-height: var(--zh-klein);
+  color: var(--fg-leise);
+}
+.erklaerung > summary {
+  cursor: pointer;
+  color: var(--akzent);
+  font-weight: var(--g-kopf);
+  list-style: none;
+}
+.erklaerung > summary::-webkit-details-marker { display: none; }
+.erklaerung > summary::before {
+  content: "▸";
+  display: inline-block;
+  width: 1em;
+  transition: transform 120ms ease;
+}
+.erklaerung[open] > summary::before { transform: rotate(90deg); }
+.erklaerung > :not(summary) { margin-top: var(--abstand-2); }
+
+/* --- Navigation in Gruppen ----------------------------------------------
+   Zehn gleichwertige Textlinks nebeneinander sind keine Ordnung. */
+.navi-gruppe {
+  display: flex;
+  align-items: center;
+  gap: var(--abstand-3);
+  padding-right: var(--abstand-3);
+  border-right: 1px solid var(--linie);
+}
+.navi-gruppe:last-child { border-right: 0; padding-right: 0; }
+.navi-schalter {
+  display: none;
+  background: transparent;
+  border: 1px solid var(--linie-stark);
+  border-radius: var(--radius-s);
+  padding: 0.25rem 0.5rem;
+  color: var(--fg);
+  font-size: var(--t-klein);
+  font-weight: var(--g-kopf);
+}
+
+@media (max-width: 40rem) {
+  /* Im Band wird aus Nebeneinander ein Untereinander — dann trennt die
+     Haarlinie oben statt links. */
+  .karten > .karte { border-left: 0; border-top: 1px solid var(--linie); }
+  .karten > .karte:first-child { border-top: 0; }
+
+  .zeile-frist { grid-template-columns: 3.5rem minmax(0, 1fr); }
+  .zeile-frist .datum { grid-column: 2; }
+
+  .navi-schalter { display: inline-flex; }
+  .navi-gruppe { border-right: 0; padding-right: 0; }
+}
 
 
 /* --- 15. Schmale Schirme (Telefon) --------------------------------------
