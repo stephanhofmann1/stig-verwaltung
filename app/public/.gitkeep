@@ -1,6 +1,0 @@
-# Next erwartet dieses Verzeichnis, und das Dockerfile kopiert es:
-#   COPY --from=build /app/public ./public
-# Git verfolgt keine leeren Verzeichnisse. Als am 02.11.2026 die letzten
-# Dateien daraus geloescht wurden, fehlte es im Paket, der Abgleich
-# entfernte es vom Server, und der Docker-Build brach ab.
-# Diese Datei haelt das Verzeichnis am Leben.
