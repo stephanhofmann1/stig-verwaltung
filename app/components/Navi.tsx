@@ -17,8 +17,14 @@ import { useEffect, useState } from "react";
  * "wo suche ich das?" schon, bevor man die einzelnen Punkte liest.
  */
 
-/** Ein Punkt in der Navigation. */
-interface Punkt {
+/**
+ * Ein Punkt in der Navigation.
+ *
+ * Ausgefuehrt (export), weil die Fussnavigation in NaviBoden.tsx dieselbe
+ * Form braucht. Zwei Navigationen mit zwei Begriffen davon, was ein Punkt
+ * ist, laufen beim naechsten Zusatz auseinander.
+ */
+export interface Punkt {
   /** Wohin der Punkt fuehrt. */
   href: string;
   /** Was dort steht -- derselbe Name wie auf der Seite selbst. */
@@ -113,8 +119,15 @@ const NAVI_ID = "hauptnavigation";
  * Zweitens muss hinter dem Praefix ein "/" oder das Ende stehen. Sonst
  * markiert /konten auch eine spaetere Seite /kontenrahmen -- ein Fehler,
  * der erst auffaellt, wenn es diese Seite gibt.
+ *
+ * Ausgefuehrt, damit die Fussnavigation (NaviBoden.tsx) dieselbe Antwort
+ * gibt wie diese hier. Eine zweite, nachgebaute Fassung waere genau die
+ * Art Dopplung, die still auseinanderlaeuft: Die Markierung steht dann
+ * oben auf einem anderen Punkt als unten, und niemand sieht beides
+ * gleichzeitig -- auf breiten Geraeten ist die Leiste weg, auf schmalen
+ * die Kopfnavigation eingeklappt.
  */
-function istAktiv(p: Punkt, pfad: string): boolean {
+export function istAktiv(p: Punkt, pfad: string): boolean {
   if (p.href === "/") return pfad === "/";
   return [p.href, ...(p.auch ?? [])].some(
     (anfang) => pfad === anfang || pfad.startsWith(anfang + "/"),

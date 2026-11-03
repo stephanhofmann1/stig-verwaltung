@@ -421,6 +421,21 @@ details[open] > summary::before { transform: rotate(90deg); }
   max-width: var(--rahmen-breite);
   margin: 0 auto;
   padding: var(--abstand-2) var(--mass) 6rem;
+
+  /* Sicherer Bereich an den Seiten.
+
+     Der viewport-Export setzt viewportFit: "cover" -- ohne das liefert
+     env(safe-area-inset-*) auf dem iPhone durchgehend 0, und die
+     Fussleiste laege ueber dem Streifen, in dem die Wischgeste wohnt.
+     cover hat eine Kehrseite: Der Inhalt reicht damit auch seitlich bis
+     an den Rand, quer gehalten also unter die Kamera-Aussparung. Dort
+     verschwindet dann die erste Spalte des Mietenbuchs -- und quer ist
+     genau die Haltung, in der man eine breite Tabelle liest.
+
+     max() statt Addition: Auf jedem Geraet ohne Aussparung ist der Wert
+     0, und dann soll der gewohnte Seitenabstand gelten, nicht null. */
+  padding-left: max(var(--mass), env(safe-area-inset-left, 0px));
+  padding-right: max(var(--mass), env(safe-area-inset-right, 0px));
 }
 
 .kopf {
@@ -438,7 +453,10 @@ details[open] > summary::before { transform: rotate(90deg); }
   max-width: var(--rahmen-breite);
   margin: 0 auto;
   min-height: var(--kopf-hoehe);
-  padding: 0 var(--mass);
+  /* Derselbe Grund wie am .rahmen: Quer darf die Wortmarke nicht unter
+     die Aussparung laufen und der Abmeldeknopf nicht hinter den Rand. */
+  padding: 0 max(var(--mass), env(safe-area-inset-right, 0px))
+           0 max(var(--mass), env(safe-area-inset-left, 0px));
   display: flex;
   align-items: center;
   gap: var(--abstand-5);
@@ -1848,6 +1866,8 @@ p.hinweis.abschnitt { margin-top: var(--abstand-7); }
     background: var(--flaeche);
     border-top: 1px solid var(--linie-stark);
     padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
   }
   .navi-boden-punkt + .navi-boden-punkt {
     border-left: 1px solid var(--linie);

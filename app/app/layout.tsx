@@ -4,6 +4,7 @@ import type { Metadata, Viewport } from "next";
 // 100--900. Verwendet wird sie über die Marke --schrift.
 import "./globals.css";
 import { Navi } from "@/components/Navi";
+import { NaviBoden } from "@/components/NaviBoden";
 import { angemeldeterBenutzer } from "@/lib/anmeldung";
 
 /**
@@ -16,11 +17,58 @@ import { angemeldeterBenutzer } from "@/lib/anmeldung";
  * icons verweist auf app/icon.svg. Next trägt das Zeichen über die
  * Dateikonvention ohnehin ein; der ausdrückliche Eintrag hält den Verweis
  * auch dort, wo die Metadaten von Hand gelesen werden.
+ *
+ * Titel und Beschreibung stehen wortgleich noch einmal in app/manifest.ts
+ * (dort als NAME und BESCHREIBUNG) -- siehe die Begründung dort, warum
+ * nicht importiert wird. tests/webapp.test.ts hält beide gleich.
  */
 export const metadata: Metadata = {
   title: "Hausverwaltung",
   description: "Mieten, Zahlungen, Vorgänge und Freigaben an einer Stelle",
-  icons: { icon: "/icon.svg" },
+
+  /*
+    Zwei Zeichen für zwei Zwecke.
+
+    icon  -- app/icon.svg, der Browsertab. SVG, weil es in jeder Größe
+             scharf bleibt.
+    apple -- Safari liest für den Startbildschirm ausschließlich
+             <link rel="apple-touch-icon"> und nimmt dafür kein SVG und
+             nichts aus dem Manifest. Ohne diesen Eintrag legt iOS einen
+             verkleinerten Bildschirmabzug der Seite auf den
+             Startbildschirm. 180×180 ist die Größe, die Safari für die
+             heutigen Geräte verlangt; die Datei liegt in public/ und
+             wird von app/manifest.ts mitgeführt.
+  */
+  icons: {
+    icon: "/icon.svg",
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
+
+  /*
+    Was Safari am Manifest vorbei liest.
+
+    appleWebApp.capable setzt in dieser Next-Fassung (16.4.3, geprüft in
+    node_modules/next/dist/lib/metadata/metadata-elements.js) allein
+    <meta name="mobile-web-app-capable">. Das ist die heutige
+    Schreibweise; Safari vor iOS 15.4 kennt nur die alte
+    apple-mobile-web-app-capable und startet ohne sie mit Adressleiste.
+    Next hat dafür kein Feld, darum steht sie unten unter `other`. Beide
+    sagen dasselbe, beide schaden nicht.
+
+    title ist der Name unter dem Zeichen auf dem iOS-Startbildschirm --
+    iOS nimmt dafür diesen Wert und nicht short_name aus dem Manifest.
+
+    statusBarStyle "default": Die Systemleiste bekommt ihre Farbe aus
+    themeColor unten und bleibt damit im hellen wie im dunklen Modus die
+    Seitenfläche. "black-translucent" wäre das Gegenteil -- es schiebt
+    den Seiteninhalt unter die Uhr.
+  */
+  appleWebApp: {
+    capable: true,
+    title: "Hausverwaltung",
+    statusBarStyle: "default",
+  },
+  other: { "apple-mobile-web-app-capable": "yes" },
 };
 
 /**
@@ -34,13 +82,33 @@ export const metadata: Metadata = {
  * Seitenhintergrund (--grund), getrennt für hell und dunkel. Die Werte
  * stehen hier als Hex, weil die Metadaten keine CSS-Marken auflösen --
  * sie müssen zu --grund bzw. --dk-grund in globals.css passen.
+ *
+ * Genau das war hier am 03.11.2026 nicht mehr der Fall: Es standen
+ * #F6F7F9 und #0E1116, während globals.css längst #EEF1F5 und #0F1318
+ * führte. Zwei Werte, die keiner Regel unterliegen, laufen auseinander,
+ * und zwar unsichtbar -- am Schreibtisch sieht man die Systemleiste des
+ * Telefons nicht. Seither hält tests/webapp.test.ts beide Stellen
+ * (hier und app/manifest.ts) gegen globals.css.
+ *
+ * viewportFit "cover" ist die Voraussetzung dafür, dass
+ * env(safe-area-inset-*) auf dem iPhone überhaupt einen Wert hat: ohne
+ * cover liefert es durchgehend 0, und die Fußnavigation läge über dem
+ * Streifen, in dem die Geste zum Schließen wohnt. Es hat eine Kehrseite:
+ * Der Seiteninhalt reicht damit auch seitlich bis an den Rand, quer
+ * gehalten also unter die Kamera-Aussparung. Hochkant -- also so, wie
+ * diese Anwendung auf dem Telefon benutzt wird -- ist der seitliche
+ * Einzug 0, quer nicht. OFFEN: globals.css setzt heute nur
+ * env(safe-area-inset-bottom) (für die Fußleiste). Wer die Anwendung
+ * quer benutzt, braucht zusätzlich env(safe-area-inset-left/right) am
+ * .rahmen; das gehört in globals.css und nicht hierher.
  */
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  viewportFit: "cover",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#F6F7F9" },
-    { media: "(prefers-color-scheme: dark)", color: "#0E1116" },
+    { media: "(prefers-color-scheme: light)", color: "#EEF1F5" },
+    { media: "(prefers-color-scheme: dark)", color: "#0F1318" },
   ],
 };
 
@@ -75,6 +143,17 @@ export default async function RootLayout({
           </div>
         </header>
         <main className="rahmen">{children}</main>
+        {/*
+          Die Fußnavigation steht nach <main> und nicht darin: Sie gehört
+          zu keiner Seite, sondern zur Anwendung -- wie die Kopfzeile, nur
+          am anderen Ende. Als letztes Element des Körpers ist sie auch
+          für die Vorlesesoftware dort, wo sie sichtbar ist.
+
+          Auf breiten Geräten blendet globals.css sie aus; dort steht die
+          Kopfnavigation offen. Was die Leiste enthält und warum, steht in
+          NaviBoden.tsx.
+        */}
+        <NaviBoden benutzer={benutzer} />
       </body>
     </html>
   );
