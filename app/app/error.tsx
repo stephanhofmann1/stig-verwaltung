@@ -58,17 +58,27 @@ export default function Fehler({
         und nichts freigegeben.
         <div className="knopfreihe">
           <button onClick={() => (retry ?? reset)()}>Neu laden</button>
-          <Link href="/" className="marker" data-art="info">
+          {/* .verweis und nicht .marker: Ein Weg ist kein Urteil.
+              .marker ist dieselbe Pille wie "kritisch" -- wer Wege wie
+              Urteile aussehen laesst, bringt dem Nutzer bei, Urteile zu
+              uebersehen. */}
+          <Link href="/" className="verweis">
             Zurück zum Cockpit
           </Link>
         </div>
       </div>
 
+      {/* Der Punkt hiess im Navi "Läufe" -- nach der Tabelle, nicht nach
+          der Sache. Angezeigt wird er jetzt ueberall als "Automatik";
+          dieser Satz nennt ihn deshalb genauso. Ein Hinweis, der auf
+          einen Namen verweist, den die Kopfzeile nicht fuehrt, schickt
+          den Leser suchen. */}
       <p className="hinweis">
-        Bleibt es dabei, hilft ein Blick in die Läufe: Steht der nächtliche
-        Abgleich, fehlen den Seiten die Daten, auf denen sie rechnen.{" "}
-        <Link href="/laeufe" className="marker" data-art="info">
-          Läufe
+        Bleibt es dabei, hilft ein Blick in die Automatik: Steht der
+        nächtliche Abgleich, fehlen den Seiten die Daten, auf denen sie
+        rechnen.{" "}
+        <Link href="/laeufe" className="verweis">
+          Automatik
         </Link>
       </p>
     </>

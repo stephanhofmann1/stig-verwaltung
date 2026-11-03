@@ -1,6 +1,7 @@
 import { anteil, spitze, type CashflowBalken } from "@/lib/kennzahlen";
 import {
   CockpitKarte,
+  Erklaerung,
   euro,
   euroGenau,
   monatKurz,
@@ -48,11 +49,24 @@ export function CockpitCashflow({ reihe }: { reihe: CashflowBalken[] }) {
           "Für die letzten zwölf Monate liegen keine Buchungen vor."
         ) : (
           <>
-            Aus <code>buchung</code>: Eingänge und Ausgaben je Monat. Als Miete
-            gilt, was einer Sollstellung zugeordnet ist — ein noch nicht
-            zugeordneter Eingang steht deshalb bei „sonstige“ und nicht bei der
-            Miete.
+            Aus <code>buchung</code>: Eingänge und Ausgaben je Monat.
           </>
+        )
+      }
+      erklaerung={
+        leer ? undefined : (
+          <Erklaerung satz="Als Miete gilt nur, was einer Sollstellung zugeordnet ist — ein unzugeordneter Eingang steht bei „sonstige“">
+            <p className="hinweis">
+              Das ist keine Schätzung, sondern der Stand des Abgleichs: Solange
+              ein Eingang niemandem zugeordnet ist, kann diese Karte ihn nicht
+              als Miete ausweisen. Die Zahl der unzugeordneten Eingänge steht
+              auf der Karte darüber.
+            </p>
+            <p className="hinweis">
+              Eine Aufschlüsselung der Ausgaben nach Art gibt es nicht — dafür
+              müssten die Belege kategorisiert sein, und das sind sie nicht.
+            </p>
+          </Erklaerung>
         )
       }
     >
@@ -137,8 +151,11 @@ export function CockpitCashflow({ reihe }: { reihe: CashflowBalken[] }) {
             {euroGenau(summeEin - summeMiete)} sonstige Eingänge.
           </p>
 
-          <details>
-            <summary className="hinweis">Zahlen je Monat</summary>
+          {/* Dieselbe Hülle wie die Erklaerungen: zugeklappt, und das summary
+              sagt, was drin steht. Eine Tabelle mit zwölf Zeilen ist kein
+              Lagebild. */}
+          <details className="erklaerung">
+            <summary>Zahlen je Monat</summary>
             <div className="tabelle-rolle">
               <table>
                 <caption>

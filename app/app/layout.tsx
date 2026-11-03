@@ -51,6 +51,21 @@ export default async function RootLayout({
   return (
     <html lang="de">
       <body>
+        {/*
+          Die Kopfzeile ist eine Reihe aus vier Dingen, nicht aus zwei.
+
+          <Navi> liefert bewusst ein Fragment: Menueknopf, <nav> und
+          Abmelden werden damit zu unmittelbaren Kindern von .kopf-innen
+          und stehen in derselben Reihe wie die Wortmarke. Das ist keine
+          Formsache -- genau daran lag der Fehler vorher. Abmelden sass
+          mit marginLeft:auto *innerhalb* der Navigation, und die lief auf
+          dem Telefon waagerecht ueber: Der Knopf, der die Sitzung
+          beendet, lag hinter dem rechten Rand.
+
+          Daraus folgt die Reihenfolge: Marke | Menueknopf | Navigation |
+          Abmelden. Was einklappt oder weicht, ist allein die
+          Navigation. Marke und Abmelden stehen auf jeder Breite.
+        */}
         <header className="kopf">
           <div className="kopf-innen">
             <div className="marke">

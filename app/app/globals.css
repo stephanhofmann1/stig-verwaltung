@@ -478,37 +478,72 @@ details[open] > summary::before { transform: rotate(90deg); }
    Darum rollt die Navigation waagerecht — die Seite selbst bleibt fest.
    Sie füllt die Kopfhöhe, damit der Unterstrich des aktiven Punktes
    genau auf der Haarlinie des Kopfes liegt (daher margin-bottom: -1px). */
+/* Navigation in Gruppen.
+   Vorher: zehn gleichwertige Textlinks nebeneinander in einem waagerecht
+   rollenden Behaelter mit ausgeblendeter Rollleiste. Auf dem Telefon
+   waren damit sechs von zehn Punkten unsichtbar -- ohne jeden Hinweis,
+   dass dort noch etwas ist. Jetzt bricht die Reihe um, statt wegzurollen. */
 .navi {
   display: flex;
-  align-self: stretch;
-  align-items: stretch;
-  gap: var(--abstand-4);
-  font-size: var(--text-n);
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--abstand-3) var(--abstand-5);
+  font-size: var(--t-klein);
   flex: 1 1 auto;
   min-width: 0;
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-  padding: 0;
-  margin-bottom: -1px;
 }
-.navi::-webkit-scrollbar { display: none; }
+
+.navi-gruppe {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  align-items: flex-start;
+  padding-right: var(--abstand-5);
+  border-right: 1px solid var(--linie);
+}
+.navi-gruppe:last-child { border-right: 0; padding-right: 0; }
+
+/* Die Gruppenueberschrift ordnet, sie fuehrt nicht -- deshalb leise,
+   eng und kein Link. */
+.navi-titel {
+  font-size: var(--t-mikro);
+  font-weight: var(--g-kopf);
+  font-variation-settings: "wdth" var(--b-eng);
+  color: var(--fg-still);
+  letter-spacing: 0.01em;
+}
+.navi-punkte {
+  display: flex;
+  align-items: center;
+  gap: var(--abstand-3);
+}
 
 .navi a {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   color: var(--fg-leise);
   white-space: nowrap;
-  border-bottom: 2px solid transparent;
-  transition: color 120ms ease, border-color 120ms ease;
+  text-decoration: none;
+  border-radius: var(--radius-s);
+  padding: 0.125rem 0.25rem;
+  margin-inline: -0.25rem;
+  transition: color 120ms ease, background 120ms ease;
 }
-.navi a:hover { color: var(--fg); }
+.navi a:hover { color: var(--fg); background: var(--flaeche-tief); }
+/* Der aktive Punkt lag frueher als Unterstrich auf der Haarlinie des
+   Kopfes. Mit Gruppen in Spalten geht das nicht mehr -- die Markierung
+   gehoert an den Link selbst. */
 .navi a[data-aktiv="ja"] {
-  color: var(--fg);
-  font-weight: 600;
-  border-bottom-color: var(--akzent);
+  color: var(--akzent);
+  font-weight: var(--g-kopf);
+  background: var(--akzent-flaeche);
 }
+
+/* Abmelden steht neben der Navigation, nicht darin: Lag es im
+   ueberlaufenden Behaelter, war es auf dem Telefon nicht erreichbar. */
+.abmelden { flex: none; margin-inline-start: auto; }
+
+.navi-schalter { display: none; }
 
 /* --- 6. Seitentitel und Hinweise ---------------------------------------- */
 
@@ -1338,6 +1373,26 @@ th.betrag {
 
   .navi-schalter { display: inline-flex; }
   .navi-gruppe { border-right: 0; padding-right: 0; }
+
+  /* Unter 40rem ist die Navigation ein Feld unter der Kopfzeile, kein
+     weggerollter Streifen. .kopf ist sticky und damit positioniert. */
+  .navi[data-offen="nein"] { display: none; }
+  .navi[data-offen="ja"] {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    flex-direction: column;
+    gap: var(--abstand-4);
+    background: var(--grund);
+    border-bottom: 1px solid var(--linie);
+    padding: var(--abstand-4) var(--mass);
+    overflow-y: auto;
+    max-height: calc(100dvh - var(--kopf-hoehe));
+    z-index: 20;
+  }
+  .navi[data-offen="ja"] .navi-punkte { flex-direction: column; align-items: flex-start; gap: 0; }
+  .navi[data-offen="ja"] a { min-height: 2.75rem; width: 100%; }
 }
 
 

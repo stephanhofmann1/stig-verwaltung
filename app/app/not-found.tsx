@@ -19,12 +19,21 @@ export default function NichtGefunden() {
         <strong>Zu dieser Adresse gibt es keine Seite</strong>
         Entweder ist der Verweis veraltet, oder der Vorgang, der hier lag,
         wurde entfernt. Gelöscht wurde durch den Aufruf nichts.
+        {/* .verweis und nicht .marker: .marker ist die Pille fuer ein
+            Urteil ("kritisch", "heikel"). Ein Rueckweg ist keines. */}
         <div className="knopfreihe">
-          <Link href="/" className="marker" data-art="info">
+          <Link href="/" className="verweis">
             Zurück zum Cockpit
           </Link>
-          <Link href="/vorgaenge" className="marker" data-art="info">
+          {/* Die beiden Wege, die der Text nennt -- unter denselben Namen,
+              unter denen sie in der Kopfzeile stehen. Ein Lesezeichen auf
+              ein Mietverhältnis landet hier; "Stammdaten" haette diesem
+              Leser nichts gesagt. */}
+          <Link href="/vorgaenge" className="verweis">
             Vorgänge
+          </Link>
+          <Link href="/stammdaten" className="verweis">
+            Einheiten &amp; Mieter
           </Link>
         </div>
       </div>

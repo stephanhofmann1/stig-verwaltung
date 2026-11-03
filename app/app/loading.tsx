@@ -76,7 +76,12 @@ export default function Laedt() {
 
       <div className="register">
         {[0, 1, 2, 3, 4, 5].map((i) => (
-          <div className="posten" key={i}>
+          /* data-still="ja" nimmt der Zeile das Aufleuchten beim
+             Ueberfahren. .posten:hover verspricht ein Ziel; ein
+             Platzhalter hat keines -- und ein Geruest, das sich
+             anklickbar anfuehlt, ist der falsche Moment fuer diese
+             Zusage, weil darunter noch gar nichts steht. */
+          <div className="posten" data-still="ja" key={i}>
             <span className="nummer">
               <Balken breite="2rem" hoehe="1rem" />
             </span>

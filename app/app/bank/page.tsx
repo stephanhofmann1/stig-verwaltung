@@ -64,26 +64,39 @@ export default async function Bank() {
         </span>
       </div>
 
+      {/* Hier stand bis hierhin die Einrichtungsanleitung des Betreibers:
+          die Namen der beiden Umgebungsvariablen FINTS_PRODUKT_ID und
+          FINTS_SCHLUESSEL und der openssl-Befehl, mit dem der Schluessel
+          erzeugt wird (64 Hexzeichen: `openssl rand -hex 32`). Das liest
+          hier ein Vermieter, der nichts davon eintragen kann -- die
+          Anleitung gehoert in die Betriebsdoku, der Hinweis in die
+          Oberflaeche. Die Aussage bleibt: ohne diese zwei Angaben laeuft
+          die Bankanbindung nicht, und eintragen muss sie die Technik.
+          Der Kasten ist jetzt eine .meldung mit data-art="warnung" --
+          dieselbe Creme-Flaeche mit braunem Balken, aber aus dem
+          Stylesheet und damit auch im Dunkelmodus lesbar. */}
       {(!schluessel || !produkt) && (
-        <div className="leer" style={{ borderColor: "#8a5a00", background: "#fdf8ef" }}>
+        <div className="meldung" data-art="warnung">
           <strong>Noch nicht einsatzbereit</strong>
           {!produkt && (
             <>
-              Es fehlt <code>FINTS_PRODUKT_ID</code>. Seit dem 01.08.2019
-              lassen die Banken nur registrierte Programme zu; die
-              Registrierung über fints.org ist derzeit kostenfrei. Die Kennung
-              einer fremden Programmbibliothek darf dafür nicht verwendet
-              werden.
+              Es fehlt die Programmkennung, mit der sich diese Anwendung bei
+              der Bank anmeldet. Seit dem 01.08.2019 lassen die Banken nur
+              registrierte Programme zu; die Registrierung über fints.org ist
+              derzeit kostenfrei. Die Kennung eines fremden Programms darf
+              dafür nicht verwendet werden.
               <br />
             </>
           )}
           {!schluessel && (
             <>
-              Es fehlt <code>FINTS_SCHLUESSEL</code> (genau 64 Hexzeichen,
-              erzeugen mit <code>openssl rand -hex 32</code>). Ohne ihn wird
-              keine PIN gespeichert.
+              Es fehlt der Schlüssel, mit dem die Bank-PIN verschlüsselt
+              wird. Ohne ihn wird keine PIN gespeichert.
+              <br />
             </>
           )}
+          Beides trägt ein, wer die Anwendung technisch betreut — in der
+          Oberfläche lässt sich das nicht nachholen.
         </div>
       )}
 
@@ -106,23 +119,23 @@ export default async function Bank() {
                   </div>
 
                   {!z.hat_pin && (
-                    <div style={{ color: "#8a5a00", marginTop: "0.3rem" }}>
+                    <div className="rueckmeldung" data-art="warn">
                       Keine PIN hinterlegt — es kann nichts abgerufen werden.
                     </div>
                   )}
                   {z.tan_faellig && (
-                    <div style={{ color: "#8a5a00", marginTop: "0.3rem" }}>
+                    <div className="rueckmeldung" data-art="warn">
                       <strong>TAN nötig, der nächtliche Abruf ruht.</strong>{" "}
                       {z.tan_hinweis}
                     </div>
                   )}
                   {z.letzter_fehler && (
-                    <div style={{ color: "#b3261e", marginTop: "0.3rem" }}>
+                    <div className="rueckmeldung" data-art="fehler">
                       {z.letzter_fehler}
                     </div>
                   )}
 
-                  <div className="hinweis" style={{ marginTop: "0.3rem" }}>
+                  <div className="hinweis">
                     Abgerufen bis {datum(z.letzter_abruf)}
                     {z.letzter_erfolg
                       ? ` · zuletzt erfolgreich am ${datum(z.letzter_erfolg)}`
@@ -139,11 +152,14 @@ export default async function Bank() {
         </table>
       )}
 
-      <div style={{ marginTop: "2rem" }}>
+      <div className="abschnitt">
         <BankNeu konten={konten.map((k) => k.bezeichnung)} />
       </div>
 
-      <p className="hinweis" style={{ marginTop: "2rem", maxWidth: "40rem" }}>
+      {/* .abschnitt greift hier nicht: p.hinweis ist spezifischer und
+          setzt margin per Kurzschreibweise, also auch margin-top: 0. Die
+          Lesebreite bringt p.hinweis schon mit (62ch). */}
+      <p className="hinweis">
         Der nächtliche Lauf holt nur den Zeitraum seit dem letzten Abruf,
         höchstens 85 Tage. Das ist der Grund, warum nicht jedes Mal eine TAN
         nötig ist: Wer „alles Verfügbare" abfragt oder mehr als 90 Tage,

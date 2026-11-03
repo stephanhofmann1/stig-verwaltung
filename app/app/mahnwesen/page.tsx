@@ -314,7 +314,10 @@ export default async function Mahnwesen() {
           über die Mietaufstellungen des Voreigentümers, nicht über ein
           Schreiben an den Mieter.
           {deckung.length > 0 && (
-            <div className="hinweis" style={{ marginTop: "var(--abstand-3)" }}>
+            // .erklaerung traegt den Abstand zum Absatz darueber; .hinweis
+            // bleibt daneben stehen, damit der Satz grau bleibt, falls die
+            // Klasse im Stylesheet noch nicht angekommen ist.
+            <div className="hinweis erklaerung">
               So weit reichen die Kontodaten:{" "}
               {deckung.map(deckungssatz).join(" · ")}
             </div>

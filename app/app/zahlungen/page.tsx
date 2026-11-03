@@ -128,8 +128,10 @@ export default async function Zahlungen() {
         })
       )}
 
+      {/* Zweiter Abschnitt derselben Seite, darum h2: "Zahlungen" oben
+          ist das einzige h1. */}
       <div className="titelzeile">
-        <h1>Offene Posten</h1>
+        <h2>Offene Posten</h2>
         <span className="zaehler ziffern">{euro(summeOffen)}</span>
       </div>
       {offenePosten.length === 0 ? (
@@ -166,7 +168,7 @@ export default async function Zahlungen() {
           ))}
         </div>
       )}
-      <p className="hinweis" style={{ marginTop: "1.5rem" }}>
+      <p className="hinweis">
         Ein offener Posten ist noch kein Rückstand. Bar vereinnahmte Mieten
         tauchen in keinem Auszug auf — vor jeder Mahnung die Barkasse prüfen.
       </p>

@@ -100,9 +100,7 @@ export default async function Mietenbuch({
         </span>
       </div>
 
-      <div style={{ marginBottom: "var(--abstand-5)" }}>
-        <MietenbuchZeitraum jahr={gewaehlt} jahre={jahre} />
-      </div>
+      <MietenbuchZeitraum jahr={gewaehlt} jahre={jahre} />
 
       {einheiten === 0 ? (
         <div className="leer">
@@ -117,14 +115,14 @@ export default async function Mietenbuch({
             <div className="karte kennzahl">
               <span className="kennzahl-schild">Soll im Zeitraum</span>
               <span className="kennzahl-wert">{EURO.format(s.soll)}</span>
-              <span className="hinweis" style={{ margin: 0, maxWidth: "none" }}>
+              <span className="hinweis mb-fuss">
                 gestellt oder vertraglich erwartet
               </span>
             </div>
             <div className="karte kennzahl">
               <span className="kennzahl-schild">Ist im Zeitraum</span>
               <span className="kennzahl-wert">{EURO.format(s.ist)}</span>
-              <span className="hinweis" style={{ margin: 0, maxWidth: "none" }}>
+              <span className="hinweis mb-fuss">
                 zugeordnete Zahlungen
               </span>
             </div>
@@ -139,7 +137,7 @@ export default async function Mietenbuch({
                 {s.abweichung > 0 ? "+" : ""}
                 {EURO.format(s.abweichung)}
               </span>
-              <span className="hinweis" style={{ margin: 0, maxWidth: "none" }}>
+              <span className="hinweis mb-fuss">
                 nur fällige Monate mit Kontodaten
               </span>
             </div>
@@ -152,14 +150,14 @@ export default async function Mietenbuch({
                       maximumFractionDigits: 0,
                     })} %`}
               </span>
-              <span className="hinweis" style={{ margin: 0, maxWidth: "none" }}>
+              <span className="hinweis mb-fuss">
                 {s.monate_leer} von {s.monate_vermietbar} Einheitsmonaten
               </span>
             </div>
           </div>
 
           {ohneDaten && (
-            <p className="hinweis" style={{ maxWidth: "none" }}>
+            <p className="hinweis mb-voll">
               <strong>
                 {EURO.format(s.soll_ohne_daten)} stehen in Monaten ohne
                 Kontodaten.

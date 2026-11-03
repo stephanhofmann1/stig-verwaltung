@@ -104,43 +104,38 @@ export function CockpitFristen({ fristen }: { fristen: FristLage[] }) {
       ) : (
         <div className="register">
           {fristen.map((f) => (
-            // Das Ziel waere das Objekt (frist.objekt_id gibt es), aber
-            // ladeFristen in lib/kennzahlen.ts liest die Spalte nicht mit.
-            // Bis sie mitgelesen wird, ist die Zeile stumm statt scheinbar
-            // klickbar.
+            // Stumme Zeile, kein Link: Das Ziel waere das Objekt
+            // (frist.objekt_id gibt es), aber ladeFristen in
+            // lib/kennzahlen.ts liest die Spalte nicht mit. Bis sie
+            // mitgelesen wird, ist die Zeile stumm statt scheinbar klickbar.
+            //
+            // Genau vier Kinder, in dieser Reihenfolge: .zeile-frist ist ein
+            // Raster aus vier Spalten (globals.css), und auf dem Telefon
+            // rutscht das Datum unter den Titel. Ein fuenftes Kind -- etwa
+            // ein Schild mit dem Wort "kritisch" -- wuerde das Raster
+            // sprengen; das Wort steht deshalb im aria-label der Restzeit
+            // und die Dringlichkeit zusaetzlich in data-urteil.
             <div
               className="zeile-frist"
-              data-still="ja"
               key={f.bezeichnung + f.faellig_am}
-              data-heikel={
-                f.dringlichkeit === "verstrichen" ||
-                f.dringlichkeit === "kritisch"
-                  ? "ja"
-                  : "nein"
-              }
+              data-urteil={SCHILD[f.dringlichkeit]}
             >
               {/* Resttage als Zahl, weil man eine Spalte Zahlen ueberfliegen
-                  kann. Der Satz dazu steht im aria-label -- vorgelesen ist
-                  "minus drei" sonst nicht zu verstehen. */}
+                  kann. Vorgelesen waere "minus drei" nicht zu verstehen --
+                  deshalb der ganze Satz im Label. */}
               <span
-                className="nummer"
-                aria-label={resttext(f.resttage)}
-                title={resttext(f.resttage)}
+                className="rest"
+                aria-label={`${resttext(f.resttage)} — ${WORTE[f.dringlichkeit]}`}
+                title={`${resttext(f.resttage)} — ${WORTE[f.dringlichkeit]}`}
               >
                 {f.resttage < 0 ? `−${-f.resttage}` : f.resttage}
               </span>
-              <span className="betreff">{f.bezeichnung}</span>
-              {/* Kein Betrag hinterlegt heisst nicht null Euro. */}
+              <span className="titel">{f.bezeichnung}</span>
+              {/* Kein hinterlegter Betrag heisst nicht null Euro. */}
               <span className="betrag">
                 {f.betrag ? euroGenau(Number(f.betrag)) : "—"}
               </span>
-              <span className="zeit">{datum(f.faellig_am)}</span>
-              {/* Das Wort zur Farbe: Dringlichkeit darf nicht allein an der
-                  Farbe haengen. Steht hinten, damit die vier Angaben der
-                  Zeile in der gelesenen Reihenfolge bleiben. */}
-              <span className="marker" data-art={SCHILD[f.dringlichkeit]}>
-                {WORTE[f.dringlichkeit]}
-              </span>
+              <span className="datum">{datum(f.faellig_am)}</span>
             </div>
           ))}
         </div>

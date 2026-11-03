@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { query } from "@/lib/db";
 import { EntwurfKarte } from "@/components/EntwurfKarte";
+import { Erklaerung } from "@/components/CockpitKarte";
 import { aktenzeichen, seit } from "@/lib/formate";
 
 /**
@@ -73,8 +74,9 @@ export async function FreigabeListe() {
           {entwuerfe.length} {entwuerfe.length === 1 ? "Entwurf" : "Entwürfe"}
         </span>
       </div>
+      {/* Der kurze Satz bleibt stehen: Er ist die Zusage, auf der die ganze
+          Automatik ruht, und steht ueber der ersten Handlung der Seite. */}
       <p className="hinweis">
-        Vorbereitete Antworten. Lies drüber, ändere was du willst, und sende.
         Nichts verlässt das Haus, ohne dass du hier geklickt hast.
       </p>
 
@@ -109,10 +111,14 @@ export async function FreigabeListe() {
             <h2 style={{ margin: 0 }}>Ohne Entwurf</h2>
             <span className="zaehler ziffern">{unbeantwortet.length}</span>
           </div>
-          <p className="hinweis">
-            Diese Vorgänge hat der Agent nicht beantwortet — entweder weil sie
-            als heikel gelten oder weil er sich nicht sicher war.
-          </p>
+          <Erklaerung satz="Diese Vorgänge hat der Agent nicht beantwortet — hier gibt es nichts freizugeben, sondern zu schreiben">
+            <p className="hinweis">
+              Entweder gelten sie als heikel, oder der Agent war sich nicht
+              sicher. In beiden Fällen liegt der Vorgang offen und wartet auf
+              eine Antwort von Hand; ein Entwurf entsteht dazu nicht mehr von
+              selbst.
+            </p>
+          </Erklaerung>
           <div className="register">
             {unbeantwortet.map((v) => (
               <Link

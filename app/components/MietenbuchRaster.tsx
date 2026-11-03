@@ -19,6 +19,12 @@ import type {
  *
  * Gerechnet wird hier nichts. Jede Zahl und jeder Zustand kommt fertig aus
  * lib/mietenbuch.ts, und der Zahlungsstand dort aus lib/mieter.ts.
+ *
+ * Die Gestaltung steht in app/raster.css und wird von globals.css
+ * eingebunden. Sie lag früher als Zeichenkette am Ende dieser Datei und
+ * wurde bei jedem Rendern über ein <style>-Tag eingefügt -- damit lief
+ * jede Überarbeitung des Stylesheets an der dichtesten Tabelle der
+ * Anwendung vorbei, ohne dass es jemandem auffiel.
  */
 
 const EURO = new Intl.NumberFormat("de-DE", {
@@ -122,6 +128,89 @@ export const LEER: Record<LeerGrund, Kennzeichen> = {
 
 // ---------------------------------------------------------------------------
 
+/**
+ * Ein Fußnotenruf: das Zeichen im Raster, das auf die Erklärung darunter
+ * verweist.
+ *
+ * Warum ein Verweis und nicht nur ein title: Ein title erscheint erst beim
+ * Überfahren mit der Maus. Auf dem Telefon gibt es kein Überfahren, und mit
+ * der Tastatur kommt niemand daran. Die Erklärung war damit für einen Teil
+ * der Nutzer gar nicht vorhanden. Der title bleibt zusätzlich stehen -- er
+ * nennt die konkreten Beträge, die Fußnote nur die Regel.
+ */
+function Ruf({
+  ziel,
+  zeichen,
+  was,
+}: {
+  /** Die Fußnote, auf die der Ruf zeigt (ohne #). */
+  ziel: string;
+  zeichen: string;
+  /** Was die Fußnote erklärt -- für Vorleseprogramme. */
+  was: string;
+}) {
+  return (
+    <a className="mb-ruf" href={`#${ziel}`} aria-label={`Fußnote: ${was}`}>
+      {zeichen}
+    </a>
+  );
+}
+
+/**
+ * Die Fußnoten unter dem Raster.
+ *
+ * Vier Zeichen im Raster bedeuten etwas, das man nicht sehen kann: das
+ * Sternchen hinter einer Abweichung, das Kreuz hinter einem Sollbetrag, das
+ * Kürzel "o. A." und der Gedankenstrich. Alle vier standen vorher
+ * ausschließlich im title-Attribut.
+ */
+function Fussnoten() {
+  return (
+    <dl className="mb-fussnoten">
+      <div id="mb-fn-stern">
+        <dt>
+          <span className="mb-zeichen">*</span> nicht gegengerechnet
+        </dt>{" "}
+        <dd>
+          — in dieser Summe steht Soll, das bewusst aus der Abweichung bleibt:
+          Monate ohne Kontoumsätze und noch nicht fällige Monate. Verglichen
+          werden nur fällige Monate mit Kontodaten.
+        </dd>
+      </div>
+      <div id="mb-fn-vertrag">
+        <dt>
+          <span className="mb-zeichen">†</span> nicht gestellt
+        </dt>{" "}
+        <dd>
+          — für diesen Monat liegt keine Sollstellung vor. Der Betrag kommt aus
+          dem Vertrag oder einer Mietanpassung, ist also erwartet und nicht
+          berechnet.
+        </dd>
+      </div>
+      <div id="mb-fn-oa">
+        <dt>
+          <span className="mb-zeichen">o. A.</span> ohne Aufteilung
+        </dt>{" "}
+        <dd>
+          — Soll, das sich nicht in Kaltmiete und Betriebskosten trennen lässt:
+          Inklusivmieten, Möblierungszuschläge und anteilige Monate.
+        </dd>
+      </div>
+      <div id="mb-fn-strich">
+        <dt>
+          <span className="mb-zeichen">—</span> kein Betrag
+        </dt>{" "}
+        <dd>
+          — keine Miete hinterlegt oder kein Mietverhältnis. Hier wird nichts
+          behauptet und nichts geschätzt.
+        </dd>
+      </div>
+    </dl>
+  );
+}
+
+// ---------------------------------------------------------------------------
+
 function AbschnittInhalt({
   a,
   einheit,
@@ -157,6 +246,12 @@ function AbschnittInhalt({
     >
       <span className="mb-soll ziffern">
         {a.miete_unbekannt ? "—" : zahl(a.soll)}
+        {/* Die Zelle ist selbst ein Verweis -- ein Verweis im Verweis ist
+            nicht erlaubt. Das Zeichen steht hier deshalb stumm; erklärt wird
+            es in den Fußnoten unter dem Raster. */}
+        {a.quelle !== "sollstellung" && !a.miete_unbekannt && (
+          <span className="mb-ruf-still"> †</span>
+        )}
       </span>
       <span className="mb-stand" data-art={k.art}>
         <span aria-hidden="true">{k.zeichen}</span> {k.kurz}
@@ -223,7 +318,12 @@ function Abweichung({ s }: { s: Summe }) {
     <span className="mb-abw" data-art={art} title={titel}>
       {s.abweichung > 0 ? "+" : ""}
       {zahl(s.abweichung)}
-      {nicht >= 1 && <span aria-hidden="true"> *</span>}
+      {nicht >= 1 && (
+        <>
+          {" "}
+          <Ruf ziel="mb-fn-stern" zeichen="*" was="nicht gegengerechnet" />
+        </>
+      )}
     </span>
   );
 }
@@ -303,7 +403,12 @@ function SummenZeilen({
                     className="mb-unter ziffern"
                     title="Soll ohne Aufteilung in Kaltmiete und Betriebskosten: Inklusivmieten, Möblierungszuschläge und anteilige Monate."
                   >
-                    o. A. {zahl(gesamt.nicht_aufgeteilt)}
+                    <Ruf
+                      ziel="mb-fn-oa"
+                      zeichen="o. A."
+                      was="ohne Aufteilung"
+                    />{" "}
+                    {zahl(gesamt.nicht_aufgeteilt)}
                   </span>
                 )}
               </td>
@@ -338,13 +443,19 @@ function ObjektBlock({
     <tbody>
       <tr className="mb-gruppe">
         <th scope="colgroup" colSpan={spannweite}>
-          {g.objekt_name}
-          <span className="mb-leise">
-            {" · "}
-            {g.zeilen.length} {g.zeilen.length === 1 ? "Einheit" : "Einheiten"}
-            {g.zahlungsdaten_ab
-              ? ` · Kontodaten ab ${TAG_JAHR.format(alsDatum(g.zahlungsdaten_ab))}`
-              : " · keine Kontodaten — hier wird nichts abgeglichen und nicht gemahnt"}
+          {/* Die Zelle spannt über alle Spalten -- klebte sie selbst, täte
+              das nichts. Es klebt deshalb ihr Inhalt: Beim Rollen nach
+              rechts bleibt der Objektname stehen. */}
+          <span className="mb-gruppe-inhalt">
+            {g.objekt_name}
+            <span className="mb-leise">
+              {" · "}
+              {g.zeilen.length}{" "}
+              {g.zeilen.length === 1 ? "Einheit" : "Einheiten"}
+              {g.zahlungsdaten_ab
+                ? ` · Kontodaten ab ${TAG_JAHR.format(alsDatum(g.zahlungsdaten_ab))}`
+                : " · keine Kontodaten — hier wird nichts abgeglichen und nicht gemahnt"}
+            </span>
           </span>
         </th>
       </tr>
@@ -381,7 +492,8 @@ function ObjektBlock({
                 className="mb-unter ziffern"
                 title="Soll ohne Aufteilung: Inklusivmiete, Möblierungszuschlag oder anteiliger Monat."
               >
-                o. A. {zahl(z.summe.nicht_aufgeteilt)}
+                <Ruf ziel="mb-fn-oa" zeichen="o. A." was="ohne Aufteilung" />{" "}
+                {zahl(z.summe.nicht_aufgeteilt)}
               </span>
             )}
           </td>
@@ -417,8 +529,24 @@ export function MietenbuchRaster({
 
   return (
     <>
-      <style>{RASTER_CSS}</style>
-      <div className="tabelle-rolle">
+      {/* Dass hier etwas in sich rollt, sieht man sonst erst, wenn man es
+          zufällig tut. */}
+      <p className="mb-rollhinweis">
+        Zeilen sind Einheiten, Spalten sind Monate. Das Raster rollt in sich —
+        waagerecht durch die Monate, senkrecht durch die Einheiten. Die
+        Einheitenspalte und der Monatskopf bleiben dabei stehen.
+      </p>
+      {/* Genau ein Rollbehälter, in beide Richtungen. Vorher rollten zwei
+          ineinander (.tabelle-rolle und die Tabelle selbst), und wer zog,
+          bewegte zufällig den einen oder den anderen. role/aria-label/tabIndex
+          machen den Behälter mit der Tastatur erreichbar und anrollbar --
+          ohne das käme man mit der Tastatur nicht an die späten Monate. */}
+      <div
+        className="mb-rolle"
+        role="region"
+        aria-label="Mietenbuch — Raster aus Einheiten und Monaten"
+        tabIndex={0}
+      >
         <table className="mb-raster">
           <thead>
             <tr>
@@ -477,149 +605,7 @@ export function MietenbuchRaster({
           )}
         </table>
       </div>
+      <Fussnoten />
     </>
   );
 }
-
-/**
- * Nur das, was dieses Raster braucht und keine andere Seite: die klebende
- * erste Spalte und der Aufbau einer Zelle. Die Farben und Abstände kommen
- * aus den Marken in globals.css -- diese Datei legt keine eigenen fest.
- */
-const RASTER_CSS = `
-.mb-raster { font-size: var(--text-s); }
-.mb-raster th,
-.mb-raster td { padding: 0.375rem 0.5rem; }
-
-/* Die Einheitenspalte bleibt stehen, während die Monate durchlaufen. */
-.mb-raster .mb-einheit {
-  position: sticky;
-  left: 0;
-  z-index: 3;
-  text-align: left;
-  min-width: 9.5rem;
-  max-width: 11rem;
-  background: var(--flaeche-tief);
-  border-right: 1px solid var(--linie-stark);
-  vertical-align: top;
-  white-space: normal;
-  font-weight: 600;
-  color: var(--fg);
-}
-.mb-raster thead .mb-einheit { z-index: 4; }
-.mb-raster .mb-einheit a { color: var(--fg); }
-.mb-raster .mb-einheit a:hover { color: var(--akzent); text-decoration: underline; }
-
-.mb-raster .mb-mitte { text-align: center; }
-.mb-raster .mb-monat { min-width: 5.5rem; text-align: right; }
-.mb-raster .mb-monat[data-jetzt="ja"] { color: var(--akzent); }
-
-.mb-unter {
-  display: block;
-  font-weight: 400;
-  font-size: var(--text-xs);
-  color: var(--fg-leise);
-}
-.mb-leise { color: var(--fg-leise); font-weight: 400; }
-
-/* --- Gruppenkopf --------------------------------------------------------- */
-.mb-raster .mb-gruppe th {
-  position: sticky;
-  left: 0;
-  text-align: left;
-  font-size: var(--text-m);
-  color: var(--fg);
-  background: var(--akzent-flaeche);
-  border-top: 1px solid var(--linie-stark);
-  border-bottom: 1px solid var(--linie-stark);
-}
-
-/* --- Zelle --------------------------------------------------------------- */
-.mb-raster .mb-zelle {
-  text-align: right;
-  vertical-align: top;
-  border-left: 1px solid var(--linie);
-}
-.mb-raster .mb-zelle[data-jetzt="ja"] { box-shadow: inset 2px 0 0 var(--akzent); }
-
-.mb-teil {
-  display: block;
-  padding: 0.0625rem 0;
-}
-.mb-teil + .mb-teil {
-  border-top: 1px dashed var(--linie-stark);
-  margin-top: 0.1875rem;
-  padding-top: 0.1875rem;
-}
-.mb-teil:hover .mb-soll { text-decoration: underline; }
-
-.mb-soll {
-  display: block;
-  font-variant-numeric: tabular-nums;
-  font-weight: 600;
-  color: var(--fg);
-}
-.mb-stand,
-.mb-abw {
-  display: block;
-  font-size: var(--text-xs);
-  white-space: nowrap;
-}
-.mb-rest {
-  display: block;
-  font-size: var(--text-xs);
-  color: var(--fg-leise);
-  font-variant-numeric: tabular-nums;
-}
-.mb-stand[data-art="gut"]   { color: var(--gut); }
-.mb-stand[data-art="warn"]  { color: var(--warn); }
-.mb-stand[data-art="fehl"]  { color: var(--fehl); font-weight: 600; }
-.mb-stand[data-art="still"] { color: var(--fg-still); }
-
-.mb-name {
-  display: block;
-  font-size: var(--text-xs);
-  color: var(--fg-leise);
-  font-weight: 400;
-  max-width: 6.5rem;
-  margin-left: auto;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.mb-frist { color: var(--fg-still); }
-
-/* Flächen je Zustand. Zusätzlich zum Zeichen und zum Wort, nie allein. */
-.mb-raster .mb-zelle[data-status="offen"]     { background: var(--fehl-flaeche); }
-.mb-raster .mb-zelle[data-status="teilweise"] { background: var(--warn-flaeche); }
-.mb-raster .mb-zelle[data-status="bezahlt"]   { background: var(--gut-flaeche); }
-.mb-raster .mb-zelle[data-grund="frei"] {
-  background: repeating-linear-gradient(
-    135deg,
-    var(--flaeche-ruhig) 0 6px,
-    var(--flaeche-tief) 6px 12px
-  );
-}
-
-/* --- Summen -------------------------------------------------------------- */
-.mb-raster .mb-zeilensumme,
-.mb-raster .mb-summenzelle {
-  background: var(--flaeche-ruhig);
-  border-left: 1px solid var(--linie-stark);
-  vertical-align: top;
-}
-.mb-raster .mb-summe > th,
-.mb-raster .mb-summe > td {
-  background: var(--flaeche-tief);
-  border-top: 1px solid var(--linie-stark);
-}
-.mb-abw[data-art="fehl"] { color: var(--fehl); font-weight: 600; }
-.mb-abw[data-art="warn"] { color: var(--warn); }
-.mb-abw[data-art="gut"]  { color: var(--fg-leise); }
-
-@media (max-width: 40rem) {
-  .mb-raster .mb-einheit { min-width: 7.5rem; max-width: 8.5rem; }
-  .mb-raster .mb-monat { min-width: 5rem; }
-  .mb-name { max-width: 5rem; }
-}
-`;

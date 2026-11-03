@@ -80,7 +80,10 @@ export default async function Belege() {
         Verwendungszweck steht, direkt zugeordnet. Hier steht nur der Rest.
       </p>
 
-      <h1 style={{ marginTop: "2.5rem" }}>Belege hochladen</h1>
+      {/* Ein h1 je Seite ("Belege" oben). Die weiteren Abschnitte sind
+          h2 -- vier h1 hintereinander sind fuer einen Screenreader vier
+          Dokumente, und der Abstand kommt aus .abschnitt. */}
+      <h2 className="abschnitt">Belege hochladen</h2>
       <p className="hinweis">
         Erst lesen, dann übernehmen. Bis du auf „Übernehmen“ klickst, wird
         nichts gespeichert, und jedes erkannte Feld lässt sich vorher ändern.
@@ -89,8 +92,8 @@ export default async function Belege() {
       </p>
       <BelegUpload objekte={objekte} kostenarten={KOSTENARTEN} />
 
-      <div className="titelzeile" style={{ marginTop: "2.5rem" }}>
-        <h1>Ausgaben ohne Beleg</h1>
+      <div className="titelzeile">
+        <h2>Ausgaben ohne Beleg</h2>
         <span className="zaehler ziffern">
           {luecken} · {euro(summeLuecke)}
         </span>
@@ -130,7 +133,7 @@ export default async function Belege() {
       )}
 
       <div className="titelzeile">
-        <h1>Eingegangene Belege</h1>
+        <h2>Eingegangene Belege</h2>
         <span className="zaehler ziffern">{belege.length}</span>
       </div>
       {belege.length === 0 ? (

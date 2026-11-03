@@ -17,6 +17,7 @@ import {
 import { Bildergalerie } from "@/components/Bildergalerie";
 import { DokumentListe, type ErzeugtesDokument } from "@/components/DokumentListe";
 import { DokumentHochladen } from "@/components/DokumentHochladen";
+import { MietverhaeltnisBearbeiten } from "@/components/MietverhaeltnisBearbeiten";
 
 export const dynamic = "force-dynamic";
 
@@ -220,14 +221,22 @@ export default async function Mietverhaeltnisseite({
 
   // Die beiden erzeugten Dokumente -- mit Prüfliste statt leerer Felder.
   const erzeugte: ErzeugtesDokument[] = [];
+  // Dieselben beiden Prueflisten gehen weiter unten ins Bearbeiten-Formular.
+  // Die Seite benannte den Mangel bisher korrekt und bot keinen Weg, ihn zu
+  // beheben -- deshalb werden die Listen hier festgehalten und nicht nur in
+  // die Dokumentliste gegeben.
+  let fehltVertrag: string[] = [];
+  let fehltWgb: string[] = [];
   try {
     const d = await vertragsdaten(id);
+    fehltVertrag = fehlendeFelder(d);
+    fehltWgb = fehlendeFelderWgb(d);
     erzeugte.push(
-      { id: `vertrag-${id}`, titel: "Mietvertrag", fehlt: fehlendeFelder(d) },
+      { id: `vertrag-${id}`, titel: "Mietvertrag", fehlt: fehltVertrag },
       {
         id: `wgb-${id}`,
         titel: "Wohnungsgeberbestätigung (§ 19 BMG)",
-        fehlt: fehlendeFelderWgb(d),
+        fehlt: fehltWgb,
       },
     );
   } catch {
@@ -615,6 +624,24 @@ export default async function Mietverhaeltnisseite({
           bezug={{ mietverhaeltnis_id: id }}
           vorgabeArt="uebergabeprotokoll"
           hinweisMieter="Mit Haken sieht genau dieser Mieter die Datei in seinem Bereich — kein anderer."
+        />
+      )}
+
+      {/* --- Ändern ---
+          Steht bewusst unter den Dokumenten: Dort nennt die Prüfliste,
+          warum Mietvertrag und Wohnungsgeberbestätigung nicht druckbar
+          sind. Der Weg, das zu beheben, gehört direkt darunter und nicht
+          an den Anfang der Seite. */}
+      {darfSchreiben && (
+        <MietverhaeltnisBearbeiten
+          id={id}
+          beginn={kopf.beginn}
+          ende={kopf.ende}
+          kaltmiete={kopf.kaltmiete}
+          nebenkosten={kopf.nebenkosten}
+          moeblierungszuschlag={kopf.moeblierung}
+          fehltVertrag={fehltVertrag}
+          fehltWgb={fehltWgb}
         />
       )}
 

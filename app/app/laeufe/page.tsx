@@ -155,10 +155,11 @@ export default async function Laeufe() {
       {zeilen.length === 0 ? (
         <div className="leer">
           <strong>Noch kein Lauf protokolliert</strong>
-          Der Zeitplaner läuft um 7 und um 18 Uhr. Steht hier morgen noch
-          nichts, erreicht er die Anwendung nicht. Das ist dann kein Fehler in
-          den Daten, sondern im Betrieb des Servers — und dort muss jemand
-          nachsehen, der an den Server kommt.
+          Die Automatik arbeitet zweimal am Tag, morgens um 7 und abends um
+          18 Uhr. Steht hier morgen noch nichts, ist sie überhaupt nicht
+          angelaufen. Dann stimmt nicht etwas an den Miet- oder Kontodaten,
+          sondern die Anwendung selbst läuft nicht — das muss prüfen, wer
+          sie technisch betreut.
         </div>
       ) : (
         <>
@@ -175,19 +176,16 @@ export default async function Laeufe() {
               const veraltet = alterStunden === null || alterStunden > 26;
 
               return (
-                <div className="posten" key={name}>
+                // Keine Seite je Lauf, also kein Ziel: data-still nimmt das
+                // Aufleuchten beim Ueberfahren zurueck.
+                <div className="posten" data-still="ja" key={name}>
                   <span className="nummer">
                     {!z || veraltet ? "!" : z.ok ? "ok" : "!"}
                   </span>
                   <span className="betreff">
                     {beschriftung(name)}
                     {z && (
-                      <span
-                        style={{
-                          fontWeight: 400,
-                          color: "var(--tinte-leise)",
-                        }}
-                      >
+                      <span className="hinweis">
                         {" "}
                         · {zusammenfassung(name, z.ergebnis) ?? "gelaufen"}
                       </span>
@@ -218,12 +216,12 @@ export default async function Laeufe() {
           {befunde.length > 0 && (
             <>
               <div className="titelzeile">
-                <h1>Was jemand ansehen muss</h1>
+                <h2>Was jemand ansehen muss</h2>
                 <span className="zaehler">{befunde.length}</span>
               </div>
               <div className="register">
                 {befunde.map((z) => (
-                  <div className="posten" key={z.id}>
+                  <div className="posten" data-still="ja" key={z.id}>
                     <span className="nummer">!</span>
                     <span className="betreff">{beschriftung(z.name)}</span>
                     <span className="zeit">{zeit(z.begonnen_am)}</span>
@@ -240,11 +238,11 @@ export default async function Laeufe() {
           )}
 
           <div className="titelzeile">
-            <h1>Verlauf</h1>
+            <h2>Verlauf</h2>
           </div>
           <div className="register">
             {zeilen.map((z) => (
-              <div className="posten" key={z.id}>
+              <div className="posten" data-still="ja" key={z.id}>
                 <span className="nummer">{z.ok ? "·" : "!"}</span>
                 <span className="betreff">{beschriftung(z.name)}</span>
                 <span className="zeit">{zeit(z.begonnen_am)}</span>

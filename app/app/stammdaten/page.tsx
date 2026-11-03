@@ -10,6 +10,23 @@ import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * Einheiten und Mietverhaeltnisse -- plus die Altdatenuebernahme.
+ *
+ * Die Seite hiess "Stammdaten" und trug den Namen nicht: Objekte, Konten
+ * und Kostenarten liegen woanders (/objekte, /konten), hier stehen
+ * Einheiten und ihre laufenden Mietverhaeltnisse. Wer das Haus suchte,
+ * musste erst eine Einheit finden, sie oeffnen und von dort den
+ * Objektnamen anklicken. Der Verweis nach /objekte oben nimmt diesen
+ * Umweg.
+ *
+ * Zum Wort "frei": Hier heisst es nur "kein laufendes Mietverhaeltnis
+ * erfasst" -- ohne Pruefung, ob die Einheit angeboten wird und ob die
+ * Belegung ueberhaupt gepflegt ist. Das ist bewusst die weiteste der drei
+ * Lesarten, denn genau diese Einheiten brauchen einen Eintrag. Der
+ * Leerstand, mit dem man rechnet, steht auf /objekte und auf dem Cockpit.
+ */
+
 interface EinheitZeile {
   id: string;
   bezeichnung: string;
@@ -66,16 +83,23 @@ export default async function Stammdaten() {
   return (
     <>
       <div className="titelzeile">
-        <h1>Stammdaten</h1>
+        <h1>Einheiten und Mietverhältnisse</h1>
         <span className="zaehler ziffern">
-          {vermietet.length} vermietet · {frei.length} frei
+          {vermietet.length} vermietet · {frei.length} ohne Mietverhältnis
         </span>
       </div>
       <p className="hinweis">
-        Hier stehen Einheiten und laufende Mietverhältnisse. Was hier
-        eingetragen ist, bestimmt, welche Miete monatlich fällig gestellt
-        wird und wogegen der Kontoabgleich prüft.
+        Was hier eingetragen ist, bestimmt, welche Miete monatlich fällig
+        gestellt wird und wogegen der Kontoabgleich prüft.
       </p>
+
+      <div className="knopfreihe">
+        {/* Die Häuser selbst lagen hinter dieser Liste versteckt: erst eine
+            Einheit suchen, öffnen, dann den Objektnamen anklicken. */}
+        <Link href="/objekte" className="verweis">
+          Objekte mit Soll, Belegung und Fläche
+        </Link>
+      </div>
 
       <MieterFormular
         einheiten={frei.map((e) => ({
@@ -84,8 +108,10 @@ export default async function Stammdaten() {
         }))}
       />
 
+      {/* Nur die Seitenüberschrift ist h1; die Abschnitte darunter sind
+          Teile desselben Dokuments. */}
       <div className="titelzeile">
-        <h1>Vermietet</h1>
+        <h2>Vermietet</h2>
         <span className="zaehler ziffern">{vermietet.length}</span>
       </div>
       {vermietet.length === 0 ? (
@@ -113,7 +139,10 @@ export default async function Stammdaten() {
                 ) : (
                   e.mieter
                 )}
-                <span style={{ fontWeight: 400, color: "var(--tinte-leise)" }}>
+                {/* Stand als Inline-Farbe im Markup; .hinweis ist
+                    dieselbe zweite Ebene, nur im Dunkelmodus auch
+                    lesbar. */}
+                <span className="hinweis">
                   {" "}·{" "}
                   <Link href={`/einheit/${e.id}`}>{e.bezeichnung}</Link>
                 </span>
@@ -139,9 +168,16 @@ export default async function Stammdaten() {
       )}
 
       <div className="titelzeile">
-        <h1>Frei</h1>
+        <h2>Ohne laufendes Mietverhältnis</h2>
         <span className="zaehler ziffern">{frei.length}</span>
       </div>
+      <p className="erklaerung">
+        Hier fehlt der Eintrag — das heißt nicht, dass die Einheit leer
+        steht. Ob sie angeboten wird und ob ihre Belegung gepflegt ist,
+        steht an der Einheit; den Leerstand, mit dem man rechnet, zeigen{" "}
+        <Link href="/objekte">die Objekte</Link> als &bdquo;frei und
+        angeboten&ldquo;.
+      </p>
       <div className="register">
         {/* Ein freies Zimmer hat genau ein Ziel, also traegt die ganze Zeile
             den Weg -- auf dem Telefon ist das eine Flaeche statt eines
@@ -159,7 +195,7 @@ export default async function Stammdaten() {
         ))}
       </div>
 
-      <h1 style={{ marginTop: "2.5rem" }}>Altdaten übernehmen</h1>
+      <h2>Altdaten übernehmen</h2>
       <AltdatenImport />
     </>
   );
