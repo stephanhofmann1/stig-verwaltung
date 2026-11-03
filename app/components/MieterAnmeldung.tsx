@@ -22,26 +22,24 @@ export function MieterAnmeldung() {
 
   if (stand === "fertig") {
     return (
-      <p className="hinweis" style={{ lineHeight: 1.6 }}>
-        {hinweis}
-      </p>
+      <p className="hinweis">{hinweis}</p>
     );
   }
 
   return (
     <form onSubmit={absenden}>
-      <label htmlFor="email" style={{ display: "block", marginBottom: "0.35rem" }}>
+      <label htmlFor="email">
         E-Mail-Adresse aus dem Mietvertrag
+        <input
+          id="email"
+          className="feld"
+          type="email"
+          required
+          autoComplete="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
       </label>
-      <input
-        id="email"
-        type="email"
-        required
-        autoComplete="email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        style={{ width: "100%", marginBottom: "0.75rem" }}
-      />
       <button type="submit" disabled={stand === "laeuft"}>
         {stand === "laeuft" ? "Einen Moment …" : "Link anfordern"}
       </button>

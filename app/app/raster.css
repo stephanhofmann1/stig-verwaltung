@@ -122,16 +122,17 @@ table.mb-raster {
    klebt der Kopf am Behaelter selbst, also bei top: 0. Zwei Kopfzeilen,
    zwei Stufen: die obere bei 0, die Monatszeile bei der Hoehe der oberen.
 
-   Die Reihenfolge der Ebenen ist wichtig, sonst schiebt sich beim Rollen
-   die Einheitenspalte ueber den Kopf oder umgekehrt:
-     2  Kopfzeilen                   (kleben oben)
-     3  Einheitenspalte, Objektzeile (kleben links)
-     4  Ecke oben links              (klebt in beide Richtungen)         */
+   Die Reihenfolge der Ebenen ist wichtig, sonst schiebt sich beim Rollen die
+   Einheitenspalte ueber den Monatskopf -- genau die Ueberlappung, mit der
+   vorher die obere Zeilenbeschriftung halb verdeckt war. Also:
+     2  Einheitenspalte   (klebt links, rollt unter den Kopf)
+     3  Kopfzeilen        (kleben oben, liegen ueber der Spalte)
+     4  Ecke oben links   (klebt in beide Richtungen, liegt ueber allem)  */
 
 .mb-raster thead th {
   position: sticky;
   top: 0;
-  z-index: 2;
+  z-index: 3;
   background: var(--flaeche-tief);
   vertical-align: bottom;
 }
@@ -153,7 +154,7 @@ table.mb-raster {
 .mb-raster .mb-einheit {
   position: sticky;
   left: 0;
-  z-index: 3;
+  z-index: 2;
   text-align: left;
   min-width: 10rem;
   max-width: 12rem;

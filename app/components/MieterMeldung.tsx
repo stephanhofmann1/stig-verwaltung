@@ -34,7 +34,7 @@ export function MieterMeldung() {
 
   if (stand === "fertig") {
     return (
-      <p className="hinweis" style={{ lineHeight: 1.6 }}>
+      <p className="hinweis">
         Angekommen{referenz ? ` als Vorgang ${referenz}` : ""}. Wir melden uns.
       </p>
     );
@@ -42,29 +42,32 @@ export function MieterMeldung() {
 
   return (
     <form onSubmit={absenden}>
-      <label htmlFor="betreff" style={{ display: "block", marginBottom: "0.35rem" }}>
+      {/* Das Feld steht im label, nicht daneben: so traegt das label den
+          Abstand zur naechsten Gruppe, und beides gehoert auch fuer einen
+          Screenreader zusammen. Breite und Rand kommen aus .feld. */}
+      <label htmlFor="betreff">
         Worum geht es?
+        <input
+          id="betreff"
+          className="feld"
+          value={betreff}
+          onChange={(e) => setBetreff(e.target.value)}
+          placeholder="z. B. Heizung wird nicht warm"
+        />
       </label>
-      <input
-        id="betreff"
-        value={betreff}
-        onChange={(e) => setBetreff(e.target.value)}
-        placeholder="z. B. Heizung wird nicht warm"
-        style={{ width: "100%", marginBottom: "0.75rem" }}
-      />
-      <label htmlFor="text" style={{ display: "block", marginBottom: "0.35rem" }}>
+      <label htmlFor="text">
         Beschreibung
+        <textarea
+          id="text"
+          className="feld"
+          required
+          rows={5}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+        />
       </label>
-      <textarea
-        id="text"
-        required
-        rows={5}
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        style={{ width: "100%", marginBottom: "0.75rem" }}
-      />
       {fehler && (
-        <p className="hinweis" style={{ color: "#b00" }}>
+        <p className="rueckmeldung" data-art="fehler">
           {fehler}
         </p>
       )}

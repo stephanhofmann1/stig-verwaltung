@@ -21,14 +21,17 @@ interface Props {
   optionen: Option[];
 }
 
-const feld: React.CSSProperties = {
-  font: "inherit",
-  fontSize: "0.9375rem",
-  padding: "0.5rem",
-  border: "1px solid var(--linie)",
-  background: "var(--papier)",
-  color: "var(--tinte)",
-};
+/*
+ * Das Stilobjekt `feld` ist ersatzlos weg -- es setzte var(--papier), den
+ * SEITENhintergrund, als Feldfarbe und ueberschrieb den Feldrand. Abschnitt
+ * 12 von globals.css gestaltet select und input vollstaendig.
+ *
+ * Mit dem Objekt sind auch die Breitenangaben gefallen (maxWidth 30rem,
+ * flex "1 1 20rem", width 7rem). Fuer "Feld nimmt in der Knopfreihe die
+ * Restbreite" und "schmales Zahlenfeld" gibt es keine Klasse; die Felder
+ * schrumpfen jetzt in der Reihe mit, das Vermerkfeld nimmt ueber .feld die
+ * ganze Zeile und die Knoepfe brechen darunter um.
+ */
 
 export function BelegZeile(p: Props) {
   const router = useRouter();
@@ -63,15 +66,13 @@ export function BelegZeile(p: Props) {
   return (
     <section className="entwurf">
       <div className="entwurf-kopf">
-        <strong className="ziffern" style={{ color: "var(--tinte)" }}>
-          {p.betrag}
-        </strong>
+        <strong className="ziffern">{p.betrag}</strong>
         <span className="ziffern">{p.buchungstag}</span>
         {p.absender && <span>an {p.absender}</span>}
       </div>
 
       {p.verwendungszweck && (
-        <p className="eintrag-text" style={{ margin: "0 0 0.75rem" }}>
+        <p className="eintrag-text">
           {p.verwendungszweck}
         </p>
       )}
@@ -87,7 +88,6 @@ export function BelegZeile(p: Props) {
               if (o) setBetrag(Number(o.offen).toFixed(2));
             }}
             aria-label="Beleg"
-            style={{ ...feld, maxWidth: "30rem", flex: "1 1 20rem" }}
           >
             <option value="">— Beleg wählen —</option>
             {p.optionen.map((o) => (
@@ -101,8 +101,7 @@ export function BelegZeile(p: Props) {
             onChange={(e) => setBetrag(e.target.value)}
             inputMode="decimal"
             aria-label="Betrag"
-            className="ziffern"
-            style={{ ...feld, width: "7rem" }}
+            className="ziffern betrag"
           />
           <button
             disabled={busy || !belegId}
@@ -131,7 +130,7 @@ export function BelegZeile(p: Props) {
             onChange={(e) => setVermerk(e.target.value)}
             placeholder="Warum kein Beleg? z. B. Umbuchung aufs eigene Konto"
             aria-label="Vermerk"
-            style={{ ...feld, flex: "1 1 20rem" }}
+            className="feld"
           />
           <button
             disabled={busy || !vermerk.trim()}

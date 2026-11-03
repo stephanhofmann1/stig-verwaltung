@@ -3,16 +3,12 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-const feld: React.CSSProperties = {
-  font: "inherit",
-  fontSize: "0.9375rem",
-  padding: "0.5rem 0.625rem",
-  width: "100%",
-  border: "1px solid var(--linie)",
-  background: "#fff",
-  color: "var(--tinte)",
-  marginBottom: "0.75rem",
-};
+/*
+ * Das Stilobjekt `feld` ist ersatzlos weg. Es setzte ein festes Weiss als
+ * Feldhintergrund -- im Dunkelmodus weisse Kaesten mit weisser Schrift --
+ * und ueberschrieb den Feldrand mit der Haarlinie. Abschnitt 12 von
+ * globals.css gestaltet die Felder vollstaendig, .feld gibt die Breite.
+ */
 
 export function AnmeldeFormular({ weiter }: { weiter: string }) {
   const router = useRouter();
@@ -47,28 +43,28 @@ export function AnmeldeFormular({ weiter }: { weiter: string }) {
 
   return (
     <form onSubmit={absenden}>
-      <label htmlFor="benutzer" style={{ fontSize: "0.875rem" }}>
+      <label htmlFor="benutzer">
         Benutzer
+        <input
+          id="benutzer"
+          className="feld"
+          value={benutzer}
+          onChange={(e) => setBenutzer(e.target.value)}
+          autoComplete="username"
+          autoFocus
+        />
       </label>
-      <input
-        id="benutzer"
-        style={feld}
-        value={benutzer}
-        onChange={(e) => setBenutzer(e.target.value)}
-        autoComplete="username"
-        autoFocus
-      />
-      <label htmlFor="passwort" style={{ fontSize: "0.875rem" }}>
+      <label htmlFor="passwort">
         Passwort
+        <input
+          id="passwort"
+          className="feld"
+          type="password"
+          value={passwort}
+          onChange={(e) => setPasswort(e.target.value)}
+          autoComplete="current-password"
+        />
       </label>
-      <input
-        id="passwort"
-        style={feld}
-        type="password"
-        value={passwort}
-        onChange={(e) => setPasswort(e.target.value)}
-        autoComplete="current-password"
-      />
       <div className="knopfreihe">
         <button type="submit" disabled={busy}>
           {busy ? "Prüft…" : "Anmelden"}

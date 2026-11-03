@@ -712,8 +712,10 @@ export interface CockpitDaten {
   fristen: FristLage[];
   monat: { monat: string; geld: MonatsGeld };
   rueckstaende: RueckstandsLage;
-  /** Hat Stephan das Mahnwesen freigegeben? Ohne Freigabe geht nichts raus. */
+  /** Ist das Mahnwesen freigegeben? Ohne Freigabe geht nichts raus. */
   mahnwesenFreigegeben: boolean;
+  /** Was auf eine Freigabe wartet -- Entwuerfe und unbeantwortete Vorgaenge. */
+  freigaben: { entwuerfe: number; unbeantwortet: number };
   leerstand: LeerstandsLage;
   cashflow: CashflowBalken[];
   automatik: AutomatikPosten[];
@@ -745,6 +747,38 @@ const LEER_RUECKSTAND: RueckstandsLage = {
 };
 
 /** Alles, was das Cockpit braucht -- in einem Durchgang, parallel gelesen. */
+/**
+ * Wie viel wartet auf eine Freigabe?
+ *
+ * Das ist die handlungsnaechste Zahl der Startseite: ein Entwurf, der
+ * liegen bleibt, ist eine Antwort, die niemand bekommt. Bisher stellte
+ * die Freigabeliste ihre Abfragen selbst -- die Zahl stand damit erst
+ * unten auf der Seite und nicht oben, wo man sie sucht.
+ *
+ * Gezaehlt wird in der Datenbank, nicht in der Komponente: Die Liste
+ * holt hoechstens 50 Vorgaenge, die Zahl muss alle meinen.
+ */
+async function ladeFreigabestand(): Promise<{
+  entwuerfe: number;
+  unbeantwortet: number;
+}> {
+  const [e, u] = await Promise.all([
+    query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM nachricht WHERE status = 'entwurf'`,
+    ),
+    query<{ n: number }>(
+      `SELECT count(*)::int AS n
+         FROM vorgang v
+        WHERE v.status = 'offen'
+          AND NOT EXISTS (
+            SELECT 1 FROM nachricht n
+             WHERE n.vorgang_id = v.id
+               AND n.status IN ('entwurf','gesendet'))`,
+    ),
+  ]);
+  return { entwuerfe: e[0]?.n ?? 0, unbeantwortet: u[0]?.n ?? 0 };
+}
+
 export async function ladeCockpit(heute = new Date()): Promise<CockpitDaten> {
   const [
     fristen,
@@ -755,6 +789,7 @@ export async function ladeCockpit(heute = new Date()): Promise<CockpitDaten> {
     cashflow,
     laeufe,
     unzugeordnet,
+    freigaben,
   ] = await Promise.all([
     behutsam("Fristen", () => ladeFristen(heute), [] as FristLage[]),
     behutsam("Laufender Monat", () => ladeMonat(heute), {
@@ -783,6 +818,7 @@ export async function ladeCockpit(heute = new Date()): Promise<CockpitDaten> {
     behutsam("Cashflow", () => ladeCashflow(heute), [] as CashflowBalken[]),
     behutsam("Läufe", ladeLaeufe, [] as LaufZeile[]),
     behutsam("Zahlungseingänge", ladeUnzugeordnet, teileEingaenge([], 0)),
+    behutsam("Freigaben", ladeFreigabestand, { entwuerfe: 0, unbeantwortet: 0 }),
   ]);
 
   return {
@@ -796,6 +832,7 @@ export async function ladeCockpit(heute = new Date()): Promise<CockpitDaten> {
     automatik: automatikLage(laeufe.wert, ERWARTETE_LAEUFE, heute),
     lagebericht: lageberichtLage(laeufe.wert, heute),
     unzugeordnet: unzugeordnet.wert,
+    freigaben: freigaben.wert,
     fehler: [
       fristen.fehler,
       monat.fehler,
@@ -805,6 +842,7 @@ export async function ladeCockpit(heute = new Date()): Promise<CockpitDaten> {
       cashflow.fehler,
       laeufe.fehler,
       unzugeordnet.fehler,
+      freigaben.fehler,
     ].filter((f): f is string => f !== null),
   };
 }

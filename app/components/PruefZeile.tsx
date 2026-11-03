@@ -21,6 +21,14 @@ interface Props {
   optionen: Option[];
 }
 
+/*
+ * Die beiden Felder trugen ihre Gestaltung Eigenschaft fuer Eigenschaft im
+ * Markup -- mit var(--papier) als Feldfarbe (das ist der SEITENhintergrund)
+ * und der Haarlinie als Rand. Beides kommt jetzt aus Abschnitt 12 von
+ * globals.css. Die Breitenangaben sind mitgefallen: fuer "schmales
+ * Zahlenfeld" gibt es keine Klasse, in der Knopfreihe schrumpfen die Felder
+ * von allein mit.
+ */
 export function PruefZeile(p: Props) {
   const router = useRouter();
   const [sollId, setSollId] = useState(p.vorschlagSollId ?? "");
@@ -66,7 +74,7 @@ export function PruefZeile(p: Props) {
       </div>
 
       {p.verwendungszweck && (
-        <p className="eintrag-text" style={{ margin: "0 0 0.75rem" }}>
+        <p className="eintrag-text">
           {p.verwendungszweck}
         </p>
       )}
@@ -82,16 +90,6 @@ export function PruefZeile(p: Props) {
             setFehler(null);
           }}
           aria-label="Sollstellung"
-          style={{
-            font: "inherit",
-            fontSize: "0.9375rem",
-            padding: "0.5rem",
-            border: "1px solid var(--linie)",
-            background: "var(--papier)",
-            color: "var(--tinte)",
-            maxWidth: "26rem",
-            flex: "1 1 18rem",
-          }}
         >
           <option value="">— Mieter und Monat wählen —</option>
           {p.optionen.map((o) => (
@@ -106,16 +104,7 @@ export function PruefZeile(p: Props) {
           onChange={(e) => setBetrag(e.target.value)}
           inputMode="decimal"
           aria-label="Zuzuordnender Betrag"
-          className="ziffern"
-          style={{
-            font: "inherit",
-            fontSize: "0.9375rem",
-            padding: "0.5rem",
-            width: "7rem",
-            border: "1px solid var(--linie)",
-            background: "var(--papier)",
-            color: "var(--tinte)",
-          }}
+          className="ziffern betrag"
         />
 
         <button onClick={bestaetigen} disabled={busy}>

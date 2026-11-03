@@ -69,12 +69,18 @@ const GRUPPEN: Gruppe[] = [
   {
     titel: "Vermietung",
     punkte: [
+      // Die Häuser standen bisher drei Klicks tief: Stammdaten -> eine
+      // Einheit suchen -> öffnen -> Objektnamen anklicken. Dabei steht
+      // dort, was ein Vermieter zuerst wissen will -- Soll, Belegung,
+      // Leerstand, Fläche. Für jemanden mit drei Objekten war das die am
+      // falschesten platzierte Seite der Anwendung.
+      { href: "/objekte", text: "Objekte", auch: ["/objekt"] },
       {
         href: "/stammdaten",
         text: "Einheiten & Mieter",
-        // Objekt, Einheit und Mietverhältnis sind die Detailseiten dieser
+        // Einheit und Mietverhältnis sind die Detailseiten dieser
         // Übersicht -- von ihr aus wird dorthin verzweigt.
-        auch: ["/objekt", "/einheit", "/mietverhaeltnis"],
+        auch: ["/einheit", "/mietverhaeltnis"],
       },
       { href: "/vorgaenge", text: "Vorgänge", auch: ["/vorgang"] },
     ],

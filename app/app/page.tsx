@@ -107,6 +107,29 @@ export default async function Cockpit() {
       <KennzahlenZeile
         posten={[
           {
+            // Die handlungsnaechste Zahl der Seite steht vorn: Ein Entwurf,
+            // der liegen bleibt, ist eine Antwort, die niemand bekommt.
+            begriff: "Wartet auf Freigabe",
+            wert: geworfen("Freigaben")
+              ? null
+              : String(d.freigaben.entwuerfe + d.freigaben.unbeantwortet),
+            dazu: geworfen("Freigaben")
+              ? "nicht gelesen"
+              : d.freigaben.entwuerfe + d.freigaben.unbeantwortet === 0
+                ? "nichts offen"
+                : `${d.freigaben.entwuerfe} Entwurf${
+                    d.freigaben.entwuerfe === 1 ? "" : "e"
+                  }, ${d.freigaben.unbeantwortet} ohne Antwort`,
+            // "warn", nicht "fehl": Etwas wartet, aber noch ist nichts
+            // versaeumt. Rot ist in dieser Anwendung ein Urteil ueber
+            // Geld oder eine Frist, kein Hinweis auf Arbeit.
+            art: geworfen("Freigaben")
+              ? undefined
+              : d.freigaben.entwuerfe + d.freigaben.unbeantwortet > 0
+                ? "warn"
+                : "gut",
+          },
+          {
             begriff: "Fristen dringend",
             // Keine eingetragene Frist ist nicht dasselbe wie keine offene
             // Frist: Die Tabelle `frist` kann auch nur leer sein.

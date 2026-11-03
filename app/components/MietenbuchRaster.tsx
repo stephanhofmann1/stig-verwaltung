@@ -550,7 +550,7 @@ export function MietenbuchRaster({
         <table className="mb-raster">
           <thead>
             <tr>
-              <th rowSpan={2} className="mb-einheit mb-kopf">
+              <th rowSpan={2} className="mb-einheit" scope="col">
                 Einheit
               </th>
               <th colSpan={monate.length} className="mb-mitte">
