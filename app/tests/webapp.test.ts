@@ -1,6 +1,7 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, readdirSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 import manifest from "../app/manifest";
 
@@ -530,5 +531,82 @@ describe("kein Service Worker, kein Offlinebetrieb", () => {
       undefined,
       "gcm_sender_id richtet Push ein",
     );
+  });
+});
+
+/**
+ * Die oeffentlichen Dateien muessen ohne Anmeldung erreichbar sein.
+ *
+ * Das ist keine Formsache, sondern die Voraussetzung dafuer, dass die
+ * Arbeit an der Webapp ueberhaupt wirkt.
+ *
+ * Ein Browser laedt manifest.webmanifest standardmaessig OHNE
+ * Anmeldedaten. Lag das Manifest hinter dem Zugriffsschutz, bekam er
+ * eine Weiterleitung auf die Anmeldeseite statt des Manifests -- und die
+ * Folge war still und vollstaendig: Die Anwendung liess sich ablegen,
+ * startete aber nie im Vollbild, trug nicht ihren Namen und nicht ihr
+ * Zeichen. Nichts davon meldet einen Fehler; es sieht aus wie ein
+ * Lesezeichen. Gemessen am 03.11.2026 auf dem laufenden Server:
+ * /icon.svg antwortete einer nicht angemeldeten Anfrage mit 307.
+ *
+ * Geprueft wird gegen den Ausdruck im matcher, weil der zur Bauzeit
+ * gelesen wird und kein Test ihn zur Laufzeit befragen kann.
+ */
+describe("oeffentliche Dateien bleiben ohne Anmeldung erreichbar", () => {
+  const proxy = lies("../proxy.ts");
+  const matcher =
+    proxy.match(/matcher:\s*\[\s*"([^"]+)"/)?.[1] ??
+    (() => {
+      throw new Error("matcher in proxy.ts nicht gefunden");
+    })();
+
+  // Jede Datei, die im Paket oeffentlich ausgeliefert wird, plus die
+  // Pfade, die Next aus der Dateikonvention erzeugt.
+  const oeffentlich = [
+    ...readdirSync(fileURLToPath(new URL("../public", import.meta.url))),
+    "icon.svg",
+    "manifest.webmanifest",
+    "favicon.ico",
+  ];
+
+  for (const datei of oeffentlich) {
+    test(`/${datei} ist vom Zugriffsschutz ausgenommen`, () => {
+      // Der matcher ist ein negativer Vorgriff: Was darin steht, wird
+      // NICHT abgefangen. Also muss der Dateiname dort vorkommen.
+      //
+      // Verglichen wird ohne Maskierungen. Der matcher steht als
+      // Zeichenkette im Quelltext, der Punkt ist dort doppelt maskiert
+      // ("favicon\\.ico"), und wer das nachbaut, prueft am Ende die
+      // Maskierung statt des Dateinamens. Die Maskierung selbst ist
+      // nicht das, was hier schieflaufen kann -- der vergessene
+      // Eintrag ist es.
+      const ohneMaskierung = matcher.replace(/\\/g, "");
+      assert.ok(
+        ohneMaskierung.includes(datei),
+        `"${datei}" fehlt im matcher von proxy.ts. Eine nicht ` +
+          `angemeldete Anfrage auf /${datei} bekaeme eine Weiterleitung ` +
+          `auf die Anmeldeseite -- und niemand erfuehre es.`,
+      );
+    });
+  }
+
+  /**
+   * Die Liste neben dem Ausdruck und der Ausdruck selbst muessen
+   * dasselbe sagen. Der Ausdruck muss ein Literal bleiben, damit Next
+   * ihn beim Bauen lesen kann; damit gibt es zwei Stellen, und zwei
+   * Stellen laufen auseinander.
+   */
+  test("die Liste in proxy.ts deckt sich mit dem Ausdruck", () => {
+    const liste = proxy
+      .match(/const OEFFENTLICHE_DATEIEN = \[([\s\S]*?)\]/)?.[1]
+      ?.match(/"([^"]+)"/g)
+      ?.map((s) => s.replace(/"/g, ""));
+    assert.ok(liste && liste.length > 0, "OEFFENTLICHE_DATEIEN nicht gefunden");
+    for (const d of liste!) {
+      assert.ok(
+        matcher.replace(/\\/g, "").includes(d),
+        `"${d}" steht in der Liste, aber nicht im matcher`,
+      );
+    }
   });
 });

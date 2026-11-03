@@ -138,8 +138,58 @@ export function proxy(req: NextRequest) {
   return NextResponse.next();
 }
 
+/**
+ * Die Pfade, die ohne Anmeldung erreichbar bleiben müssen.
+ *
+ * Sie tragen keine Daten -- es sind das Zeichen der Anwendung, die
+ * Grafiken für den Startbildschirm und das Manifest. Was darin steht,
+ * ist bewusst objektfrei (siehe app/manifest.ts): ein Name, zwei Farben,
+ * vier Bildverweise.
+ *
+ * Warum das zählt, und zwar genau beim Manifest:
+ *
+ * Ein Browser lädt `manifest.webmanifest` standardmäßig OHNE
+ * Anmeldedaten -- das ist so vorgesehen und ändert sich nur dort, wo
+ * man `crossorigin="use-credentials"` ausdrücklich setzt. Lag das
+ * Manifest hinter dem Schutz, bekam der Browser eine Weiterleitung auf
+ * die Anmeldeseite statt des Manifests. Die Folge ist still und
+ * vollständig: Die Anwendung lässt sich zwar ablegen, startet aber nie
+ * im Vollbild, trägt nicht ihren Namen und nicht ihr Zeichen. Nichts
+ * davon meldet einen Fehler -- es sieht einfach aus wie ein Lesezeichen.
+ *
+ * Dasselbe gilt für apple-touch-icon.png: Safari holt es für den
+ * Startbildschirm, und kommt dort eine Weiterleitung, legt iOS einen
+ * verkleinerten Bildschirmabzug der Anmeldeseite ab.
+ *
+ * robots.txt steht aus demselben Grund hier: Eine Weiterleitung statt
+ * der Datei ist für eine Suchmaschine keine Antwort.
+ *
+ * Gemessen am 03.11.2026 auf dem laufenden Server: /icon.svg antwortete
+ * einer nicht angemeldeten Anfrage mit 307.
+ */
+const OEFFENTLICHE_DATEIEN = [
+  "favicon.ico",
+  "icon.svg",
+  "apple-touch-icon.png",
+  "icon-192.png",
+  "icon-512.png",
+  "icon-maskable-512.png",
+  "manifest.webmanifest",
+  "robots.txt",
+];
+
 export const config = {
   // Statische Dateien und Bilder bleiben außen vor, sonst blockiert der
   // Schutz das eigene Stylesheet.
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  //
+  // Der Ausdruck muss ein Literal bleiben, damit Next ihn beim Bauen
+  // lesen kann -- eine zur Laufzeit zusammengesetzte Zeichenkette wertet
+  // er nicht aus. Die Liste oben steht deshalb daneben, und
+  // tests/webapp.test.ts hält beide gegeneinander; laufen sie
+  // auseinander, fällt es dort auf und nicht erst auf dem Telefon.
+  matcher: [
+    "/((?!_next/static|_next/image|favicon\\.ico|icon\\.svg|apple-touch-icon\\.png|icon-192\\.png|icon-512\\.png|icon-maskable-512\\.png|manifest\\.webmanifest|robots\\.txt).*)",
+  ],
 };
+
+export { OEFFENTLICHE_DATEIEN };
