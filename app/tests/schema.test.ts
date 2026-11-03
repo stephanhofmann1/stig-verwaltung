@@ -145,3 +145,186 @@ test("der Moeblierungszuschlag wird wirklich gelesen", () => {
       "fuer ein moebliertes Zimmer ist zu niedrig.",
   );
 });
+
+/**
+ * ON CONFLICT gegen die tatsaechlichen Eindeutigkeiten.
+ *
+ * Diese Pruefung faengt einen Fehler, der sich wie ein Tippfehler liest
+ * und wie ein Ausfall wirkt.
+ *
+ * Postgres leitet das Ziel einer ON-CONFLICT-Klausel aus den genannten
+ * SPALTEN ab, nicht aus dem Namen der Bedingung. Passt keine eindeutige
+ * Bedingung genau auf diese Spaltenliste, wird die ganze Anweisung
+ * abgewiesen: "there is no unique or exclusion constraint matching the
+ * ON CONFLICT specification".
+ *
+ * Genau das lag hier vor. db/010 hat die globale Eindeutigkeit auf
+ * kontakt_email durch (mandant_id, email) ersetzt -- zwei Vermieter mit
+ * demselben Handwerker sind in einer Region der Normalfall. Die Route
+ * api/stammdaten nannte weiterhin "ON CONFLICT (email)".
+ *
+ * Die Folge war nicht eine Dublette, sondern ein vollstaendiger Ausfall
+ * genau einer Handlung: Einen Mieter MIT E-Mail-Adresse anzulegen
+ * scheiterte samt Mietverhaeltnis, weil beides in einer Transaktion
+ * laeuft. Ohne Adresse ging es. Der Fehler traf also nur den, der
+ * sorgfaeltig genug war, die Adresse gleich mitzupflegen -- und er
+ * ueberlebte jeden Test, weil kein Test eine Datenbank anfasst.
+ *
+ * Geprueft wird deshalb gegen den Text: Jede Spaltenliste, die eine
+ * ON-CONFLICT-Klausel nennt, muss woertlich als UNIQUE-Bedingung in
+ * irgendeiner Migration stehen.
+ */
+test("jede ON-CONFLICT-Klausel trifft eine vorhandene Eindeutigkeit", () => {
+  /**
+   * Kommentare heraus, bevor gesucht wird.
+   *
+   * Ohne das meldet dieser Test seinen eigenen Erklaertext als Mangel:
+   * Im Kommentar ueber der berichtigten Stelle steht die FALSCHE Form
+   * woertlich, damit nachlesbar bleibt, was dort einmal stand. Ein Test,
+   * der Dokumentation fuer Code haelt, zwingt dazu, die Begruendung
+   * wegzulassen -- und das ist der teurere Verlust.
+   */
+  const ohneKommentare = (quelle: string) =>
+    quelle
+      .replace(/\/\*[\s\S]*?\*\//g, " ")
+      .replace(/(^|[^:])\/\/[^\n]*/g, "$1")
+      .replace(/^\s*--[^\n]*/gm, " ");
+
+  const spaltenliste = (roh: string) =>
+    roh
+      .split(",")
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean)
+      .join(",");
+
+  // Welche Eindeutigkeiten es am Ende WIRKLICH gibt.
+  //
+  // Die Migrationen werden in ihrer Reihenfolge gelesen und ein
+  // Bestand fortgeschrieben. Das ist der Punkt, an dem die erste
+  // Fassung dieses Tests scheiterte: Sie sammelte jede UNIQUE-Zeile
+  // ein, die je geschrieben wurde -- auch die aus db/001, die db/010
+  // ausdruecklich wieder entfernt. Damit galt "ON CONFLICT (email)"
+  // als gedeckt, und der Test blieb gruen, waehrend die Anwendung
+  // genau daran scheiterte. Ein Test, der den Fehler nicht findet, den
+  // er finden soll, ist schlimmer als keiner: Er sagt, es sei geprueft.
+  const nachName = new Map<string, string>();
+  const ohneNamen = new Set<string>();
+
+  for (const datei of readdirSync(DB)
+    .filter((d) => d.endsWith(".sql"))
+    .sort()) {
+    const sql = ohneKommentare(readFileSync(join(DB, datei), "utf8"));
+
+    // Alle Ereignisse MIT ihrer Stelle in der Datei sammeln und dann in
+    // dieser Reihenfolge anwenden.
+    //
+    // Hier lag der zweite Fehler dieses Tests: Zuerst wurden alle
+    // Hinzufuegungen verarbeitet, dann alle Loeschungen. db/010 loescht
+    // kontakt_email_email_key und legt sie unmittelbar danach neu an --
+    // mit (mandant_id, email) statt (email). Nach Art statt nach
+    // Reihenfolge verarbeitet gewann die Loeschung, und der Test
+    // behauptete, es gebe die Bedingung nicht, die es sehr wohl gibt.
+    // Eine Reihenfolge, die in der Datei steht, darf ein Leser nicht
+    // umsortieren.
+    type Ereignis =
+      | { bei: number; art: "add"; name: string; spalten: string }
+      | { bei: number; art: "add-anonym"; spalten: string }
+      | { bei: number; art: "drop"; name: string };
+    const ereignisse: Ereignis[] = [];
+
+    for (const m of sql.matchAll(
+      /CONSTRAINT\s+([a-z_][a-z0-9_]*)\s+UNIQUE\s*(?:NULLS\s+NOT\s+DISTINCT\s*)?\(([^)]+)\)/gi,
+    )) {
+      ereignisse.push({
+        bei: m.index!,
+        art: "add",
+        name: m[1].toLowerCase(),
+        spalten: spaltenliste(m[2]),
+      });
+    }
+
+    for (const m of sql.matchAll(
+      /\bUNIQUE\s*(?:NULLS\s+NOT\s+DISTINCT\s*)?\(([^)]+)\)/gi,
+    )) {
+      const vorher = sql.slice(Math.max(0, m.index! - 80), m.index!);
+      if (/CONSTRAINT\s+[a-z_][a-z0-9_]*\s*$/i.test(vorher)) continue;
+      ereignisse.push({
+        bei: m.index!,
+        art: "add-anonym",
+        spalten: spaltenliste(m[1]),
+      });
+    }
+
+    for (const m of sql.matchAll(/CREATE\s+UNIQUE\s+INDEX[^(]*\(([^)]+)\)/gi)) {
+      ereignisse.push({
+        bei: m.index!,
+        art: "add-anonym",
+        spalten: spaltenliste(m[1].replace(/\s+WHERE\s+.*$/i, "")),
+      });
+    }
+
+    for (const m of sql.matchAll(
+      /DROP\s+CONSTRAINT\s+(?:IF\s+EXISTS\s+)?([a-z_][a-z0-9_]*)/gi,
+    )) {
+      ereignisse.push({ bei: m.index!, art: "drop", name: m[1].toLowerCase() });
+    }
+
+    ereignisse.sort((a, b) => a.bei - b.bei);
+
+    for (const e of ereignisse) {
+      if (e.art === "add") {
+        nachName.set(e.name, e.spalten);
+      } else if (e.art === "add-anonym") {
+        ohneNamen.add(e.spalten);
+      } else {
+        const spalten = nachName.get(e.name);
+        nachName.delete(e.name);
+        // Eine unbenannt angelegte Bedingung traegt den Namen, den
+        // Postgres vergibt (tabelle_spalte_key). Wird sie darueber
+        // entfernt, muss auch die Spaltenliste weichen -- sonst bliebe
+        // genau der Eintrag stehen, der den Fehler deckt.
+        if (spalten) ohneNamen.delete(spalten);
+        else {
+          const ausName = e.name.replace(/_key$/, "").split("_").pop();
+          if (ausName) ohneNamen.delete(ausName);
+        }
+      }
+    }
+  }
+
+  const eindeutig = new Set<string>([...nachName.values(), ...ohneNamen]);
+  assert.ok(
+    eindeutig.size > 5,
+    "Keine UNIQUE-Bedingungen gefunden -- der Test prueft dann nichts",
+  );
+
+  const code = join(APP, "app");
+  const dateien: string[] = [];
+  const sammle = (ordner: string) => {
+    for (const e of readdirSync(ordner, { withFileTypes: true })) {
+      const pfad = join(ordner, e.name);
+      if (e.isDirectory()) sammle(pfad);
+      else if (e.name.endsWith(".ts") || e.name.endsWith(".tsx")) dateien.push(pfad);
+    }
+  };
+  sammle(code);
+  sammle(join(APP, "lib"));
+
+  const fehler: string[] = [];
+  let gefunden = 0;
+  for (const datei of dateien) {
+    const text = ohneKommentare(readFileSync(datei, "utf8"));
+    for (const t of text.matchAll(/ON\s+CONFLICT\s*\(([^)]+)\)/gi)) {
+      gefunden++;
+      const liste = spaltenliste(t[1]);
+      if (!eindeutig.has(liste)) {
+        fehler.push(
+          `${datei.replace(APP, "app")}: ON CONFLICT (${liste}) — ` +
+            `dazu gibt es in db/ keine UNIQUE-Bedingung`,
+        );
+      }
+    }
+  }
+  assert.ok(gefunden > 0, "Keine ON-CONFLICT-Klausel gefunden");
+  assert.deepEqual(fehler, [], fehler.join("\n"));
+});
