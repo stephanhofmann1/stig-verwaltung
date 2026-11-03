@@ -193,7 +193,11 @@ function Fussnoten() {
         </dt>{" "}
         <dd>
           — Soll, das sich nicht in Kaltmiete und Betriebskosten trennen lässt:
-          Inklusivmieten, Möblierungszuschläge und anteilige Monate.
+          Inklusivmieten, Möblierungszuschläge und anteilige Monate. Steht je
+          Monat als eigene Summenzeile unter jedem Haus, weil{" "}
+          <strong>Warm = Kalt + BK + o. A.</strong> ist. Was hier steht, ist
+          keine Kaltmiete — als Kaltmiete gelesen begründet es eine
+          Mieterhöhung über einen Betrag, den niemand vereinbart hat.
         </dd>
       </div>
       <div id="mb-fn-strich">
@@ -335,7 +339,48 @@ function quote(s: Summe): string {
   })} %`;
 }
 
-/** Die vier Summenzeilen unter einem Objekt oder unter dem ganzen Buch. */
+/**
+ * Die sieben Summenzeilen unter einem Objekt oder unter dem ganzen Buch.
+ *
+ * Vorher waren es vier (Soll, Ist, Abweichung, Leerstand), und die
+ * Aufteilung in Kalt und Betriebskosten stand genau einmal für den ganzen
+ * Zeitraum in der Seitenspalte. Der Eigentümer liest sie aber je Monat --
+ * eine Betriebskostenvorauszahlung ist eine Monatsgröße.
+ *
+ * Die Reihenfolge ist die Rechnung, von oben nach unten:
+ *
+ *     Kalt
+ *   + BK
+ *   + o. A.      Soll ohne vereinbarte Aufteilung
+ *   ----------
+ *   = Warm       dieselbe Zahl, die anderswo "Soll" heisst
+ *     Ist
+ *     Abweichung
+ *     Leerstand
+ *
+ * Zwei Entscheidungen, die man hinterfragen wird:
+ *
+ * 1. "o. A." bekommt eine **eigene Zeile** und steht nicht als Nebenzeile an
+ *    der Warmzeile. Rund zwei Drittel der WG-Zimmer sind als Inklusivmiete
+ *    vermietet ("alles inklusive, keine Nebenkosten") und haben gar keine
+ *    getrennte Kaltmiete; dazu kommen Möblierungszuschläge und anteilige
+ *    Monate bei Ein- und Auszug. Dieser Rest ist in der Welserstraße und in
+ *    der Westanlage die *größte* der drei Größen. Als Nebenzeile an einer
+ *    anderen Zahl liesse er sich als Abzug lesen; als eigene Zeile ist er
+ *    ein Summand, und Kalt + BK + o. A. = Warm steht sichtbar untereinander.
+ *    Er bleibt auch dann stehen, wenn er null ist: Eine Tabelle, deren
+ *    Zeilenzahl je Objekt wechselt, vergleicht man nicht mehr Zeile für
+ *    Zeile.
+ *
+ * 2. Kalt, BK und o. A. bilden eine optisch **ruhigere** Gruppe
+ *    (data-gruppe="aufteilung" in app/raster.css, hellere Fläche, leiserer
+ *    Ton, keine Trennlinien untereinander), und die Warmzeile trägt darunter
+ *    den Summenstrich. Sieben gleich kräftige Zeilen unter jedem Objekt
+ *    wären bei drei Häusern 21 Zeilen in derselben Schwärze wie die
+ *    Einheiten darüber -- man würde die Blöcke nicht mehr auseinanderhalten.
+ *    Die Zahlen, auf die es beim Mahnen ankommt (Warm, Ist, Abweichung),
+ *    bleiben in der kräftigen Stufe.
+ */
 function SummenZeilen({
   titel,
   spalten,
@@ -347,20 +392,74 @@ function SummenZeilen({
   gesamt: Summe;
   kaution: number | null;
 }) {
+  const betrag = (n: number) => <span className="ziffern">{zahl(n)}</span>;
+
   const zeilen: Array<{
+    /** Schlüssel und Beschriftung der Zeile. */
     name: string;
+    /** Was in der Zeilenbeschriftung steht -- sonst `name`. */
+    schild?: React.ReactNode;
+    /** Zweite, noch leisere Zeile unter der Beschriftung. */
+    zusatz?: string;
+    /** Die ruhigere Gruppe der Aufteilung, oder die Summenzeile darunter. */
+    gruppe?: "aufteilung" | "warm";
+    titel?: string;
     wert: (s: Summe) => React.ReactNode;
     gesamtWert: React.ReactNode;
   }> = [
     {
-      name: "Soll",
-      wert: (s) => <span className="ziffern">{zahl(s.soll)}</span>,
-      gesamtWert: <span className="ziffern">{zahl(gesamt.soll)}</span>,
+      name: "Kalt",
+      zusatz: "soweit vereinbart",
+      gruppe: "aufteilung",
+      titel:
+        "Kaltmiete je Monat — nur aus Verträgen, die Kalt und Betriebskosten " +
+        "getrennt ausweisen. Eine Inklusivmiete steht nicht hier, sondern " +
+        "unter o. A.",
+      wert: (s) => betrag(s.kaltmiete),
+      gesamtWert: betrag(gesamt.kaltmiete),
+    },
+    {
+      name: "BK",
+      zusatz: "Betriebskosten",
+      gruppe: "aufteilung",
+      titel:
+        "Betriebskostenvorauszahlung je Monat, soweit der Vertrag sie " +
+        "getrennt ausweist.",
+      wert: (s) => betrag(s.nebenkosten),
+      gesamtWert: betrag(gesamt.nebenkosten),
+    },
+    {
+      name: "o. A.",
+      // Ein echter Verweis statt nur eines title: einmal je Block, mit der
+      // Tastatur erreichbar. In den Zellen selbst wäre er ein Verweis im
+      // Verweis.
+      schild: <Ruf ziel="mb-fn-oa" zeichen="o. A." was="ohne Aufteilung" />,
+      zusatz: "ohne Aufteilung",
+      gruppe: "aufteilung",
+      titel:
+        "Soll, das sich nicht in Kaltmiete und Betriebskosten trennen lässt: " +
+        "Inklusivmieten, Möblierungszuschläge und anteilige Monate bei Ein- " +
+        "und Auszug. Diesen Rest in die Kaltspalte zu schieben, würde eine " +
+        "Kaltmiete behaupten, die niemand vereinbart hat.",
+      wert: (s) => betrag(s.nicht_aufgeteilt),
+      gesamtWert: betrag(gesamt.nicht_aufgeteilt),
+    },
+    {
+      name: "Warm",
+      zusatz: "= Kalt + BK + o. A. = Soll",
+      gruppe: "warm",
+      titel:
+        "Die Gesamtmiete des Monats — dieselbe Zahl, die auf dieser Seite " +
+        "sonst Soll heisst. Warm ist keine zusätzliche Größe, sondern die " +
+        "Summe der drei Zeilen darüber.",
+      wert: (s) => betrag(s.soll),
+      gesamtWert: betrag(gesamt.soll),
     },
     {
       name: "Ist",
-      wert: (s) => <span className="ziffern">{zahl(s.ist)}</span>,
-      gesamtWert: <span className="ziffern">{zahl(gesamt.ist)}</span>,
+      zusatz: "zugeordnet",
+      wert: (s) => betrag(s.ist),
+      gesamtWert: betrag(gesamt.ist),
     },
     {
       name: "Abweichung",
@@ -377,10 +476,22 @@ function SummenZeilen({
   return (
     <>
       {zeilen.map((z, i) => (
-        <tr key={z.name} className="mb-summe">
+        <tr
+          key={z.name}
+          className="mb-summe"
+          data-gruppe={z.gruppe}
+          /* Die erste Summenzeile trägt die Linie gegen die Einheiten
+             darüber. Über :first-child geht das nicht: Im Objektblock steht
+             vor ihr die Objektzeile und die Einheiten, im Fuß des ganzen
+             Buchs steht sie wirklich zuerst. */
+          data-erste={i === 0 ? "ja" : undefined}
+        >
           <th scope="row" className="mb-einheit">
             {i === 0 ? <strong>{titel}</strong> : <span className="mb-leise">{titel}</span>}
-            <span className="mb-unter">{z.name}</span>
+            <span className="mb-unter" title={z.titel}>
+              {z.schild ?? z.name}
+            </span>
+            {z.zusatz && <span className="mb-unter mb-still">{z.zusatz}</span>}
           </th>
           {spalten.map((s, j) => (
             <td key={j} className="betrag mb-summenzelle">
@@ -390,10 +501,19 @@ function SummenZeilen({
           <td className="betrag mb-summenzelle">{z.gesamtWert}</td>
           {/* Die beiden letzten Spalten stehen für den ganzen Zeitraum und
               nicht je Summenzeile — sie werden einmal ausgefüllt und reichen
-              über die vier Zeilen hinweg. */}
+              über alle Summenzeilen hinweg. rowSpan kommt aus der Länge der
+              Liste und nicht als Zahl aus dem Quelltext: Vorher stand hier
+              eine 4, und wer eine Summenzeile ergänzt, verschiebt damit die
+              halbe Tabelle.
+
+              Die Kalt-/BK-Zelle wiederholt dieselben Werte, die auch in der
+              Spalte "Zeitraum gesamt" der Zeilen Kalt, BK und o. A. stehen.
+              Das ist Absicht und keine zweite Rechnung: Es ist der Fuß der
+              Kalt-/BK-Spalte der Einheitenzeilen darüber, und beide lesen
+              dieselbe `Summe` — sie können deshalb nicht auseinanderlaufen. */}
           {i === 0 && (
             <>
-              <td className="betrag mb-summenzelle" rowSpan={4}>
+              <td className="betrag mb-summenzelle" rowSpan={zeilen.length}>
                 <span className="ziffern">{zahl(gesamt.kaltmiete)}</span>
                 <span className="mb-unter ziffern">
                   BK {zahl(gesamt.nebenkosten)}
@@ -412,7 +532,7 @@ function SummenZeilen({
                   </span>
                 )}
               </td>
-              <td className="betrag mb-summenzelle" rowSpan={4}>
+              <td className="betrag mb-summenzelle" rowSpan={zeilen.length}>
                 <span className="ziffern">
                   {kaution === null ? "—" : zahl(kaution)}
                 </span>

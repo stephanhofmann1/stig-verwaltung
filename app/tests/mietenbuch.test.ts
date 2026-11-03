@@ -6,20 +6,30 @@ import {
   baueRaster,
   baueZelle,
   etagenRang,
+  filterGesetzt,
+  filterRaster,
   giltImMonat,
+  istVermietbar,
   kalenderjahr,
+  leererFilter,
+  lesefilter,
   letzteMonate,
+  mietenbuchAdresse,
   monatPlus,
   monatsAnfang,
   monatsEnde,
+  ohneFeld,
   ohneZahlungsdaten,
   sollLautVertrag,
   summiere,
   vergleicheEinheiten,
+  zeilenZahl,
   zeitraumFuer,
   type AnpassungZeile,
   type EinheitZeile,
+  type Mietenbuchfilter,
   type MietverhaeltnisZeile,
+  type Raster,
   type SollZeile,
   type Zelle,
 } from "../lib/mietenbuch";
@@ -858,5 +868,640 @@ describe("Das ganze Raster", () => {
       assert.equal(c.leer_grund, "eltern");
     }
     assert.equal(z1.summe.monate_leer, 0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+/**
+ * Ein Buch mit zwei Haeusern und allen Mietformen, die hier vorkommen.
+ *
+ * Alle Namen und Betraege sind erfunden. Gebaut ist es so, dass jede der
+ * drei Groessen der Aufteilung einmal allein auftritt:
+ *
+ *   Zimmer 1.1   Kalt 400 + BK 100 + Moeblierung 80        -> Soll 580
+ *   Zimmer 1.2   Inklusivmiete 500, keine Nebenkosten      -> Soll 500
+ *   Zimmer 1.3   kein Vertrag                              -> Leerstand
+ *   Zimmer 1.4   Einzug am 15.08., danach volle Monate     -> anteiliger Monat
+ *   Laden EG     wird nicht angeboten                      -> kein Leerstand
+ *   Wohnung 1    Kalt 600 + BK 150, im Oktober zu wenig    -> Abweichung
+ */
+const BUCH_MONATE = ["2026-08-01", "2026-09-01", "2026-10-01"];
+
+const BUCH_EINHEITEN: EinheitZeile[] = [
+  einheit({
+    id: "e-wg",
+    objekt_id: "o-a",
+    objekt_name: "Objekt A",
+    bezeichnung: "5er-WG 1. OG",
+    etage: "1. OG",
+    art: "gemeinschaft",
+    hat_kinder: true,
+    zahlungsdaten_ab: "2026-01-01",
+  }),
+  einheit({
+    id: "e-a1",
+    objekt_id: "o-a",
+    objekt_name: "Objekt A",
+    bezeichnung: "Zimmer 1.1",
+    etage: "1. OG",
+    eltern_id: "e-wg",
+    eltern_bezeichnung: "5er-WG 1. OG",
+    zahlungsdaten_ab: "2026-01-01",
+  }),
+  einheit({
+    id: "e-a2",
+    objekt_id: "o-a",
+    objekt_name: "Objekt A",
+    bezeichnung: "Zimmer 1.2",
+    etage: "1. OG",
+    eltern_id: "e-wg",
+    eltern_bezeichnung: "5er-WG 1. OG",
+    zahlungsdaten_ab: "2026-01-01",
+  }),
+  einheit({
+    id: "e-a3",
+    objekt_id: "o-a",
+    objekt_name: "Objekt A",
+    bezeichnung: "Zimmer 1.3",
+    etage: "1. OG",
+    eltern_id: "e-wg",
+    eltern_bezeichnung: "5er-WG 1. OG",
+    zahlungsdaten_ab: "2026-01-01",
+  }),
+  einheit({
+    id: "e-a4",
+    objekt_id: "o-a",
+    objekt_name: "Objekt A",
+    bezeichnung: "Zimmer 1.4",
+    etage: "1. OG",
+    eltern_id: "e-wg",
+    eltern_bezeichnung: "5er-WG 1. OG",
+    zahlungsdaten_ab: "2026-01-01",
+  }),
+  einheit({
+    id: "e-g",
+    objekt_id: "o-a",
+    objekt_name: "Objekt A",
+    bezeichnung: "Laden EG",
+    etage: "EG",
+    art: "gewerbe",
+    vermarktung: "nicht_anbieten",
+    zahlungsdaten_ab: "2026-01-01",
+  }),
+  einheit({
+    id: "e-b1",
+    objekt_id: "o-b",
+    objekt_name: "Objekt B",
+    bezeichnung: "Wohnung 1",
+    etage: "EG",
+    zahlungsdaten_ab: "2026-01-01",
+  }),
+];
+
+const BUCH_VERTRAEGE: MietverhaeltnisZeile[] = [
+  // Getrennt ausgewiesen: 400 Kalt, 100 BK, 80 Moeblierung.
+  vertrag({ id: "mv-a1", einheit_id: "e-a1", kontakt_name: "Mieter A" }),
+  // Inklusivmiete: 500 all-in, keine getrennte Kaltmiete.
+  vertrag({
+    id: "mv-a2",
+    einheit_id: "e-a2",
+    kontakt_name: "Mieter B",
+    kaltmiete: null,
+    nebenkosten: null,
+    moeblierungszuschlag: null,
+    gesamtmiete: "500.00",
+  }),
+  // Einzug am 15.08.: der August ist anteilig gestellt.
+  vertrag({
+    id: "mv-a4",
+    einheit_id: "e-a4",
+    kontakt_name: "Mieter C",
+    beginn: "2026-08-15",
+    moeblierungszuschlag: null,
+  }),
+  vertrag({
+    id: "mv-b1",
+    einheit_id: "e-b1",
+    kontakt_name: "Mieter D",
+    kaltmiete: "600.00",
+    nebenkosten: "150.00",
+    moeblierungszuschlag: null,
+  }),
+];
+
+const BUCH_SOLL: SollZeile[] = [
+  sollZeile("mv-a1", "2026-08-01", "580.00", "580.00", "2026-08-03"),
+  sollZeile("mv-a1", "2026-09-01", "580.00", "580.00", "2026-09-02"),
+  sollZeile("mv-a1", "2026-10-01", "580.00", "580.00", "2026-10-02"),
+  sollZeile("mv-a2", "2026-08-01", "500.00", "500.00", "2026-08-03"),
+  sollZeile("mv-a2", "2026-09-01", "500.00", "500.00", "2026-09-02"),
+  sollZeile("mv-a2", "2026-10-01", "500.00", "500.00", "2026-10-02"),
+  // Anteiliger August: gestellt ist gestellt, 258,06 und nicht 500.
+  sollZeile("mv-a4", "2026-08-01", "258.06", "258.06", "2026-08-17"),
+  sollZeile("mv-a4", "2026-09-01", "500.00", "500.00", "2026-09-02"),
+  sollZeile("mv-a4", "2026-10-01", "500.00", "500.00", "2026-10-02"),
+  sollZeile("mv-b1", "2026-08-01", "750.00", "750.00", "2026-08-03"),
+  sollZeile("mv-b1", "2026-09-01", "750.00", "750.00", "2026-09-02"),
+  // Im Oktober fehlen 250 Euro -- die einzige Abweichung im Buch.
+  sollZeile("mv-b1", "2026-10-01", "750.00", "500.00", "2026-10-02"),
+];
+
+function buch(): Raster {
+  return baueRaster({
+    einheiten: BUCH_EINHEITEN,
+    mietverhaeltnisse: BUCH_VERTRAEGE,
+    anpassungen: [],
+    sollstellungen: BUCH_SOLL,
+    buchungen_vorhanden: true,
+    monate: BUCH_MONATE,
+    heute: HEUTE,
+  });
+}
+
+/** Alle sichtbaren Zeilen eines Rasters, Haus fuer Haus. */
+function sichtbareZeilen(r: Raster) {
+  return r.gruppen.flatMap((g) => g.zeilen);
+}
+
+const aufDenCent = (n: number) => Math.round(n * 100) / 100;
+
+/**
+ * Spalten- und Gesamtsummen zu Fuss nachgerechnet.
+ *
+ * Bewusst ohne `summiere` und ohne `addiereSummen`: Wer die Summen mit
+ * derselben Funktion nachrechnet, die sie erzeugt hat, prueft nur, dass die
+ * Funktion zweimal dasselbe tut. Hier wird ueber die Zellen gelaufen, die
+ * man auf dem Schirm sehen wuerde.
+ */
+function spalteZuFuss(r: Raster, i: number, feld: "soll" | "gezahlt"): number {
+  let n = 0;
+  for (const z of sichtbareZeilen(r)) n += z.zellen[i][feld];
+  return aufDenCent(n);
+}
+
+function gesamtZuFuss(r: Raster, feld: "soll" | "gezahlt"): number {
+  let n = 0;
+  for (const z of sichtbareZeilen(r)) for (const c of z.zellen) n += c[feld];
+  return aufDenCent(n);
+}
+
+const filter = (ueber: Partial<Mietenbuchfilter> = {}): Mietenbuchfilter => ({
+  ...leererFilter(),
+  ...ueber,
+});
+
+// ---------------------------------------------------------------------------
+
+/**
+ * Teurer Fehler: Kaltmiete behaupten, wo keine vereinbart ist.
+ *
+ * Zwei Drittel der WG-Zimmer sind als Inklusivmiete vermietet ("500 all-in,
+ * keine Nebenkosten") und haben gar keine getrennte Kaltmiete; dazu kommen
+ * Moeblierungszuschlaege und anteilige Monate bei Ein- und Auszug. Wandert
+ * dieser Rest in die Kaltspalte, steht dort eine Kaltmiete, die niemand
+ * vereinbart hat -- und aus ihr wuerde spaeter eine Mieterhoehung oder eine
+ * Betriebskostenabrechnung begruendet. Deshalb muss der Rest eine eigene
+ * Groesse bleiben, und die drei Groessen muessen auf den Cent das Soll
+ * ergeben: Fehlt ein Cent, fehlt er in einer Abrechnung.
+ */
+describe("Aufteilung je Monat: Kalt + BK + o. A. = Warm", () => {
+  const r = buch();
+
+  test("jede Monatsspalte traegt die Aufteilung, nicht nur der Zeitraum", () => {
+    for (const g of r.gruppen) {
+      assert.equal(g.spalten.length, BUCH_MONATE.length);
+      for (const s of g.spalten) {
+        assert.equal(typeof s.kaltmiete, "number");
+        assert.equal(typeof s.nebenkosten, "number");
+        assert.equal(typeof s.nicht_aufgeteilt, "number");
+      }
+    }
+    // Objekt A im September: 400 + 400 Kalt, 100 + 100 BK, 80 Moeblierung
+    // und 500 Inklusivmiete ohne Aufteilung.
+    const a = r.gruppen[0];
+    assert.equal(a.objekt_name, "Objekt A");
+    assert.equal(a.spalten[1].kaltmiete, 800);
+    assert.equal(a.spalten[1].nebenkosten, 200);
+    assert.equal(a.spalten[1].nicht_aufgeteilt, 580);
+    assert.equal(a.spalten[1].soll, 1580);
+  });
+
+  test("Kalt + BK + o. A. ergibt auf den Cent das Soll der Spalte", () => {
+    for (const g of r.gruppen) {
+      for (const [i, s] of g.spalten.entries()) {
+        assert.equal(
+          aufDenCent(s.kaltmiete + s.nebenkosten + s.nicht_aufgeteilt),
+          s.soll,
+          `${g.objekt_name}, Spalte ${BUCH_MONATE[i]}`,
+        );
+      }
+    }
+    for (const [i, s] of r.spalten.entries()) {
+      assert.equal(
+        aufDenCent(s.kaltmiete + s.nebenkosten + s.nicht_aufgeteilt),
+        s.soll,
+        `Gesamtspalte ${BUCH_MONATE[i]}`,
+      );
+    }
+    assert.equal(
+      aufDenCent(
+        r.summe.kaltmiete + r.summe.nebenkosten + r.summe.nicht_aufgeteilt,
+      ),
+      r.summe.soll,
+    );
+  });
+
+  test("eine Inklusivmiete steht vollstaendig unter o. A. und nie unter Kalt", () => {
+    const z = sichtbareZeilen(r).find((x) => x.bezeichnung === "Zimmer 1.2")!;
+    assert.equal(z.summe.soll, 1500);
+    assert.equal(z.summe.kaltmiete, 0);
+    assert.equal(z.summe.nebenkosten, 0);
+    assert.equal(z.summe.nicht_aufgeteilt, 1500);
+    // Auch je Monat, nicht nur in der Zeilensumme.
+    for (const c of z.zellen) {
+      for (const a of c.abschnitte) {
+        assert.equal(a.kaltmiete, null);
+        assert.equal(a.nebenkosten, null);
+      }
+    }
+  });
+
+  test("ein anteiliger Monat erhoeht o. A. und verfaelscht die Kaltspalte nicht", () => {
+    const a = r.gruppen[0];
+    // August: nur Zimmer 1.1 ist voll mit Aufteilung (400/100). Zimmer 1.4
+    // ist mit 258,06 anteilig gestellt -- waere das aufgeteilt, stuenden
+    // hier 800 Kalt fuer einen halben Monat.
+    assert.equal(a.spalten[0].kaltmiete, 400);
+    assert.equal(a.spalten[0].nebenkosten, 100);
+    assert.equal(a.spalten[0].nicht_aufgeteilt, 838.06);
+    assert.equal(a.spalten[0].soll, 1338.06);
+
+    // Im September laeuft derselbe Vertrag voll -- jetzt ist er aufgeteilt.
+    assert.equal(a.spalten[1].kaltmiete, 800);
+
+    const z = sichtbareZeilen(r).find((x) => x.bezeichnung === "Zimmer 1.4")!;
+    assert.equal(z.zellen[0].abschnitte[0].kaltmiete, null);
+    assert.equal(z.zellen[1].abschnitte[0].kaltmiete, 400);
+    // 258,06 + 500 + 500 = 1258,06; davon 800 Kalt, 200 BK, 258,06 o. A.
+    assert.equal(z.summe.soll, 1258.06);
+    assert.equal(z.summe.kaltmiete, 800);
+    assert.equal(z.summe.nicht_aufgeteilt, 258.06);
+  });
+
+  test("Warm ist keine fuenfte Zahl, sondern das Soll", () => {
+    // Die Warmzeile im Raster zeigt `soll`. Stuende dort eine eigene
+    // Rechnung, koennte sie von der Soll-Zeile und von den
+    // Kennzahlkarten abweichen.
+    for (const g of r.gruppen) {
+      for (const s of g.spalten) {
+        assert.equal(s.soll, aufDenCent(s.kaltmiete + s.nebenkosten + s.nicht_aufgeteilt));
+      }
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+/**
+ * Teurer Fehler: eine Summe ueber Zeilen, die man nicht sieht.
+ *
+ * Ein Filter, der nur Zeilen ausblendet und die alten Spaltenfuesse stehen
+ * laesst, zeigt die Miete des ganzen Hauses ueber vier Zimmern. Aus genau
+ * dieser Zahl entsteht ein Mahnschreiben oder eine Abrechnung. Deshalb muss
+ * `filterRaster` die Fuesse und die Gesamtsummen neu rechnen, und der Test
+ * rechnet sie unabhaengig nach -- ueber die Zellen, die sichtbar bleiben.
+ */
+describe("filterRaster rechnet die Summen neu", () => {
+  const alles = buch();
+
+  test("ohne Filter bleibt das Raster, wie es ist", () => {
+    assert.equal(filterGesetzt(leererFilter()), false);
+    assert.equal(filterRaster(alles, leererFilter()), alles);
+  });
+
+  test("auf ein Haus gefiltert: Fuesse und Gesamtsumme werden kleiner", () => {
+    const nurA = filterRaster(alles, filter({ objekt: "o-a" }));
+
+    assert.equal(nurA.gruppen.length, 1);
+    assert.equal(nurA.gruppen[0].objekt_name, "Objekt A");
+    assert.equal(zeilenZahl(nurA), 5);
+    assert.equal(zeilenZahl(alles), 6);
+
+    // Kleiner als ungefiltert -- Objekt B faellt mit 750 je Monat weg.
+    for (const [i, s] of nurA.spalten.entries()) {
+      assert.ok(
+        s.soll < alles.spalten[i].soll,
+        `Spalte ${BUCH_MONATE[i]}: ${s.soll} muss unter ${alles.spalten[i].soll} liegen`,
+      );
+    }
+    assert.ok(nurA.summe.soll < alles.summe.soll);
+
+    // Und unabhaengig nachgerechnet gleich.
+    for (const [i, s] of nurA.spalten.entries()) {
+      assert.equal(s.soll, spalteZuFuss(nurA, i, "soll"));
+      assert.equal(s.ist, spalteZuFuss(nurA, i, "gezahlt"));
+    }
+    assert.equal(nurA.summe.soll, gesamtZuFuss(nurA, "soll"));
+    assert.equal(nurA.summe.ist, gesamtZuFuss(nurA, "gezahlt"));
+
+    // 258,06 + 500 + 580 im August, dann zweimal 1.580.
+    assert.equal(nurA.spalten[0].soll, 1338.06);
+    assert.equal(nurA.spalten[1].soll, 1580);
+    assert.equal(nurA.spalten[2].soll, 1580);
+    assert.equal(nurA.summe.soll, 4498.06);
+  });
+
+  test("innerhalb eines Hauses gefiltert: der Spaltenfuss wird kleiner", () => {
+    // Der gefaehrliche Fall. Beim Filtern auf ein ganzes Haus fallen
+    // fremde Haeuser weg, und die Fuesse des eigenen stimmen zufaellig
+    // weiter. Hier bleibt vom Haus eine von fuenf Zeilen -- stehen die
+    // alten Fuesse, steht unter einem Zimmer die Miete von vier anderen.
+    const r = filterRaster(alles, filter({ suche: "Zimmer 1.1" }));
+    assert.equal(r.gruppen.length, 1);
+    assert.equal(zeilenZahl(r), 1);
+    assert.equal(alles.gruppen[0].zeilen.length, 5);
+
+    const vorher = alles.gruppen[0];
+    const nachher = r.gruppen[0];
+    for (const [i, s] of nachher.spalten.entries()) {
+      assert.ok(
+        s.soll < vorher.spalten[i].soll,
+        `Spalte ${BUCH_MONATE[i]}: ${s.soll} muss unter ${vorher.spalten[i].soll} liegen`,
+      );
+      // Unabhaengig nachgerechnet, ueber die Zelle, die sichtbar bleibt.
+      assert.equal(s.soll, spalteZuFuss(r, i, "soll"));
+      assert.equal(s.soll, 580);
+    }
+    assert.ok(nachher.summe.soll < vorher.summe.soll);
+    assert.equal(r.summe.soll, 1740);
+    assert.equal(r.summe.ist, 1740);
+    // Die Aufteilung gilt auch im Ausschnitt: 3 x (400 + 100 + 80).
+    assert.equal(r.summe.kaltmiete, 1200);
+    assert.equal(r.summe.nebenkosten, 300);
+    assert.equal(r.summe.nicht_aufgeteilt, 240);
+    assert.equal(
+      aufDenCent(
+        r.summe.kaltmiete + r.summe.nebenkosten + r.summe.nicht_aufgeteilt,
+      ),
+      r.summe.soll,
+    );
+  });
+
+  test("die Gesamtsumme ist die Summe der Spalten und der Zeilen", () => {
+    for (const f of [
+      leererFilter(),
+      filter({ objekt: "o-a" }),
+      filter({ art: "wohnen" }),
+      filter({ suche: "zimmer" }),
+      filter({ nur: "abweichung" }),
+      filter({ nur: "leerstand" }),
+    ]) {
+      const r = filterRaster(alles, f);
+      assert.equal(
+        r.summe.soll,
+        aufDenCent(r.spalten.reduce((n, s) => n + s.soll, 0)),
+      );
+      assert.equal(r.summe.soll, gesamtZuFuss(r, "soll"));
+      assert.equal(
+        r.summe.soll,
+        aufDenCent(sichtbareZeilen(r).reduce((n, z) => n + z.summe.soll, 0)),
+      );
+      // Auch die Aufteilung muss im Ausschnitt aufgehen.
+      assert.equal(
+        aufDenCent(
+          r.summe.kaltmiete + r.summe.nebenkosten + r.summe.nicht_aufgeteilt,
+        ),
+        r.summe.soll,
+      );
+    }
+  });
+
+  test("die Abweichung wird neu gerechnet, nicht uebernommen", () => {
+    // Im ganzen Buch fehlen 250 Euro, und sie stehen in Objekt B.
+    assert.equal(alles.summe.abweichung, -250);
+    assert.equal(filterRaster(alles, filter({ objekt: "o-b" })).summe.abweichung, -250);
+    // Objekt A allein hat keine Abweichung. Stuende die alte Summe, waere
+    // hier ein Rueckstand von 250 Euro gegen Mieter, die alles gezahlt haben.
+    assert.equal(filterRaster(alles, filter({ objekt: "o-a" })).summe.abweichung, 0);
+    assert.equal(filterRaster(alles, filter({ objekt: "o-a" })).spalten[2].abweichung, 0);
+  });
+
+  test("die Leerstandsquote wird neu gerechnet", () => {
+    // Objekt A: vier vermietbare Zimmer ueber drei Monate, eines leer.
+    const a = filterRaster(alles, filter({ objekt: "o-a" }));
+    assert.equal(a.summe.monate_vermietbar, 12);
+    assert.equal(a.summe.monate_leer, 3);
+    assert.equal(a.summe.leerstandsquote, 0.25);
+
+    // Nur die leere Zeile: drei von drei Monatszellen leer.
+    const leer = filterRaster(alles, filter({ nur: "leerstand" }));
+    assert.equal(zeilenZahl(leer), 1);
+    assert.equal(sichtbareZeilen(leer)[0].bezeichnung, "Zimmer 1.3");
+    assert.equal(leer.summe.monate_vermietbar, 3);
+    assert.equal(leer.summe.monate_leer, 3);
+    assert.equal(leer.summe.leerstandsquote, 1);
+    // Die Gewerbeflaeche hat keinen Vertrag, ist aber kein Leerstand.
+    assert.equal(istVermietbar(BUCH_EINHEITEN[5]), false);
+  });
+
+  test("nur mit Abweichung trifft die Grenze von einem Euro", () => {
+    const r = filterRaster(alles, filter({ nur: "abweichung" }));
+    assert.equal(zeilenZahl(r), 1);
+    assert.equal(sichtbareZeilen(r)[0].bezeichnung, "Wohnung 1");
+    assert.equal(r.summe.abweichung, -250);
+    // Die Spaltenfuesse zeigen jetzt nur noch diese Zeile.
+    assert.equal(r.spalten[2].soll, 750);
+    assert.equal(r.spalten[2].ist, 500);
+  });
+
+  test("Haeuser ohne sichtbare Zeile fallen ganz weg", () => {
+    const r = filterRaster(alles, filter({ art: "gewerbe" }));
+    assert.equal(r.gruppen.length, 1);
+    assert.equal(r.gruppen[0].objekt_name, "Objekt A");
+    assert.equal(zeilenZahl(r), 1);
+    // Eine Gewerbeflaeche ohne Vertrag: ein Treffer, aber kein Betrag.
+    assert.equal(r.summe.soll, 0);
+    assert.equal(r.summe.leerstandsquote, null);
+  });
+});
+
+/**
+ * Teurer Fehler: "kein Treffer" sieht aus wie "alles".
+ *
+ * Gaebe `filterRaster` bei einem Filter ohne Treffer das ungefilterte
+ * Raster zurueck, laese man die Summen des ganzen Hauses als Summen seiner
+ * Suche. Das ist die gefaehrlichere Variante von leer.
+ */
+describe("Ein Filter ohne Treffer ergibt ein leeres Raster", () => {
+  const alles = buch();
+  const r = filterRaster(alles, filter({ suche: "Mieter Z" }));
+
+  test("keine Gruppen, aber die Monate bleiben stehen", () => {
+    assert.equal(r.gruppen.length, 0);
+    assert.equal(zeilenZahl(r), 0);
+    assert.deepEqual(r.monate, BUCH_MONATE);
+    assert.equal(r.spalten.length, BUCH_MONATE.length);
+  });
+
+  test("alle Summen sind null -- nicht die des ganzen Buchs", () => {
+    assert.equal(r.summe.soll, 0);
+    assert.equal(r.summe.ist, 0);
+    assert.equal(r.summe.abweichung, 0);
+    assert.equal(r.summe.kaltmiete, 0);
+    assert.equal(r.summe.nebenkosten, 0);
+    assert.equal(r.summe.nicht_aufgeteilt, 0);
+    assert.equal(r.summe.monate_leer, 0);
+    assert.equal(r.summe.leerstandsquote, null);
+    for (const s of r.spalten) {
+      assert.equal(s.soll, 0);
+      assert.equal(s.ist, 0);
+    }
+    // Und nachweislich nicht das ungefilterte Raster.
+    assert.notEqual(r.summe.soll, alles.summe.soll);
+    assert.ok(alles.summe.soll > 0);
+  });
+});
+
+/**
+ * Teurer Fehler: eine Adresse mit Unsinn filtert "nichts".
+ *
+ * Ein veralteter Verweis oder ein Tippfehler in der Adresse darf keine
+ * leere Seite ergeben, auf der man die Luecke der Belegung zuschreibt. Was
+ * nicht verstanden wird, wird verworfen -- dann steht das ganze Buch da,
+ * und das ist nie falsch, nur weit.
+ */
+describe("lesefilter verwirft, was es nicht versteht", () => {
+  test("ohne Parameter ist kein Filter gesetzt", () => {
+    const f = lesefilter({}, ["o-a", "o-b"]);
+    assert.deepEqual(f, leererFilter());
+    assert.equal(filterGesetzt(f), false);
+  });
+
+  test("eine Kennung, die kein Objekt ist, wird ignoriert", () => {
+    // Eine formal einwandfreie UUID, die zu keinem Haus gehoert.
+    const fremd = "11111111-1111-4111-8111-111111111111";
+    assert.equal(lesefilter({ objekt: fremd }, ["o-a", "o-b"]).objekt, null);
+    assert.equal(lesefilter({ objekt: "o-c" }, ["o-a", "o-b"]).objekt, null);
+    assert.equal(lesefilter({ objekt: "" }, ["o-a"]).objekt, null);
+    // Ein bekanntes Haus greift.
+    assert.equal(lesefilter({ objekt: "o-a" }, ["o-a", "o-b"]).objekt, "o-a");
+  });
+
+  test("eine unbekannte Art wird ignoriert", () => {
+    assert.equal(lesefilter({ art: "garage" }, []).art, null);
+    assert.equal(lesefilter({ art: "WOHNEN" }, []).art, null);
+    assert.equal(lesefilter({ art: "gemeinschaft" }, []).art, null);
+    assert.equal(lesefilter({ art: "wohnen" }, []).art, "wohnen");
+    assert.equal(lesefilter({ art: "gewerbe" }, []).art, "gewerbe");
+  });
+
+  test("nur=irgendwas wird ignoriert", () => {
+    assert.equal(lesefilter({ nur: "irgendwas" }, []).nur, null);
+    assert.equal(lesefilter({ nur: "1" }, []).nur, null);
+    assert.equal(lesefilter({ nur: "abweichung" }, []).nur, "abweichung");
+    assert.equal(lesefilter({ nur: "leerstand" }, []).nur, "leerstand");
+  });
+
+  test("die Suche wird beschnitten, nicht geprueft", () => {
+    assert.equal(lesefilter({ suche: "  Zimmer 1.2  " }, []).suche, "Zimmer 1.2");
+    assert.equal(lesefilter({ suche: "   " }, []).suche, "");
+    // Ein einzelnes Zeichen bleibt zulaessig: "2" sucht Zimmer 2.
+    assert.equal(lesefilter({ suche: "2" }, []).suche, "2");
+  });
+
+  test("ein doppelt gesetzter Parameter nimmt den ersten Wert", () => {
+    // ?suche=a&suche=b kommt als Liste an. Beide zu verbinden waere eine
+    // Suche, die niemand getippt hat.
+    assert.equal(lesefilter({ suche: ["Zimmer", "Laden"] }, []).suche, "Zimmer");
+    assert.equal(lesefilter({ objekt: ["o-a", "o-b"] }, ["o-a"]).objekt, "o-a");
+    assert.equal(lesefilter({ art: [] }, []).art, null);
+  });
+
+  test("Adresse und Marken: ein Filter laesst sich weitergeben und abraeumen", () => {
+    const f = filter({ objekt: "o-a", suche: "Zimmer 1.2", nur: "leerstand" });
+    assert.equal(
+      mietenbuchAdresse(f, 2025),
+      "/mietenbuch?jahr=2025&objekt=o-a&suche=Zimmer+1.2&nur=leerstand",
+    );
+    // Ohne Filter und ohne Jahr bleibt die blanke Adresse.
+    assert.equal(mietenbuchAdresse(leererFilter(), null), "/mietenbuch");
+    // Eine Marke entfernen laesst die anderen stehen.
+    assert.deepEqual(ohneFeld(f, "suche"), { ...f, suche: "" });
+    assert.deepEqual(ohneFeld(f, "objekt"), { ...f, objekt: null });
+    assert.deepEqual(ohneFeld(f, "nur"), { ...f, nur: null });
+    assert.equal(filterGesetzt(ohneFeld(ohneFeld(ohneFeld(f, "nur"), "objekt"), "suche")), false);
+  });
+});
+
+/**
+ * Teurer Fehler: die Suche findet die Zeile nicht, die man meint.
+ *
+ * Gesucht wird nach dem, was im Kopf des Vermieters steht -- der
+ * Zimmernummer, der Etage, dem Namen der WG oder dem Mieter. Findet die
+ * Suche nur die Bezeichnung, haelt man eine vorhandene Zeile fuer nicht
+ * vorhanden und legt sie neu an.
+ */
+describe("Die Suche trifft Bezeichnung, Etage, WG und Mieternamen", () => {
+  const alles = buch();
+  const treffer = (suche: string) =>
+    sichtbareZeilen(filterRaster(alles, filter({ suche }))).map(
+      (z) => z.bezeichnung,
+    );
+
+  test("Einheitsbezeichnung, auch als Teiltreffer", () => {
+    assert.deepEqual(treffer("Zimmer 1.2"), ["Zimmer 1.2"]);
+    assert.deepEqual(treffer("1.4"), ["Zimmer 1.4"]);
+    assert.deepEqual(treffer("Laden"), ["Laden EG"]);
+  });
+
+  test("Etage", () => {
+    assert.deepEqual(treffer("1. OG"), [
+      "Zimmer 1.1",
+      "Zimmer 1.2",
+      "Zimmer 1.3",
+      "Zimmer 1.4",
+    ]);
+    // Die Etage "EG" trifft die Gewerbeflaeche und die Wohnung im anderen
+    // Haus -- die Suche laeuft ueber alle Haeuser.
+    assert.deepEqual(treffer("EG"), ["Laden EG", "Wohnung 1"]);
+  });
+
+  test("Name der uebergeordneten Einheit (WG)", () => {
+    assert.deepEqual(treffer("5er-WG"), [
+      "Zimmer 1.1",
+      "Zimmer 1.2",
+      "Zimmer 1.3",
+      "Zimmer 1.4",
+    ]);
+  });
+
+  test("Mietername, auch der eines Vormieters im Zeitraum", () => {
+    assert.deepEqual(treffer("Mieter B"), ["Zimmer 1.2"]);
+    assert.deepEqual(treffer("Mieter D"), ["Wohnung 1"]);
+    // Der Mietername steht nicht in den Stammdaten der Zeile, sondern je
+    // Monat in den Abschnitten -- gesucht wird ueber den ganzen Zeitraum.
+    const z = sichtbareZeilen(alles).find((x) => x.bezeichnung === "Zimmer 1.4")!;
+    assert.equal(z.zellen[0].abschnitte[0].kontakt_name, "Mieter C");
+    assert.deepEqual(treffer("Mieter C"), ["Zimmer 1.4"]);
+  });
+
+  test("Gross- und Kleinschreibung ist gleichgueltig", () => {
+    assert.deepEqual(treffer("zimmer 1.2"), treffer("ZIMMER 1.2"));
+    assert.deepEqual(treffer("zimmer 1.2"), ["Zimmer 1.2"]);
+    assert.deepEqual(treffer("5ER-wg"), treffer("5er-WG"));
+    assert.deepEqual(treffer("mieter d"), ["Wohnung 1"]);
+    assert.deepEqual(treffer("1. og"), treffer("1. OG"));
+  });
+
+  test("Suche und andere Filter wirken zusammen, nicht gegeneinander", () => {
+    // "1. OG" trifft vier Zimmer; mit nur=leerstand bleibt das leere.
+    const r = filterRaster(
+      alles,
+      filter({ suche: "1. OG", nur: "leerstand", art: "wohnen", objekt: "o-a" }),
+    );
+    assert.deepEqual(sichtbareZeilen(r).map((z) => z.bezeichnung), ["Zimmer 1.3"]);
+    assert.equal(r.summe.soll, 0);
+    assert.equal(r.summe.monate_leer, 3);
   });
 });

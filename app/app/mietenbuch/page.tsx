@@ -1,7 +1,19 @@
-import { ladeMietenbuch, zeitraumFuer } from "@/lib/mietenbuch";
+import {
+  filterGesetzt,
+  filterRaster,
+  ladeMietenbuch,
+  leererFilter,
+  lesefilter,
+  mietenbuchAdresse,
+  zeilenZahl,
+  zeitraumFuer,
+  type Raster,
+  type Suchparameter,
+} from "@/lib/mietenbuch";
 import { MietenbuchRaster } from "@/components/MietenbuchRaster";
 import { MietenbuchLegende } from "@/components/MietenbuchLegende";
 import { MietenbuchZeitraum } from "@/components/MietenbuchZeitraum";
+import { MietenbuchFilter } from "@/components/MietenbuchFilter";
 
 export const dynamic = "force-dynamic";
 
@@ -58,7 +70,7 @@ const TAG = new Intl.DateTimeFormat("de-DE", {
  * las sich wie ein Fremdbestand. Die Aussage bleibt dieselbe: Es ist
  * wichtig, welches Haus gemeint ist, sonst sucht man am falschen Ort.
  */
-function objekteOhneKontodaten(raster: Awaited<ReturnType<typeof ladeMietenbuch>>) {
+function objekteOhneKontodaten(raster: Raster) {
   return raster.gruppen
     .filter((g) => g.summe.soll_ohne_daten >= 1)
     .map((g) =>
@@ -72,17 +84,36 @@ function objekteOhneKontodaten(raster: Awaited<ReturnType<typeof ladeMietenbuch>
 export default async function Mietenbuch({
   searchParams,
 }: {
-  searchParams: Promise<{ jahr?: string }>;
+  searchParams: Promise<Suchparameter>;
 }) {
-  const { jahr } = await searchParams;
+  const params = await searchParams;
   const heute = new Date();
-  const gewaehlt = gewaehltesJahr(jahr, heute);
+  const gewaehlt = gewaehltesJahr(
+    typeof params.jahr === "string" ? params.jahr : undefined,
+    heute,
+  );
   const zeitraum = zeitraumFuer(gewaehlt, heute);
-  const raster = await ladeMietenbuch(zeitraum, heute);
+
+  // Geladen wird das ganze Buch, gefiltert wird danach. Zwei Gründe: Der
+  // Filter soll keine Abfrage je Tastendruck auslösen -- es bleiben fünf
+  // Abfragen je Seitenaufruf, unabhängig von der Größe des Rasters --, und
+  // die Angabe "X von Y Einheiten" braucht das Y.
+  const alles = await ladeMietenbuch(zeitraum, heute);
+
+  // Geprüft wird gegen die Objekte, die es im Raster wirklich gibt: eine
+  // Kennung aus einem veralteten Verweis filtert damit nicht "nichts".
+  const filter = lesefilter(
+    params,
+    alles.gruppen.map((g) => g.objekt_id),
+  );
+  const gefiltert = filterGesetzt(filter);
+  const raster = filterRaster(alles, filter);
 
   const laufend = heute.toISOString().slice(0, 7) + "-01";
   const s = raster.summe;
-  const einheiten = raster.gruppen.reduce((n, g) => n + g.zeilen.length, 0);
+  const einheiten = zeilenZahl(raster);
+  const einheitenGesamt = zeilenZahl(alles);
+  const zurueck = mietenbuchAdresse(leererFilter(), gewaehlt);
 
   const jahre: number[] = [];
   for (let j = heute.getFullYear(); j >= ERSTES_JAHR; j--) jahre.push(j);
@@ -95,22 +126,79 @@ export default async function Mietenbuch({
       <div className="titelzeile">
         <h1>Mietenbuch</h1>
         <span className="zaehler">
-          {einheiten} {einheiten === 1 ? "Einheit" : "Einheiten"} ·{" "}
+          {gefiltert
+            ? `${einheiten} von ${einheitenGesamt} Einheiten`
+            : `${einheiten} ${einheiten === 1 ? "Einheit" : "Einheiten"}`}
+          {" · "}
           {zeitraum.monate.length} Monate · {zeitraum.titel}
         </span>
       </div>
 
-      <MietenbuchZeitraum jahr={gewaehlt} jahre={jahre} />
+      <MietenbuchZeitraum jahr={gewaehlt} jahre={jahre} filter={filter} />
+
+      {/* Keine Filterleiste über einem Buch, in dem nichts steht -- dort
+          gibt es nichts einzugrenzen, und vier leere Felder sähen wie der
+          Grund für die leere Seite aus. */}
+      {einheitenGesamt > 0 && (
+        <MietenbuchFilter
+          filter={filter}
+          objekte={alles.gruppen.map((g) => ({
+            id: g.objekt_id,
+            name: g.objekt_name,
+          }))}
+          jahr={gewaehlt}
+          zeilen={einheiten}
+          gesamt={einheitenGesamt}
+        />
+      )}
 
       {einheiten === 0 ? (
-        <div className="leer">
-          <strong>Für diesen Zeitraum steht nichts im Buch</strong>
-          Es gibt keine Einheiten oder keine Mietverhältnisse, die diesen
-          Ausschnitt berühren. Ein anderes Jahr wählen oder die Stammdaten
-          prüfen.
-        </div>
+        /* Zwei verschiedene Nullen, und sie dürfen nicht gleich aussehen:
+           Ein Filter ohne Treffer ist kein leeres Buch. Stünde hier
+           derselbe Satz, suchte man den Fehler in den Stammdaten statt im
+           Filterfeld. */
+        gefiltert ? (
+          <div className="leer">
+            <strong>Kein Treffer in diesem Ausschnitt</strong>
+            Keine Einheit passt zu diesem Filter. Das Buch selbst ist nicht
+            leer: Ohne Filter stehen {einheitenGesamt}{" "}
+            {einheitenGesamt === 1 ? "Einheit" : "Einheiten"} in diesem
+            Zeitraum.{" "}
+            <a className="verweis" href={zurueck}>
+              Alle Einheiten zeigen
+            </a>
+          </div>
+        ) : (
+          <div className="leer">
+            <strong>Für diesen Zeitraum steht nichts im Buch</strong>
+            Es gibt keine Einheiten oder keine Mietverhältnisse, die diesen
+            Ausschnitt berühren. Ein anderes Jahr wählen oder die Stammdaten
+            prüfen.
+          </div>
+        )
       ) : (
         <>
+          {/* Die vier Kennzahlkarten rechnen über das, was zu sehen ist --
+              sonst stünde über einem Ausschnitt von vier Zimmern die
+              Abweichung des ganzen Hauses, und man schriebe die Summe von
+              fünfzig Einheiten vier Mietern zu. Dass sie das tun, muss
+              dabeistehen: Eine Zahl, die kleiner geworden ist, ohne dass
+              jemand gezahlt hat, ist ohne diesen Satz nicht erklärbar. */}
+          {gefiltert && (
+            <p className="meldung" data-art="info">
+              <strong>
+                Alle Zahlen auf dieser Seite gelten für den Ausschnitt:{" "}
+                {einheiten} von {einheitenGesamt}{" "}
+                {einheitenGesamt === 1 ? "Einheit" : "Einheiten"}.
+              </strong>{" "}
+              Kennzahlen, Spaltenfüße und Summenzeilen sind über die
+              sichtbaren Zeilen neu gerechnet, nicht über das ganze Buch.{" "}
+              <a className="verweis" href={zurueck}>
+                Alle Einheiten zeigen
+              </a>
+            </p>
+          )}
+
           <div className="karten">
             <div className="karte kennzahl">
               <span className="kennzahl-schild">Soll im Zeitraum</span>
@@ -173,7 +261,13 @@ export default async function Mietenbuch({
           )}
 
           <MietenbuchRaster raster={raster} laufend={laufend} />
-          <MietenbuchLegende />
+          <MietenbuchLegende
+            ausschnitt={
+              gefiltert
+                ? { zeilen: einheiten, gesamt: einheitenGesamt, zurueck }
+                : null
+            }
+          />
         </>
       )}
     </main>

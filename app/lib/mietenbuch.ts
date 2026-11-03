@@ -723,7 +723,7 @@ export function addiereSummen(teile: Summe[]): Summe {
  * WG-Etage, die nur Hülle für ihre Zimmer ist; und jede Einheit, bei der
  * "kein Mietverhältnis" bloss heisst, dass der Altmieter nicht erfasst ist.
  */
-function istVermietbar(e: EinheitZeile): boolean {
+export function istVermietbar(e: EinheitZeile): boolean {
   if (e.art === "gemeinschaft") return false;
   if (e.hat_kinder) return false;
   if (e.vermarktung === "nicht_anbieten") return false;
@@ -839,6 +839,249 @@ export function baueRaster(d: Rasterdaten): Raster {
     monate,
     gruppen,
     spalten: monate.map((_, i) => addiereSummen(gruppen.map((g) => g.spalten[i]))),
+    summe: addiereSummen(gruppen.map((g) => g.summe)),
+  };
+}
+
+/** Wie viele Einheitszeilen stehen im Raster? */
+export function zeilenZahl(raster: Raster): number {
+  return raster.gruppen.reduce((n, g) => n + g.zeilen.length, 0);
+}
+
+// ---------------------------------------------------------------------------
+// Filter
+// ---------------------------------------------------------------------------
+//
+// Bei drei Häusern hat das Raster über fünfzig Zeilen. Der Eigentümer will
+// auf eine Einheit, ein Haus oder eine Gruppe eingrenzen können.
+//
+// Der Filter arbeitet auf dem **fertigen** Raster und rechnet Spaltenfüsse
+// und Gesamtsummen neu. Das ist der ganze Punkt: Ein Filter, der nur Zeilen
+// ausblendet und die alten Summen stehen lässt, zeigt eine Summe über
+// Zeilen, die man nicht sieht -- und aus dieser Zahl entsteht später ein
+// Mahnschreiben. Gefiltert wird deshalb nicht in der Darstellung, sondern
+// hier, mit denselben Funktionen, die auch `baueRaster` benutzt
+// (`summiere` / `addiereSummen`).
+
+export type Nutzungsart = "wohnen" | "gewerbe";
+
+/** Eingrenzung auf auffällige Zeilen. */
+export type NurFilter = "abweichung" | "leerstand";
+
+export interface Mietenbuchfilter {
+  /** Kennung eines Objekts, oder null für alle. */
+  objekt: string | null;
+  /**
+   * Freitext auf Einheitsbezeichnung, Etage, übergeordnete Einheit (WG) und
+   * Mietername. So getippt wie eingegeben; kleingeschrieben wird beim
+   * Vergleichen, damit in der Adresse und im Feld steht, was der Nutzer
+   * geschrieben hat.
+   */
+  suche: string;
+  art: Nutzungsart | null;
+  nur: NurFilter | null;
+}
+
+/** Werte aus `searchParams` -- ein Parameter kann mehrfach vorkommen. */
+export type Suchparameter = Record<string, string | string[] | undefined>;
+
+export function leererFilter(): Mietenbuchfilter {
+  return { objekt: null, suche: "", art: null, nur: null };
+}
+
+/** Greift überhaupt etwas? Entscheidet, ob die Seite "Ausschnitt" sagt. */
+export function filterGesetzt(f: Mietenbuchfilter): boolean {
+  return f.objekt !== null || f.suche !== "" || f.art !== null || f.nur !== null;
+}
+
+/**
+ * Kleinschreibung zum Vergleichen.
+ *
+ * Mit Gebietsangabe: ohne sie entscheidet die Umgebung des Servers, was aus
+ * einem "İ" wird. Im Mietenbuch stehen Namen aus mehreren Sprachen.
+ */
+function klein(t: string): string {
+  return t.toLocaleLowerCase("de-DE");
+}
+
+/** Der erste Wert eines Suchparameters; aus `?a=1&a=2` wird "1". */
+function einWert(w: string | string[] | undefined): string {
+  if (w === undefined) return "";
+  const t = Array.isArray(w) ? (w[0] ?? "") : w;
+  return t.trim();
+}
+
+/**
+ * Macht aus Suchparametern einen geprüften Filter. Alles Unbekannte fällt
+ * weg.
+ *
+ * `objekt` wird gegen die Objekte geprüft, die es im Raster wirklich gibt --
+ * nicht gegen die Form einer Kennung. Eine Kennung, die zu keinem Objekt
+ * gehört, filtert deshalb **nicht** "nichts", sondern wird ignoriert: Ein
+ * veralteter Verweis oder ein Tippfehler in der Adresse zeigt dann das ganze
+ * Buch und nicht eine leere Seite, auf der man den Leerstand einer Lücke in
+ * der Adresse zuschreibt.
+ *
+ * Das heisst auch: Angeboten werden kann nur, was im Raster steht. Ein
+ * Objekt, das im gewählten Zeitraum keine Zeile hat, lässt sich nicht
+ * wählen -- es stünde auch in keiner Liste.
+ */
+export function lesefilter(
+  params: Suchparameter,
+  bekannteObjekte: Iterable<string> = [],
+): Mietenbuchfilter {
+  const objekte = new Set(bekannteObjekte);
+
+  const objekt = einWert(params.objekt);
+  const art = einWert(params.art);
+  const nur = einWert(params.nur);
+
+  return {
+    objekt: objekte.has(objekt) ? objekt : null,
+    // Die Suche wird nicht geprüft, sondern nur beschnitten: Jeder Text ist
+    // eine zulässige Suche, auch ein einzelnes Zeichen ("2" sucht Zimmer 2).
+    // Trifft er nichts, sagt die Seite "kein Treffer" -- das ist die
+    // richtige Antwort und kein Fehler.
+    suche: einWert(params.suche),
+    art: art === "wohnen" || art === "gewerbe" ? art : null,
+    nur: nur === "abweichung" || nur === "leerstand" ? nur : null,
+  };
+}
+
+/**
+ * Die Adresse zu einem Filter. Leere Teile stehen nicht in der Adresse --
+ * so bleibt ein ungefilterter Blick `/mietenbuch` und lässt sich
+ * weitergeben, speichern und ausdrucken.
+ */
+export function mietenbuchAdresse(
+  filter: Mietenbuchfilter,
+  jahr: number | null,
+): string {
+  const p = new URLSearchParams();
+  if (jahr !== null) p.set("jahr", String(jahr));
+  if (filter.objekt !== null) p.set("objekt", filter.objekt);
+  if (filter.suche !== "") p.set("suche", filter.suche);
+  if (filter.art !== null) p.set("art", filter.art);
+  if (filter.nur !== null) p.set("nur", filter.nur);
+  const s = p.toString();
+  return s === "" ? "/mietenbuch" : `/mietenbuch?${s}`;
+}
+
+/** Derselbe Filter ohne ein Feld -- für die entfernbaren Marken. */
+export function ohneFeld(
+  filter: Mietenbuchfilter,
+  feld: keyof Mietenbuchfilter,
+): Mietenbuchfilter {
+  switch (feld) {
+    case "objekt":
+      return { ...filter, objekt: null };
+    case "suche":
+      return { ...filter, suche: "" };
+    case "art":
+      return { ...filter, art: null };
+    case "nur":
+      return { ...filter, nur: null };
+  }
+}
+
+/**
+ * Passt diese Zeile zum Filter?
+ *
+ * `nur=abweichung` nimmt die Grenze von einem Euro, dieselbe wie überall
+ * sonst in dieser Anwendung (Mahnwesen, Kennzahlkarten): Centreste aus
+ * anteiligen Monaten sind kein Rückstand. `nur=leerstand` fragt nach
+ * **echtem** Leerstand (`monate_leer`) und nicht nach leeren Zellen -- ein
+ * Zimmer, das über den Vertrag seiner Etage belegt ist, und eine Einheit mit
+ * ungepflegter Belegung sind kein Leerstand.
+ */
+function passtZeile(z: RasterZeile, f: Mietenbuchfilter): boolean {
+  if (f.art !== null && z.einheit.art !== f.art) return false;
+  if (f.nur === "abweichung" && z.summe.abweichung > -1) return false;
+  if (f.nur === "leerstand" && z.summe.monate_leer < 1) return false;
+
+  if (f.suche !== "") {
+    const n = klein(f.suche);
+    const felder = [
+      z.einheit.bezeichnung,
+      z.einheit.etage,
+      z.einheit.eltern_bezeichnung,
+    ];
+    const imStamm = felder.some(
+      (t): boolean => typeof t === "string" && klein(t).includes(n),
+    );
+    // Mieternamen stehen je Monat in den Abschnitten. Gesucht wird über den
+    // ganzen Zeitraum: Wer nach einem Vormieter sucht, soll die Zeile
+    // finden, in der er stand.
+    const imNamen =
+      imStamm ||
+      z.zellen.some((c) =>
+        c.abschnitte.some((a) => klein(a.kontakt_name).includes(n)),
+      );
+    if (!imNamen) return false;
+  }
+
+  return true;
+}
+
+/**
+ * Ein Ausschnitt des Rasters -- mit neu gerechneten Summen.
+ *
+ * Zeilensummen bleiben, wie sie sind: Sie gehören zur Zeile und ändern sich
+ * durch das Ausblenden anderer Zeilen nicht. Neu gerechnet werden die
+ * Spaltenfüsse je Monat (`summiere` über die sichtbaren Zellen) und die
+ * Objekt- und Gesamtsummen (`addiereSummen` über die sichtbaren Zeilen).
+ *
+ * Trifft der Filter nichts, kommt ein leeres Raster zurück: keine Gruppen,
+ * je Monat eine Nullspalte und eine Gesamtsumme von 0. Nicht das
+ * ungefilterte Raster -- "kein Treffer" und "alles" dürfen nie dasselbe
+ * Bild ergeben.
+ */
+export function filterRaster(
+  raster: Raster,
+  filter: Mietenbuchfilter,
+): Raster {
+  if (!filterGesetzt(filter)) return raster;
+
+  const gruppen: Gruppe[] = [];
+  for (const g of raster.gruppen) {
+    if (filter.objekt !== null && g.objekt_id !== filter.objekt) continue;
+
+    const zeilen = g.zeilen.filter((z) => passtZeile(z, filter));
+    // Ein Objekt ohne sichtbare Zeile bekommt keine Überschrift. Eine
+    // Objektzeile über null Einheiten liest sich wie ein leeres Haus.
+    if (zeilen.length === 0) continue;
+
+    // Dieselbe Entscheidung wie in `baueRaster`: Ob eine Zelle in die
+    // Leerstandsquote zählt, hängt allein an ihrer Einheit. Die steht an
+    // der Zeile, also lässt sich die Zuordnung aus den sichtbaren Zeilen
+    // wieder aufbauen -- ohne Datenbank und ohne zweite Regel.
+    const vermietbarJeEinheit = new Map(
+      zeilen.map((z) => [z.einheit.id, istVermietbar(z.einheit)]),
+    );
+    const vermietbar = (c: Zelle) =>
+      vermietbarJeEinheit.get(c.einheit_id) === true;
+
+    gruppen.push({
+      objekt_id: g.objekt_id,
+      objekt_name: g.objekt_name,
+      zahlungsdaten_ab: g.zahlungsdaten_ab,
+      zeilen,
+      spalten: raster.monate.map((_, i) =>
+        summiere(
+          zeilen.map((z) => z.zellen[i]),
+          vermietbar,
+        ),
+      ),
+      summe: addiereSummen(zeilen.map((z) => z.summe)),
+    });
+  }
+
+  return {
+    monate: raster.monate,
+    gruppen,
+    spalten: raster.monate.map((_, i) =>
+      addiereSummen(gruppen.map((g) => g.spalten[i])),
+    ),
     summe: addiereSummen(gruppen.map((g) => g.summe)),
   };
 }

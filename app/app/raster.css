@@ -351,6 +351,62 @@ table.mb-raster {
 .mb-abw[data-art="warn"] { color: var(--warn); }
 .mb-abw[data-art="gut"]  { color: var(--fg-leise); }
 
+/* --- 9a. Die Aufteilung: Kalt, BK, o. A., Warm --------------------------
+
+   Sieben Summenzeilen unter jedem Objekt sind viel -- bei drei Haeusern 21
+   Zeilen, und darunter noch einmal sieben fuer das ganze Buch. Gleich
+   kraeftig gesetzt waeren sie so schwarz wie die Einheitenzeilen darueber,
+   und die Bloecke liessen sich nicht mehr auseinanderhalten.
+
+   Deshalb zwei Stufen:
+
+     Kalt / BK / o. A.   ruhige Gruppe -- hellere Flaeche, leiserer Ton,
+                         keine Trennlinien untereinander. Die drei gehoeren
+                         zusammen und sind Herleitung, nicht Ergebnis.
+     Warm                der Summenstrich darueber. Ab hier beginnt, was
+                         beim Mahnen zaehlt: Warm, Ist, Abweichung.
+
+   Die Zahlen bleiben auch in der ruhigen Gruppe in Ziffernbreite und in
+   voller Groesse. Kleiner gesetzt waere sie eine Fussnote -- und die
+   Betriebskostenvorauszahlung ist keine.                                 */
+
+.mb-raster .mb-summe[data-gruppe="aufteilung"] > th,
+.mb-raster .mb-summe[data-gruppe="aufteilung"] > td {
+  background: var(--flaeche-ruhig);
+  color: var(--fg-leise);
+  /* Keine Linie zwischen den drei Zeilen: sie sind ein Block. Die Linie
+     oben setzt nur die erste von ihnen gegen die Einheiten ab. */
+  border-top: 0;
+}
+.mb-raster .mb-summe[data-erste="ja"] > th,
+.mb-raster .mb-summe[data-erste="ja"] > td {
+  border-top: 1px solid var(--linie-stark);
+}
+
+/* Die Zellen, die ueber alle Summenzeilen reichen (Kalt/BK und Kaution),
+   gehoeren keiner der Stufen -- sie behalten den kraeftigen Ton. */
+.mb-raster .mb-summe[data-gruppe="aufteilung"] > td[rowspan] {
+  background: var(--flaeche-tief);
+  color: var(--fg);
+  border-top: 1px solid var(--linie-stark);
+}
+
+/* Der Summenstrich: Kalt + BK + o. A. = Warm. Doppelt gezogen, weil eine
+   einfache Linie hier nur eine weitere Zeilengrenze waere. */
+.mb-raster .mb-summe[data-gruppe="warm"] > th,
+.mb-raster .mb-summe[data-gruppe="warm"] > td {
+  border-top: 3px double var(--linie-stark);
+  font-weight: 600;
+}
+.mb-raster .mb-summe[data-gruppe="warm"] > td[rowspan] {
+  font-weight: 400;
+}
+
+/* Die dritte Stufe in der Zeilenbeschriftung: unter dem Namen der
+   Summenzeile steht, was sie bedeutet ("= Kalt + BK + o. A. = Soll").
+   Leiser als .mb-unter, damit der Name selbst noch der Name bleibt. */
+.mb-still { color: var(--fg-still); }
+
 /* --- 10. Fussnotenrufe und Fussnoten ------------------------------------
 
    Das Sternchen hinter einer Abweichung und das Kuerzel "o. A." standen nur
