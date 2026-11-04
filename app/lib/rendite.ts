@@ -4,6 +4,7 @@ import {
   objektKennzahlen,
   type ObjektEinheit,
 } from "./objekte";
+import { sollGesamt } from "./sollstellung";
 
 /**
  * Netto-Mietrendite und die wirtschaftlichen Kennzahlen eines Objekts.
@@ -243,14 +244,19 @@ export function gesamtinvest(s: WirtschaftStamm): Kennwert {
 // ---------------------------------------------------------------------------
 
 /**
- * Was das Haus KANN: zwölf Mal das heute gültige Monatssoll.
+ * Die Laufmiete: zwölf Mal das heute gültige Monatssoll.
  *
- * Kennt keinen Leerstand und keine anteiligen Monate -- ein Zimmer, das seit
- * acht Monaten leer steht, kommt hier gar nicht vor, weil es kein laufendes
- * Mietverhältnis hat. Die Zahl ist deshalb die Obergrenze und nicht das,
- * was im letzten Jahr gefordert war.
+ * Das ist die Momentaufnahme -- "was trägt der Bestand JETZT, wenn alles so
+ * weiterläuft wie heute". Sie kennt keinen Leerstand und keine anteiligen
+ * Monate: Ein Zimmer, das seit acht Monaten leer steht, kommt hier gar nicht
+ * vor, weil es kein laufendes Mietverhältnis hat. Die Zahl ist deshalb die
+ * Obergrenze und nicht das, was im letzten Jahr gefordert war.
+ *
+ * Der Name sagt, was die Zahl ist: eine Jahresrate aus dem heutigen
+ * Vertragsbestand. `rohertragLautVertrag` bleibt als Aliasname daneben
+ * stehen, damit kein Aufrufer bricht.
  */
-export function rohertragLautVertrag(b: WirtschaftBasis): Kennwert {
+export function jahresLaufmiete(b: WirtschaftBasis): Kennwert {
   if (b.mietverhaeltnisse === 0) {
     return ohne(
       "Für dieses Objekt ist kein laufendes Mietverhältnis erfasst.",
@@ -273,6 +279,15 @@ export function rohertragLautVertrag(b: WirtschaftBasis): Kennwert {
     "euro",
   );
 }
+
+/**
+ * Der alte Name derselben Zahl.
+ *
+ * Bleibt bestehen, weil Komponenten, Seiten und Tests ihn benutzen. Eine
+ * Umbenennung, die an einer Stelle vergessen wird, wäre hier keine
+ * Fehlermeldung, sondern eine fehlende Kennzahl.
+ */
+export const rohertragLautVertrag = jahresLaufmiete;
 
 /**
  * Was tatsächlich gefordert war: die Sollstellungen der letzten zwölf Monate.
@@ -494,6 +509,55 @@ export function nettomietrendite(
   invest: Kennwert,
 ): Kennwert {
   return renditeAuf(reinertrag, invest, "Reinertrag");
+}
+
+/**
+ * Hängt einen erklärenden Satz an die Grundlage, ohne die Zahl zu berühren.
+ *
+ * Nur für den Fall MIT Wert: Bei einem Kennwert ohne Zahl steht in `grund`
+ * schon der Satz, der sagt, was fehlt -- ein zweiter Satz über den
+ * Unterschied zweier Renditen wäre dort nur Lärm vor der eigentlichen
+ * Auskunft.
+ */
+function mitZusatz(k: Kennwert, satz: string): Kennwert {
+  if (k.wert === null) return k;
+  return { ...k, grundlage: `${k.grundlage} ${satz}` };
+}
+
+/**
+ * Netto-Mietrendite auf die Laufmiete: Reinertrag aus heutigem Bestand.
+ *
+ * Zähler ist `jahresLaufmiete` statt `rohertragGestellt` -- also 12 × das
+ * heutige Monatssoll statt der Sollstellungen des letzten Jahres. Das ist
+ * die Antwort auf "was trägt der Bestand jetzt"; die Netto-Mietrendite
+ * daneben antwortet auf "was hat das Haus verdient".
+ *
+ * DIE MISCHUNG, DIE HIER DRINSTECKT -- und die in der Grundlage steht:
+ *
+ * Die Bewirtschaftungskosten lassen sich NICHT hochrechnen. Belege sind
+ * Belege; eine Heizungsrechnung des letzten Winters sagt nichts darüber,
+ * was dieses Jahr anfällt, und ein Zwölftel davon mit zwölf zu
+ * multiplizieren wäre dieselbe Zahl mit mehr Stellen. Also stehen im Zähler
+ * zwölf heutige Monatsmieten und im Nenner Kosten aus dem Rückblick. Das ist
+ * eine Mischung aus zwei Zeiträumen -- vertretbar, weil die Alternative
+ * wäre, Kosten zu erfinden, aber sie muss dastehen. Wer sie nicht kennt,
+ * liest die Zahl als saubere Vorausschau, und sie ist es nicht.
+ */
+export function nettomietrenditeLaufend(
+  laufmiete: Kennwert,
+  bewirtschaftung: Kennwert,
+  invest: Kennwert,
+  b: WirtschaftBasis,
+): Kennwert {
+  const reinertrag = jahresreinertrag(laufmiete, bewirtschaftung);
+  const r = renditeAuf(reinertrag, invest, "Reinertrag aus der Laufmiete");
+  return mitZusatz(
+    r,
+    "Gemischter Zeitraum: Die Jahresmiete kommt aus dem heutigen " +
+      "Vertragsbestand, die Bewirtschaftungskosten weiter aus dem " +
+      `Rückblick von ${b.fensterVon} bis ${b.fensterBis} -- Kosten lassen ` +
+      "sich nicht hochrechnen, ohne sie zu erfinden.",
+  );
 }
 
 /**
@@ -775,17 +839,26 @@ export function inkassoquote(b: WirtschaftBasis): Kennwert {
 
 export interface WirtschaftLage {
   gesamtinvest: Kennwert;
-  /** 12 × heutiges Soll -- was das Haus kann. */
+  /**
+   * 12 × das heutige Monatssoll -- die hochgerechnete Jahresnettomiete bei
+   * der jetzigen Belegung.
+   */
+  jahresLaufmiete: Kennwert;
+  /** Derselbe Kennwert unter seinem alten Namen. */
   rohertragLautVertrag: Kennwert;
   /** Sollstellungen der letzten zwölf Monate -- was gefordert war. */
   rohertragGestellt: Kennwert;
   bewirtschaftung: Kennwert;
   /** Aus `rohertragGestellt` -- Leerstand steckt darin. */
   jahresreinertrag: Kennwert;
+  /** Aus `jahresLaufmiete` -- heutiger Bestand gegen Kosten von gestern. */
+  jahresreinertragLaufend: Kennwert;
   bruttomietrendite: Kennwert;
-  /** Die Vorgabezahl: aus dem gestellten Rohertrag. */
+  /** Der Rückblick: aus den Sollstellungen der letzten zwölf Monate. */
   nettomietrendite: Kennwert;
-  /** Dieselbe Rechnung aus der Vertragssicht -- die Obergrenze. */
+  /** Die Momentaufnahme: aus 12 × dem heutigen Monatssoll. */
+  nettomietrenditeLaufend: Kennwert;
+  /** Derselbe Kennwert unter seinem alten Namen. */
   nettomietrenditeLautVertrag: Kennwert;
   /** Netto-Mietrendite auf den heutigen Wert statt auf den Kaufpreis. */
   nettomietrenditeAufVerkehrswert: Kennwert;
@@ -803,19 +876,29 @@ export interface WirtschaftLage {
 /**
  * Die ganze Lage aus Stammdaten und gemessener Basis.
  *
- * Die Netto-Mietrendite kommt voreingestellt aus `rohertragGestellt`, weil
- * Leerstand und anteilige Monate darin schon stecken. Daneben steht
- * `nettomietrenditeLautVertrag` aus zwölf heutigen Monatsmieten. Die
- * Differenz zwischen beiden ist genau der Preis des Leerstands im letzten
- * Jahr -- und eine Oberfläche, die nur die Vertragssicht zeigt, würde ein
- * halb leeres Haus wie ein volles aussehen lassen.
+ * ZWEI RENDITEN, UND SIE BEANTWORTEN VERSCHIEDENE FRAGEN
+ *
+ *   `nettomietrendite`        -- der Rückblick. Aus `rohertragGestellt`,
+ *                                also aus den Sollstellungen der letzten
+ *                                zwölf Monate. Leerstand, Mieterwechsel und
+ *                                anteilige Monate stecken darin. Antwort
+ *                                auf: "was hat das Haus verdient?"
+ *   `nettomietrenditeLaufend` -- die Momentaufnahme. Aus `jahresLaufmiete`,
+ *                                also 12 × dem heutigen Monatssoll. Antwort
+ *                                auf: "was trägt der Bestand jetzt?"
+ *
+ * Die Differenz zwischen beiden ist genau der Preis des Leerstands und der
+ * Mieterwechsel im letzten Jahr. Beide stehen deshalb da, und jede nennt in
+ * ihrer `grundlage` einen Satz dazu, worin sie sich von der anderen
+ * unterscheidet: Zwei verschiedene Prozentzahlen mit demselben Schild sind
+ * sonst nicht zwei Auskünfte, sondern ein Rätsel.
  */
 export function wirtschaftLage(
   s: WirtschaftStamm,
   b: WirtschaftBasis,
 ): WirtschaftLage {
   const invest = gesamtinvest(s);
-  const vertrag = rohertragLautVertrag(b);
+  const vertrag = jahresLaufmiete(b);
   const gestellt = rohertragGestellt(b);
 
   // Die Kostenseite hängt am Rohertrag (Mietausfallwagnis). Maßgeblich ist
@@ -852,15 +935,29 @@ export function wirtschaftLage(
             "euro",
           );
 
+  // Die beiden Renditen. Jede trägt den Satz, der sie von der anderen
+  // unterscheidet -- siehe den Kopf dieser Funktion.
+  const rueckblick = mitZusatz(
+    nettomietrendite(reinertrag, invest),
+    "Das ist der Rückblick: gerechnet aus den Sollstellungen der letzten " +
+      "zwölf Monate, in denen Leerstand, Mieterwechsel und anteilige " +
+      "Monate schon stecken. Die laufende Netto-Mietrendite daneben rechnet " +
+      "stattdessen aus dem heutigen Vertragsbestand.",
+  );
+  const laufend = nettomietrenditeLaufend(vertrag, kosten, invest, b);
+
   return {
     gesamtinvest: invest,
+    jahresLaufmiete: vertrag,
     rohertragLautVertrag: vertrag,
     rohertragGestellt: gestellt,
     bewirtschaftung: kosten,
     jahresreinertrag: reinertrag,
+    jahresreinertragLaufend: reinertragVertrag,
     bruttomietrendite: bruttomietrendite(gestellt, invest),
-    nettomietrendite: nettomietrendite(reinertrag, invest),
-    nettomietrenditeLautVertrag: nettomietrendite(reinertragVertrag, invest),
+    nettomietrendite: rueckblick,
+    nettomietrenditeLaufend: laufend,
+    nettomietrenditeLautVertrag: laufend,
     nettomietrenditeAufVerkehrswert: nettomietrendite(reinertrag, wertAnsatz),
     rohertragsfaktor: faktor(invest, gestellt, "Rohertrag"),
     reinertragsfaktor: faktor(invest, reinertrag, "Reinertrag"),
@@ -893,6 +990,11 @@ export function betragAusText(roh: string | number | null): number | null {
   if (text === "") return null;
   const n = Number(text);
   return Number.isFinite(n) ? n : null;
+}
+
+/** Ein Zeitpunkt als ISO-Datum, in UTC -- ohne Uhrzeit und ohne Zone. */
+function alsIsoTag(d: Date): string {
+  return d.toISOString().slice(0, 10);
 }
 
 /** Erster Tag eines Monats als ISO-Datum, in UTC. */
@@ -980,6 +1082,257 @@ export function flaechenGrundlage(einheiten: FlaechenEinheit[]): {
     flaeche: cent(flaeche),
     belegteEinheiten,
     belegteEinheitenMitFlaeche: mitFlaeche,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Die Laufmiete im Zeitverlauf
+// ---------------------------------------------------------------------------
+//
+// Je Monat: Was wäre die Jahresmiete, wenn die in diesem Monat laufenden
+// Verträge ein Jahr lang so weiterliefen. Rückwärts zeigt das, wie sich der
+// Bestand entwickelt hat. Vorwärts zeigt es, was bereits FESTSTEHT -- eine
+// Kündigung zum 21.12. und ein Einzug zum 01.12. stehen beide schon im
+// Vertragsbestand.
+//
+// DREI ENTSCHEIDUNGEN, UND JEDE IST EINE VERNEINUNG
+//
+// 1. STICHTAG IST DER MONATSERSTE, UND ZWAR MIT DEM VOLLEN BETRAG.
+//    Ein Vertrag zählt, wenn er am Ersten läuft. Anteilige Monate werden
+//    NICHT gerechnet -- anders als in lib/sollstellung.ts, und das ist
+//    Absicht: Eine Sollstellung ist eine Kassenzahl (was schuldet der
+//    Mieter diesen Monat), eine Laufmiete ist eine RATE (was trägt der
+//    Bestand auf ein Jahr gerechnet).
+//
+//    Wer einen Einzug zum 15. anteilig rechnet, bekommt im Diagramm eine
+//    Delle, die keine Bestandsänderung ist, sondern ein Kalendereffekt --
+//    und im Folgemonat eine Stufe nach oben, die wie ein neuer Mieter
+//    aussieht. Zwei Ereignisse in der Linie, von denen keines stattgefunden
+//    hat. Dasselbe gilt für den Stichtag von `miete_am()`: der Monatserste,
+//    wie db/022 es ohnehin vorsieht.
+//
+// 2. ZUKUNFT IST EINE UNTERGRENZE, KEINE PROGNOSE.
+//    Läuft ein Vertrag zum 21.12. aus und es gibt keinen Nachmieter, steht
+//    das Zimmer ab Januar mit 0 in der Reihe. Das ist NICHT die Vorhersage,
+//    dass es leer bleibt -- es ist die Aussage "hierfür ist nichts
+//    unterschrieben".
+//
+//    Hier wird die Zahl gefährlich. Ein Absturz im Diagramm, den jemand für
+//    eine Prognose hält, führt zu einer Entscheidung über ein Haus. Deshalb
+//    trägt jeder Zukunftsmonat `vorausschau: true`, die Oberfläche zeichnet
+//    ihn gestrichelt und schreibt den Satz darunter. Es wird KEINE
+//    Wiedervermietung eingerechnet, keine Quote, kein Durchschnitt.
+//
+// 3. KEINE MIETANPASSUNG WIRD FORTGESCHRIEBEN.
+//    Was vereinbart ist, liefert `miete_am()` von selbst -- eine
+//    Staffelmiete taucht damit korrekt am richtigen Monat auf. Was nicht
+//    vereinbart ist, wird nicht erfunden: keine Indexierung, keine
+//    Inflation, keine Mietspiegelfortschreibung.
+//
+// Zu- und Abgänge stehen je Monat als Zahl daneben, damit die Oberfläche
+// sagen kann, WARUM sich die Linie bewegt. Eine Stufe ohne Erklärung ist
+// eine Rätselaufgabe.
+
+export interface LaufmietePunkt {
+  /** Monatserster, ISO. */
+  monat: string;
+  /** 12 × das in diesem Monat vertraglich geschuldete Soll. */
+  jahresmiete: number;
+  /** Mietverhältnisse, die in diesem Monat laufen. */
+  vertraege: number;
+  /** Liegt der Monat in der Zukunft? Dann ist die Zahl eine Untergrenze. */
+  vorausschau: boolean;
+  /** Was sich gegenüber dem Vormonat geändert hat. */
+  zugaenge: number;
+  abgaenge: number;
+}
+
+/**
+ * Ein Mietverhältnis mit den Posten, die in EINEM Monat galten.
+ *
+ * Die Posten kommen aus `miete_am(mv, Monatserster)` und sind deshalb je
+ * Monat verschieden -- eine Staffelmiete liefert ab ihrem Stichtag andere
+ * Werte. Welcher Betrag daraus geschuldet ist, entscheidet `sollGesamt()`
+ * aus lib/sollstellung.ts und nicht diese Datei: Ist `gesamtmiete` gesetzt,
+ * gilt dieser Betrag und nicht die Summe der Posten. Diese Regel wird hier
+ * NICHT nachgebaut, sondern importiert -- zwei Fassungen davon laufen
+ * auseinander, und dann zeigt der Verlauf andere Zahlen als das Mietenbuch.
+ */
+export interface LaufmieteZeile {
+  /** Monatserster des Rasters, ISO. */
+  monat: string;
+  mietverhaeltnis_id: string;
+  /** Mietbeginn, ISO-Datum. */
+  beginn: string;
+  /** Mietende, ISO-Datum, oder null bei unbefristet. */
+  ende: string | null;
+  kaltmiete: string | number | null;
+  nebenkosten: string | number | null;
+  moeblierung?: string | number | null;
+  gesamtmiete?: string | number | null;
+}
+
+/**
+ * Läuft dieser Vertrag am Monatsersten?
+ *
+ * Reiner Textvergleich auf ISO-Datumen; `YYYY-MM-DD` sortiert lexikalisch
+ * wie chronologisch. Kein `new Date()`, weil ein Datum ohne Zeitzone sonst
+ * je nach Umgebung einen Tag nach vorn oder hinten rutscht -- und bei einem
+ * Monatsersten ist das ein ganzer Monat Unterschied.
+ */
+export function laeuftAmErsten(
+  z: { beginn: string; ende: string | null },
+  monatsErster: string,
+): boolean {
+  if (z.beginn.slice(0, 10) > monatsErster) return false;
+  if (z.ende !== null && z.ende.slice(0, 10) < monatsErster) return false;
+  return true;
+}
+
+/**
+ * Die Laufmiete je Monat über ein Fenster um `heute`.
+ *
+ * Das Raster entsteht hier und nicht aus den Daten: Ein Monat ohne einen
+ * einzigen laufenden Vertrag ist eine Null mit `vertraege: 0` und keine
+ * fehlende Zeile. Eine Reihe, die nur die belegten Monate enthält, hätte im
+ * Diagramm keine Lücke, sondern eine durchgezogene Linie über den Leerstand
+ * hinweg.
+ *
+ * Zu- und Abgänge des ERSTEN Monats sind 0: Sein Vormonat liegt außerhalb
+ * des Fensters und ist nicht geladen. "Alle zwölf Verträge sind im ersten
+ * Monat zugegangen" wäre eine Behauptung über Daten, die nicht abgefragt
+ * wurden.
+ */
+export function laufmieteReihe(
+  zeilen: LaufmieteZeile[],
+  heute: Date,
+  zurueck = 12,
+  vorwaerts = 12,
+): LaufmietePunkt[] {
+  const jahr = heute.getUTCFullYear();
+  const monat = heute.getUTCMonth();
+  const jetzt = ersterDesMonats(jahr, monat);
+
+  // Zeilen je Monat vorsortieren, statt für jeden Monat die ganze Liste zu
+  // durchsuchen.
+  const nachMonat = new Map<string, LaufmieteZeile[]>();
+  for (const z of zeilen) {
+    const schluessel = z.monat.slice(0, 10);
+    const liste = nachMonat.get(schluessel);
+    if (liste) liste.push(z);
+    else nachMonat.set(schluessel, [z]);
+  }
+
+  const reihe: LaufmietePunkt[] = [];
+  let vorher: Set<string> | null = null;
+
+  for (let i = -zurueck; i <= vorwaerts; i++) {
+    const m = ersterDesMonats(jahr, monat + i);
+
+    // Je Mietverhältnis genau ein Betrag. Eine Abfrage, die über mehrere
+    // Einheiten oder mehrere Anpassungen doppelt verbindet, würde dieselbe
+    // Miete sonst zweimal zählen -- und das sieht aus wie ein Zugang.
+    const laufend = new Map<string, number>();
+    for (const z of nachMonat.get(m) ?? []) {
+      if (!laeuftAmErsten(z, m)) continue;
+      if (laufend.has(z.mietverhaeltnis_id)) continue;
+      laufend.set(z.mietverhaeltnis_id, sollGesamt(z));
+    }
+
+    const ids = new Set(laufend.keys());
+    const soll = summeCent([...laufend.values()]);
+    const vor = vorher;
+
+    reihe.push({
+      monat: m,
+      jahresmiete: cent(12 * soll),
+      vertraege: ids.size,
+      vorausschau: m > jetzt,
+      zugaenge:
+        vor === null ? 0 : [...ids].filter((id) => !vor.has(id)).length,
+      abgaenge:
+        vor === null ? 0 : [...vor].filter((id) => !ids.has(id)).length,
+    });
+    vorher = ids;
+  }
+
+  return reihe;
+}
+
+/** Die größte bekannte Veränderung in der Vorausschau. */
+export interface LaufmieteAenderung {
+  /** Der Monat, in dem sie wirkt. */
+  monat: string;
+  /** Jahresmiete dieses Monats minus die des Vormonats. */
+  differenz: number;
+  zugaenge: number;
+  abgaenge: number;
+}
+
+export interface LaufmieteLage {
+  /** Der Monat, in dem `heute` liegt. */
+  gegenwart: string;
+  /** Jahresmiete der Gegenwart -- die Momentaufnahme. */
+  jetzt: number;
+  vertraegeJetzt: number;
+  /** Letzter Monat des Fensters und seine Jahresmiete. */
+  letzterMonat: string;
+  amEnde: number;
+  vertraegeAmEnde: number;
+  /** Zahl der Zukunftsmonate im Fenster. */
+  vorausschauMonate: number;
+  /**
+   * Die größte Veränderung unter den Zukunftsmonaten, oder null, wenn dort
+   * nichts bekannt ist. Das ist der Satz, der unter dem Diagramm steht.
+   */
+  groessteAenderung: LaufmieteAenderung | null;
+}
+
+/**
+ * Die Aussagen über eine Reihe -- für Überschrift und Begleitsatz.
+ *
+ * Gerechnet wird nur gelesen: Jede Zahl steht schon in der Reihe. Die
+ * Funktion sucht die größte Stufe in der Vorausschau heraus, weil genau das
+ * die Frage ist, die der Eigentümer an eine Vorausschau hat ("was fällt
+ * weg, und wann"). Bei Gleichstand gewinnt der frühere Monat: Was näher
+ * liegt, ist die dringendere Nachricht.
+ */
+export function laufmieteLage(reihe: LaufmietePunkt[]): LaufmieteLage | null {
+  if (reihe.length === 0) return null;
+
+  const gegenwartIndex = reihe.findIndex((p) => p.vorausschau);
+  // Alles Vergangenheit? Dann ist der letzte Punkt die Gegenwart.
+  const jetztIndex =
+    gegenwartIndex === -1 ? reihe.length - 1 : Math.max(0, gegenwartIndex - 1);
+  const jetztPunkt = reihe[jetztIndex];
+  const letzter = reihe[reihe.length - 1];
+
+  let groesste: LaufmieteAenderung | null = null;
+  for (let i = 1; i < reihe.length; i++) {
+    const p = reihe[i];
+    if (!p.vorausschau) continue;
+    const differenz = cent(p.jahresmiete - reihe[i - 1].jahresmiete);
+    if (differenz === 0 && p.zugaenge === 0 && p.abgaenge === 0) continue;
+    if (groesste !== null && Math.abs(differenz) <= Math.abs(groesste.differenz)) {
+      continue;
+    }
+    groesste = {
+      monat: p.monat,
+      differenz,
+      zugaenge: p.zugaenge,
+      abgaenge: p.abgaenge,
+    };
+  }
+
+  return {
+    gegenwart: jetztPunkt.monat,
+    jetzt: jetztPunkt.jahresmiete,
+    vertraegeJetzt: jetztPunkt.vertraege,
+    letzterMonat: letzter.monat,
+    amEnde: letzter.jahresmiete,
+    vertraegeAmEnde: letzter.vertraege,
+    vorausschauMonate: reihe.filter((p) => p.vorausschau).length,
+    groessteAenderung: groesste,
   };
 }
 
@@ -1185,12 +1538,99 @@ export async function wirtschaftBasis(
   };
 }
 
+/**
+ * Die Laufmiete je Monat, zwölf Monate zurück bis zwölf Monate vorwärts.
+ *
+ * ZWEI SACHEN TEILEN SICH DIE ARBEIT, UND ZWAR SO:
+ *
+ *   Die Abfrage holt für jeden Monat des Rasters und jedes
+ *   Mietverhältnis, das das Fenster überhaupt berührt, die Posten, die in
+ *   diesem Monat galten -- `miete_am(mv, Monatserster)` aus db/022. Das ist
+ *   der Schlüssel: Dieselbe Funktion, mit der lib/objekte.ts das HEUTIGE
+ *   Monatssoll bildet, liefert mit einem anderen Datum das Soll JEDES
+ *   Stichtags. Eine vereinbarte Staffelmiete erscheint damit von selbst am
+ *   richtigen Monat, ohne dass hier etwas fortgeschrieben wird.
+ *
+ *   Die Entscheidung, ob ein Vertrag in einem Monat ZÄHLT, trifft
+ *   `laufmieteReihe()` oben -- einmal, auf dem Monatsersten, prüfbar ohne
+ *   Datenbank. Das WHERE hier grenzt nur das Fenster ein (Verträge, die es
+ *   gar nicht berühren, brauchen keine 25 Zeilen); die Stichtagsregel steht
+ *   NICHT zweimal da. Zwei Fassungen einer Regel laufen auseinander, und
+ *   dann zeigt das Diagramm einen Mieterwechsel, den es nicht gab.
+ *
+ * Zum Status: Dieselbe Weißliste wie der Sollstellungslauf in
+ * lib/sollstellung.ts -- 'aktiv', 'gekuendigt', 'beendet'. Ein verschickter,
+ * aber nicht unterschriebener Vertrag ('vertrag_versendet') ist keine
+ * Mietforderung und darf in einer Vorausschau nicht als Zugang erscheinen;
+ * das wäre genau die Art unterschriftloser Zahl, die diese Anwendung nicht
+ * zeigt. COALESCE, weil die Spalte erst mit db/017 entsteht.
+ *
+ * Kein Betragsfilter: Ein laufender Vertrag ohne erfassten Betrag zählt als
+ * Vertrag und trägt 0 € bei. Ihn wegzulassen wäre eine stille Korrektur
+ * eines Pflegefehlers; so steht er in der Tabelle und fällt auf.
+ *
+ * MANDANTENTRENNUNG: eine Abfrage über tx() -- `SET LOCAL app.mandant`, und
+ * ohne Mandanten ein `KeinMandant`. Der Einstieg ist eine objektId, und die
+ * Policy auf `einheit`/`mietverhaeltnis` (db/010) liefert für ein fremdes
+ * Objekt null Zeilen. Es gibt keine Abfrage über "alle Objekte" und keine
+ * Schwelle, die auf einen bestimmten Bestand geeicht ist.
+ */
+export async function ladeLaufmiete(
+  objektId: string,
+  heute: Date = new Date(),
+  zurueck = 12,
+  vorwaerts = 12,
+): Promise<LaufmietePunkt[]> {
+  const zeilen = await tx(async (c) => {
+    const r = await c.query<LaufmieteZeile>(
+      `WITH raster AS (
+           SELECT (date_trunc('month', $2::date)
+                   + (n * interval '1 month'))::date AS monat
+             FROM generate_series($3::int, $4::int) AS n
+         )
+         SELECT r.monat::text                   AS monat,
+                mv.id                           AS mietverhaeltnis_id,
+                mv.beginn::text                 AS beginn,
+                mv.ende::text                   AS ende,
+                m.kaltmiete::text               AS kaltmiete,
+                m.nebenkosten::text             AS nebenkosten,
+                m.moeblierungszuschlag::text    AS moeblierung,
+                m.gesamtmiete::text             AS gesamtmiete
+           FROM raster r
+           JOIN einheit e           ON e.objekt_id = $1
+           JOIN mietverhaeltnis mv  ON mv.einheit_id = e.id
+           LEFT JOIN LATERAL miete_am(mv.id, r.monat) m ON true
+          WHERE COALESCE(to_jsonb(mv) ->> 'status', 'aktiv')
+                IN ('aktiv','gekuendigt','beendet')
+            -- Nur das Fenster, nicht der Stichtag: Verträge, die vor dem
+            -- Fenster endeten oder erst danach beginnen, brauchen keine
+            -- Zeile. Wer in welchem Monat zählt, entscheidet
+            -- laufmieteReihe().
+            AND (mv.ende IS NULL
+                 OR mv.ende >= (SELECT MIN(monat) FROM raster))
+            AND mv.beginn <= (SELECT MAX(monat) FROM raster)
+          ORDER BY r.monat, mv.id`,
+      [objektId, alsIsoTag(heute), -zurueck, vorwaerts],
+    );
+    return r.rows;
+  });
+
+  return laufmieteReihe(zeilen, heute, zurueck, vorwaerts);
+}
+
 export interface ObjektWirtschaftDaten {
   id: string;
   name: string;
   stamm: WirtschaftStamm;
   basis: WirtschaftBasis;
   lage: WirtschaftLage;
+  /** Die Laufmiete je Monat, 12 zurück bis 12 vorwärts. */
+  laufmiete: LaufmietePunkt[];
+  /**
+   * Warum die Reihe leer ist, wenn sie leer ist -- oder null. Eine leere
+   * Reihe ohne Grund sieht aus wie ein Haus ohne Verträge.
+   */
+  laufmieteFehler: string | null;
 }
 
 /**
@@ -1207,11 +1647,27 @@ export async function objektWirtschaft(
   const kopf = await wirtschaftStamm(objektId);
   if (!kopf) return null;
   const basis = await wirtschaftBasis(objektId, heute);
+
+  // Wie `behutsam()` in lib/kennzahlen.ts: Eine Abfrage, die scheitert --
+  // weil db/022 noch nicht gelaufen ist und `miete_am()` fehlt --, darf
+  // nicht die ganze Objektseite weissen. Der Fehler wird mitgegeben statt
+  // verschluckt: Eine leere Reihe ohne Grund sieht aus wie ein Haus ohne
+  // Verträge, und das ist eine andere Auskunft als "nicht geladen".
+  let laufmiete: LaufmietePunkt[] = [];
+  let laufmieteFehler: string | null = null;
+  try {
+    laufmiete = await ladeLaufmiete(objektId, heute);
+  } catch (e) {
+    laufmieteFehler = `Laufmiete im Zeitverlauf: ${(e as Error).message}`;
+  }
+
   return {
     id: kopf.id,
     name: kopf.name,
     stamm: kopf.stamm,
     basis,
     lage: wirtschaftLage(kopf.stamm, basis),
+    laufmiete,
+    laufmieteFehler,
   };
 }

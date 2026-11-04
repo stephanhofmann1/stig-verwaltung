@@ -72,9 +72,29 @@ function alsText(k: Kennwert): string {
   }
 }
 
-/** Die Kennzahlen in der Reihenfolge, in der sie gelesen werden. */
+/**
+ * Die Kennzahlen in der Reihenfolge, in der sie gelesen werden.
+ *
+ * Die LAUFENDE Netto-Mietrendite steht voran, und zwar nicht aus
+ * Gewohnheit: Sie beantwortet die Frage, die an ein Portal gestellt wird --
+ * "was trägt der Bestand jetzt". Die Netto-Mietrendite daneben ist der
+ * Rückblick auf zwölf Monate, in denen Leerstand und Mieterwechsel stecken.
+ *
+ * Beide Karten tragen in ihrer Begründungszeile den Satz, worin sie sich
+ * unterscheiden (er kommt aus `wirtschaftLage()` in lib/rendite.ts). Zwei
+ * verschiedene Prozentzahlen mit ähnlichen Schildern und ohne diesen Satz
+ * wären keine zwei Auskünfte, sondern ein Rätsel -- und jemand würde die
+ * freundlichere davon weitergeben.
+ */
 const REIHE: Array<{ feld: keyof WirtschaftLage; schild: string }> = [
-  { feld: "nettomietrendite", schild: "Netto-Mietrendite" },
+  {
+    feld: "nettomietrenditeLaufend",
+    schild: "Netto-Mietrendite (laufend, heutiger Bestand)",
+  },
+  {
+    feld: "nettomietrendite",
+    schild: "Netto-Mietrendite (12 Monate Rückblick)",
+  },
   { feld: "bruttomietrendite", schild: "Brutto-Mietrendite" },
   { feld: "cashflowJahr", schild: "Cashflow im Jahr" },
   { feld: "eigenkapitalrendite", schild: "Eigenkapitalrendite" },
@@ -84,12 +104,15 @@ const REIHE: Array<{ feld: keyof WirtschaftLage; schild: string }> = [
 const WEITERE: Array<{ feld: keyof WirtschaftLage; schild: string }> = [
   { feld: "gesamtinvest", schild: "Gesamtinvest" },
   { feld: "rohertragGestellt", schild: "Rohertrag (gestellt, 12 Monate)" },
-  { feld: "rohertragLautVertrag", schild: "Rohertrag (laut Vertrag)" },
-  { feld: "bewirtschaftung", schild: "Bewirtschaftungskosten im Jahr" },
-  { feld: "jahresreinertrag", schild: "Reinertrag im Jahr" },
   {
-    feld: "nettomietrenditeLautVertrag",
-    schild: "Netto-Mietrendite (Vertragssicht)",
+    feld: "jahresLaufmiete",
+    schild: "Jahresnettomiete laut Vertrag (Laufmiete)",
+  },
+  { feld: "bewirtschaftung", schild: "Bewirtschaftungskosten im Jahr" },
+  { feld: "jahresreinertrag", schild: "Reinertrag im Jahr (Rückblick)" },
+  {
+    feld: "jahresreinertragLaufend",
+    schild: "Reinertrag im Jahr (laufend)",
   },
   {
     feld: "nettomietrenditeAufVerkehrswert",
@@ -385,6 +408,18 @@ export function ObjektWirtschaft({ objektId, stamm, lage }: Props) {
               umlagefähige. Diese Netto-Mietrendite ist deshalb niedriger als
               die, mit der Anzeigen rechnen — und sie ist die, die am
               Jahresende übrig bleibt.
+            </p>
+            <p className="hinweis">
+              Zwei Netto-Mietrenditen, zwei Fragen. Die <strong>laufende</strong>{" "}
+              rechnet aus zwölf Mal dem heutigen Monatssoll — was der Bestand
+              jetzt trägt. Die andere rechnet aus den Sollstellungen der
+              letzten zwölf Monate — was das Haus verdient hat, mit Leerstand
+              und Mieterwechsel darin. Die Bewirtschaftungskosten sind in
+              beiden dieselben: Belege lassen sich nicht hochrechnen, ohne sie
+              zu erfinden. Die laufende Rendite stellt also eine Jahresmiete
+              von heute gegen Kosten aus dem Rückblick — eine Mischung aus
+              zwei Zeiträumen, und das steht auch in ihrer
+              Begründungszeile.
             </p>
           </details>
 

@@ -11,6 +11,7 @@ import {
 } from "@/lib/objekte";
 import { objektWirtschaft } from "@/lib/rendite";
 import { ObjektWirtschaft } from "@/components/ObjektWirtschaft";
+import { LaufmieteVerlauf } from "@/components/LaufmieteVerlauf";
 import { Bildergalerie } from "@/components/Bildergalerie";
 import { DokumentListe } from "@/components/DokumentListe";
 import { DokumentHochladen } from "@/components/DokumentHochladen";
@@ -303,6 +304,25 @@ export default async function Objektseite({
             objektId={id}
             stamm={wirtschaft.stamm}
             lage={wirtschaft.lage}
+          />
+
+          {/* Die Laufmiete steht NACH den Kennwerten, nicht davor.
+
+              Die Kennwerte beantworten "was traegt der Bestand heute".
+              Der Verlauf beantwortet die Anschlussfrage: "und wie lange
+              noch". Erst die Zahl, dann ihre Haltbarkeit -- umgekehrt
+              liest man eine Kurve, ohne ihren heutigen Wert zu kennen.
+
+              Der vordere Teil der Kurve ist KEINE Prognose. Er zeigt
+              ausschliesslich, was unterschrieben ist: Eine Kuendigung
+              zum 21.12. laesst die Linie ab Januar fallen, weil fuer
+              dieses Zimmer nichts Neues vorliegt -- nicht, weil es leer
+              bleiben wird. Das Bauteil schreibt diesen Satz selbst unter
+              das Diagramm; hier steht er, damit niemand ihn beim naechsten
+              Umbau fuer Zierde haelt und entfernt. */}
+          <LaufmieteVerlauf
+            reihe={wirtschaft.laufmiete}
+            fehler={wirtschaft.laufmieteFehler}
           />
         </div>
       )}

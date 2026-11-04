@@ -13,16 +13,23 @@ import {
   flaechenGrundlage,
   gesamtinvest,
   inkassoquote,
+  jahresLaufmiete,
   jahresreinertrag,
+  laeuftAmErsten,
+  laufmieteLage,
+  laufmieteReihe,
   mieteJeQmMonat,
   mietausfallquote,
   nettomietrendite,
+  nettomietrenditeLaufend,
   rohertragGestellt,
   rohertragLautVertrag,
   summeCent,
   wirtschaftLage,
   zinsdeckung,
   zwoelfMonatsFenster,
+  type LaufmietePunkt,
+  type LaufmieteZeile,
   type WirtschaftBasis,
   type WirtschaftStamm,
 } from "../lib/rendite";
@@ -1230,5 +1237,649 @@ describe("Gesamtbild", () => {
         `${name} hat mehr als zwei Nachkommastellen: ${k.wert}`,
       );
     }
+  });
+});
+
+// ===========================================================================
+// Die Laufmiete: Momentaufnahme und Zeitverlauf
+// ===========================================================================
+//
+// Pruefstand fuer die Reihe. Die Zeilen sehen aus wie das, was die Abfrage in
+// ladeLaufmiete() liefert: je Monat des Rasters und je Mietverhaeltnis eine
+// Zeile mit den Posten, die an diesem Monatsersten galten (miete_am(), db/022).
+//
+// KEINE ECHTEN DATEN. Keine Mieternamen, keine Adressen, keine
+// Telefonnummern -- "Mieter A", "Objekt A", example.org. In einer frueheren
+// Fassung dieser Tests standen echte Mietverhaeltnisse mit echten Betraegen;
+// Tests werden herumgeschickt, in Fehlerberichte kopiert und liegen in jedem
+// Klon des Repos.
+
+/** Ein Vertrag im Pruefstand: Laufzeit und die Posten je Stichtag. */
+interface Pruefvertrag {
+  id: string;
+  beginn: string;
+  ende?: string | null;
+  /** Was miete_am() am jeweiligen Monatsersten liefert. */
+  posten: (monatsErster: string) => {
+    kaltmiete?: string | null;
+    nebenkosten?: string | null;
+    moeblierung?: string | null;
+    gesamtmiete?: string | null;
+  };
+}
+
+/** Erster des Monats, den `verschiebung` Monate von `heute` entfernt liegt. */
+function monatsErster(heute: Date, verschiebung: number): string {
+  const d = new Date(
+    Date.UTC(heute.getUTCFullYear(), heute.getUTCMonth() + verschiebung, 1),
+  );
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-01`;
+}
+
+/** Das Monatsraster des Fensters, wie die Abfrage es aufspannt. */
+function rasterMonate(heute: Date, zurueck = 12, vorwaerts = 12): string[] {
+  const monate: string[] = [];
+  for (let i = -zurueck; i <= vorwaerts; i++) monate.push(monatsErster(heute, i));
+  return monate;
+}
+
+/**
+ * Die Zeilen, die die Abfrage liefern wuerde.
+ *
+ * Absichtlich OHNE Stichtagsfilter: Die Abfrage grenzt nur das Fenster ein,
+ * und ob ein Vertrag in einem Monat zaehlt, entscheidet laufmieteReihe().
+ * Genau das soll hier geprueft werden -- waere der Filter schon im
+ * Pruefstand, pruefte der Test den Pruefstand.
+ */
+function pruefZeilen(
+  heute: Date,
+  vertraege: Pruefvertrag[],
+  zurueck = 12,
+  vorwaerts = 12,
+): LaufmieteZeile[] {
+  const zeilen: LaufmieteZeile[] = [];
+  for (const monat of rasterMonate(heute, zurueck, vorwaerts)) {
+    for (const v of vertraege) {
+      zeilen.push({
+        monat,
+        mietverhaeltnis_id: v.id,
+        beginn: v.beginn,
+        ende: v.ende ?? null,
+        kaltmiete: null,
+        nebenkosten: null,
+        moeblierung: null,
+        gesamtmiete: null,
+        ...v.posten(monat),
+      });
+    }
+  }
+  return zeilen;
+}
+
+/** Ein feststehender Zeitpunkt -- kein new Date() ohne Uebergabe. */
+const HEUTE = new Date("2026-11-04T10:00:00Z");
+
+/** Immer derselbe Betrag, egal welcher Stichtag. */
+const fest =
+  (posten: ReturnType<Pruefvertrag["posten"]>) => () => posten;
+
+/** Den Punkt zu einem Monat holen -- liest sich im Test besser als ein Index. */
+function punkt(reihe: LaufmietePunkt[], monat: string): LaufmietePunkt {
+  const p = reihe.find((x) => x.monat === monat);
+  assert.ok(p, `Die Reihe hat keinen Punkt fuer ${monat}.`);
+  return p;
+}
+
+// ---------------------------------------------------------------------------
+// Der Stichtag je Monat
+//
+// Verhindert: eine Delle im Diagramm, die keine Bestandsaenderung ist.
+//
+// Wer einen Einzug zum 15. anteilig rechnet, bekommt im Einzugsmonat eine
+// halbe Miete und im Folgemonat eine ganze. Im Diagramm sind das ZWEI
+// Ereignisse -- ein Einbruch und ein Anstieg --, und keines hat
+// stattgefunden: Der Bestand hat sich genau einmal geaendert. Ein
+// Eigentuemer, der diese Stufe fuer einen Mieterwechsel haelt, sucht nach
+// einem Vorgang, den es nicht gibt. Eine Laufmiete ist eine RATE und keine
+// Kassenzahl; anteilig rechnet lib/sollstellung.ts, und das ist dort auch
+// richtig.
+// ---------------------------------------------------------------------------
+
+describe("Laufmiete: der Stichtag ist der Monatserste", () => {
+  test("die Jahresmiete eines Monats ist 12 x das Soll dieses Monats", () => {
+    // Von Hand:
+    //   Zimmer A  Inklusivmiete                    500,00
+    //   Zimmer B  310,50 + 64,50 + 50,00 Moebel    425,00
+    //   Soll des Monats                            925,00
+    //   Jahresmiete  12 x 925,00                11.100,00
+    //   Probe: 900 x 12 = 10.800, dazu 25 x 12 = 300  ->  11.100,00
+    const reihe = laufmieteReihe(
+      pruefZeilen(HEUTE, [
+        {
+          id: "mv-a",
+          beginn: "2024-01-01",
+          posten: fest({ gesamtmiete: "500.00" }),
+        },
+        {
+          id: "mv-b",
+          beginn: "2024-01-01",
+          posten: fest({
+            kaltmiete: "310.50",
+            nebenkosten: "64.50",
+            moeblierung: "50.00",
+          }),
+        },
+      ]),
+      HEUTE,
+    );
+
+    const jetzt = punkt(reihe, "2026-11-01");
+    assert.equal(jetzt.jahresmiete, 11_100);
+    assert.equal(jetzt.vertraege, 2);
+  });
+
+  test("ein Vertrag ab dem 15. zaehlt im Startmonat nicht und danach voll", () => {
+    // Beginn 15.12.2026, 600,00 EUR. Dezember: laeuft am 01.12. noch nicht
+    // -> 0,00. Januar: voll -> 12 x 600 = 7.200,00. Keine halbe Miete
+    // dazwischen, kein Zwischenschritt.
+    const reihe = laufmieteReihe(
+      pruefZeilen(HEUTE, [
+        {
+          id: "mv-neu",
+          beginn: "2026-12-15",
+          posten: fest({ gesamtmiete: "600.00" }),
+        },
+      ]),
+      HEUTE,
+    );
+
+    const dezember = punkt(reihe, "2026-12-01");
+    assert.equal(dezember.vertraege, 0);
+    assert.equal(dezember.jahresmiete, 0);
+
+    const januar = punkt(reihe, "2027-01-01");
+    assert.equal(januar.vertraege, 1);
+    assert.equal(januar.jahresmiete, 7_200);
+    assert.equal(januar.zugaenge, 1);
+    assert.equal(januar.abgaenge, 0);
+
+    // Und genau EINE Stufe: Zwischen Dezember und Januar bewegt sich etwas,
+    // zwischen Januar und Februar nicht mehr.
+    assert.equal(punkt(reihe, "2027-02-01").jahresmiete, 7_200);
+    assert.equal(punkt(reihe, "2027-02-01").zugaenge, 0);
+  });
+
+  test("ein Ende zum 21.12. zaehlt im Dezember voll und ab Januar nicht mehr", () => {
+    // 450,00 EUR, Ende 21.12.2026. Dezember: laeuft am 01.12. -> 12 x 450 =
+    // 5.400,00, voller Betrag. Januar: ende < 01.01. -> 0,00, ein Abgang.
+    const reihe = laufmieteReihe(
+      pruefZeilen(HEUTE, [
+        {
+          id: "mv-weg",
+          beginn: "2023-05-01",
+          ende: "2026-12-21",
+          posten: fest({ gesamtmiete: "450.00" }),
+        },
+      ]),
+      HEUTE,
+    );
+
+    const dezember = punkt(reihe, "2026-12-01");
+    assert.equal(dezember.vertraege, 1);
+    assert.equal(dezember.jahresmiete, 5_400);
+    assert.equal(dezember.abgaenge, 0);
+
+    const januar = punkt(reihe, "2027-01-01");
+    assert.equal(januar.vertraege, 0);
+    assert.equal(januar.jahresmiete, 0);
+    assert.equal(januar.abgaenge, 1);
+    assert.equal(januar.zugaenge, 0);
+  });
+
+  test("laeuftAmErsten vergleicht Datumen als Text, ohne Zeitzone", () => {
+    // Ein new Date("2026-12-01") in einer Umgebung mit negativem Versatz
+    // wird zum 30.11. -- bei einem Monatsersten ist das ein ganzer Monat
+    // Unterschied und damit eine Miete.
+    assert.equal(laeuftAmErsten({ beginn: "2026-12-01", ende: null }, "2026-12-01"), true);
+    assert.equal(laeuftAmErsten({ beginn: "2026-12-02", ende: null }, "2026-12-01"), false);
+    assert.equal(laeuftAmErsten({ beginn: "2020-01-01", ende: "2026-12-01" }, "2026-12-01"), true);
+    assert.equal(laeuftAmErsten({ beginn: "2020-01-01", ende: "2026-11-30" }, "2026-12-01"), false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Vergangenheit, Gegenwart, Vorausschau
+//
+// Verhindert: dass eine Untergrenze als Prognose gelesen wird.
+//
+// Rechts von heute steht nicht, was passieren wird, sondern was
+// unterschrieben ist. Ein Absturz der Linie im Januar heisst "hierfuer liegt
+// kein Vertrag vor" und nicht "das Zimmer bleibt leer". Ohne das Kennzeichen
+// `vorausschau` kann die Oberflaeche den Unterschied nicht zeichnen -- und am
+// Ende dieser Kette steht eine Entscheidung ueber ein Haus, getroffen auf
+// eine Zahl, die niemand so gemeint hat.
+// ---------------------------------------------------------------------------
+
+describe("Laufmiete: Zukunft ist gekennzeichnet", () => {
+  const reihe = laufmieteReihe(
+    pruefZeilen(HEUTE, [
+      { id: "mv-a", beginn: "2024-01-01", posten: fest({ gesamtmiete: "500.00" }) },
+    ]),
+    HEUTE,
+  );
+
+  test("das Fenster reicht zwoelf Monate zurueck und zwoelf vorwaerts", () => {
+    assert.equal(reihe.length, 25);
+    assert.equal(reihe[0].monat, "2025-11-01");
+    assert.equal(reihe[24].monat, "2027-11-01");
+  });
+
+  test("der Monat mit dem heutigen Datum gehoert zur Gegenwart", () => {
+    // 04.11.2026 liegt im November 2026. Dieser Monat ist NICHT Vorausschau:
+    // Seine Miete ist geschuldet und gestellt, nicht angenommen.
+    assert.equal(punkt(reihe, "2026-11-01").vorausschau, false);
+    assert.equal(punkt(reihe, "2026-12-01").vorausschau, true);
+  });
+
+  test("Vergangenheit traegt vorausschau false, Zukunft true", () => {
+    for (const p of reihe) {
+      assert.equal(
+        p.vorausschau,
+        p.monat > "2026-11-01",
+        `${p.monat} ist falsch einsortiert.`,
+      );
+    }
+    assert.equal(reihe.filter((p) => p.vorausschau).length, 12);
+  });
+
+  test("laufmieteLage nennt Gegenwart und das Ende des Fensters", () => {
+    const lage = laufmieteLage(reihe);
+    assert.ok(lage);
+    assert.equal(lage.gegenwart, "2026-11-01");
+    assert.equal(lage.jetzt, 6_000);
+    assert.equal(lage.vertraegeJetzt, 1);
+    assert.equal(lage.letzterMonat, "2027-11-01");
+    assert.equal(lage.vorausschauMonate, 12);
+    // Nichts bekannt, was sich aendert -> kein Satz, der eine Aenderung
+    // behauptet.
+    assert.equal(lage.groessteAenderung, null);
+  });
+
+  test("die groesste bekannte Aenderung ist die aus der Vorausschau", () => {
+    // Zwei Abgaenge zum Jahresende, 600 + 550 = 1.150 EUR Monatsmiete.
+    // Januar verliert damit 12 x 1.150 = 13.800,00 EUR Jahresmiete.
+    const mitAbgang = laufmieteReihe(
+      pruefZeilen(HEUTE, [
+        { id: "mv-a", beginn: "2024-01-01", posten: fest({ gesamtmiete: "500.00" }) },
+        {
+          id: "mv-b",
+          beginn: "2024-01-01",
+          ende: "2026-12-21",
+          posten: fest({ gesamtmiete: "600.00" }),
+        },
+        {
+          id: "mv-c",
+          beginn: "2024-01-01",
+          ende: "2026-12-31",
+          posten: fest({ gesamtmiete: "550.00" }),
+        },
+      ]),
+      HEUTE,
+    );
+    const lage = laufmieteLage(mitAbgang);
+    assert.ok(lage?.groessteAenderung);
+    assert.equal(lage.groessteAenderung.monat, "2027-01-01");
+    assert.equal(lage.groessteAenderung.differenz, -13_800);
+    assert.equal(lage.groessteAenderung.abgaenge, 2);
+    assert.equal(lage.groessteAenderung.zugaenge, 0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Zu- und Abgaenge
+//
+// Verhindert: eine Stufe im Diagramm ohne Erklaerung.
+//
+// Die Zahlen werden hier UNABHAENGIG nachgerechnet -- aus den Laufzeiten des
+// Pruefstands, nicht mit laufmieteReihe() selbst. Ein Test, der dieselbe
+// Funktion zweimal aufruft, prueft nur, dass sie sich treu bleibt.
+// ---------------------------------------------------------------------------
+
+describe("Laufmiete: Zu- und Abgaenge erklaeren jede Stufe", () => {
+  const vertraege: Pruefvertrag[] = [
+    { id: "mv-a", beginn: "2024-01-01", posten: fest({ gesamtmiete: "500.00" }) },
+    {
+      id: "mv-b",
+      beginn: "2024-01-01",
+      ende: "2026-12-21",
+      posten: fest({ gesamtmiete: "600.00" }),
+    },
+    { id: "mv-c", beginn: "2026-12-15", posten: fest({ gesamtmiete: "480.00" }) },
+    { id: "mv-d", beginn: "2027-03-01", posten: fest({ gesamtmiete: "520.00" }) },
+    {
+      id: "mv-e",
+      beginn: "2025-01-01",
+      ende: "2026-06-30",
+      posten: fest({ gesamtmiete: "400.00" }),
+    },
+  ];
+  const reihe = laufmieteReihe(pruefZeilen(HEUTE, vertraege), HEUTE);
+
+  /** Dieselbe Frage, aber von Hand: laeuft dieser Vertrag am Ersten? */
+  function laeuft(v: Pruefvertrag, monat: string): boolean {
+    if (v.beginn > monat) return false;
+    if (v.ende && v.ende < monat) return false;
+    return true;
+  }
+
+  test("Zugaenge und Abgaenge stimmen mit den Laufzeiten ueberein", () => {
+    const monate = rasterMonate(HEUTE);
+    for (let i = 1; i < monate.length; i++) {
+      const jetzt = new Set(
+        vertraege.filter((v) => laeuft(v, monate[i])).map((v) => v.id),
+      );
+      const vor = new Set(
+        vertraege.filter((v) => laeuft(v, monate[i - 1])).map((v) => v.id),
+      );
+      const erwartetZu = [...jetzt].filter((id) => !vor.has(id)).length;
+      const erwartetAb = [...vor].filter((id) => !jetzt.has(id)).length;
+
+      const p = punkt(reihe, monate[i]);
+      assert.equal(p.vertraege, jetzt.size, `Vertragszahl ${monate[i]}`);
+      assert.equal(p.zugaenge, erwartetZu, `Zugaenge ${monate[i]}`);
+      assert.equal(p.abgaenge, erwartetAb, `Abgaenge ${monate[i]}`);
+    }
+  });
+
+  test("die Vertragszahl aendert sich genau um Zugaenge minus Abgaenge", () => {
+    for (let i = 1; i < reihe.length; i++) {
+      assert.equal(
+        reihe[i].vertraege - reihe[i - 1].vertraege,
+        reihe[i].zugaenge - reihe[i].abgaenge,
+        `Bei ${reihe[i].monat} passt die Bewegung nicht zur Vertragszahl.`,
+      );
+    }
+  });
+
+  test("der erste Monat behauptet keine Bewegung", () => {
+    // Sein Vormonat liegt ausserhalb des Fensters und ist nicht abgefragt.
+    // "Drei Zugaenge im ersten Monat" waere eine Aussage ueber Daten, die
+    // nicht geladen wurden.
+    assert.equal(reihe[0].zugaenge, 0);
+    assert.equal(reihe[0].abgaenge, 0);
+    assert.ok(reihe[0].vertraege > 0, "Der erste Monat hat trotzdem Vertraege.");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Welcher Betrag gilt
+//
+// Verhindert: dass eine Inklusivmiete mit der Summe ihrer leeren Posten
+// eingeht, also mit 0,00 EUR.
+//
+// Rund zwei Drittel der WG-Zimmer sind als Inklusivmiete vermietet ("500 EUR
+// all-in"). Wird dort die Summe der Posten gerechnet statt der zugesagten
+// Gesamtmiete, verschwindet zwei Drittel der Jahresmiete -- und die Linie
+// zeigt ein Haus, das fast leer steht. Die Regel entscheidet sollGesamt() in
+// lib/sollstellung.ts; sie wird hier nicht nachgebaut, sondern benutzt.
+// ---------------------------------------------------------------------------
+
+describe("Laufmiete: es gilt die Vertragszusage, nicht die Postensumme", () => {
+  test("eine Inklusivmiete geht mit ihrem vollen Betrag ein", () => {
+    // Nur gesamtmiete gesetzt, keine Posten: 12 x 500 = 6.000,00.
+    const reihe = laufmieteReihe(
+      pruefZeilen(HEUTE, [
+        {
+          id: "mv-inklusiv",
+          beginn: "2024-01-01",
+          posten: fest({ gesamtmiete: "500.00" }),
+        },
+      ]),
+      HEUTE,
+    );
+    assert.equal(punkt(reihe, "2026-11-01").jahresmiete, 6_000);
+  });
+
+  test("die zugesagte Gesamtmiete schlaegt die Summe der Posten", () => {
+    // Posten 380 + 70 = 450, zugesagt 520. Geschuldet sind 520 ->
+    // 12 x 520 = 6.240,00. Mit der Postensumme waeren es 5.400,00 -- eine
+    // Abweichung von 840 EUR im Jahr, die wie ein guenstiger Mietvertrag
+    // aussieht.
+    const reihe = laufmieteReihe(
+      pruefZeilen(HEUTE, [
+        {
+          id: "mv-zusage",
+          beginn: "2024-01-01",
+          posten: fest({
+            kaltmiete: "380.00",
+            nebenkosten: "70.00",
+            gesamtmiete: "520.00",
+          }),
+        },
+      ]),
+      HEUTE,
+    );
+    assert.equal(punkt(reihe, "2026-11-01").jahresmiete, 6_240);
+  });
+
+  test("eine vereinbarte Mietanpassung erscheint im richtigen Monat", () => {
+    // Staffelmiete: 500,00 bis Ende 2026, ab 01.01.2027 540,00. So liefert
+    // miete_am() die Posten -- fortgeschrieben wird hier nichts.
+    //   Dezember 2026: 12 x 500 = 6.000,00
+    //   Januar   2027: 12 x 540 = 6.480,00
+    const reihe = laufmieteReihe(
+      pruefZeilen(HEUTE, [
+        {
+          id: "mv-staffel",
+          beginn: "2024-01-01",
+          posten: (monat) => ({
+            gesamtmiete: monat >= "2027-01-01" ? "540.00" : "500.00",
+          }),
+        },
+      ]),
+      HEUTE,
+    );
+
+    assert.equal(punkt(reihe, "2026-12-01").jahresmiete, 6_000);
+    assert.equal(punkt(reihe, "2027-01-01").jahresmiete, 6_480);
+    // Kein Vertragswechsel: Die Stufe kommt vom Betrag, nicht vom Bestand.
+    assert.equal(punkt(reihe, "2027-01-01").zugaenge, 0);
+    assert.equal(punkt(reihe, "2027-01-01").abgaenge, 0);
+    assert.equal(punkt(reihe, "2027-01-01").vertraege, 1);
+  });
+
+  test("nach der Anpassung wird nichts weiter fortgeschrieben", () => {
+    // Was vereinbart ist, steht in der Reihe. Was nicht vereinbart ist,
+    // bleibt gleich -- keine Indexierung, keine Inflation, kein Mietspiegel.
+    const reihe = laufmieteReihe(
+      pruefZeilen(HEUTE, [
+        {
+          id: "mv-staffel",
+          beginn: "2024-01-01",
+          posten: (monat) => ({
+            gesamtmiete: monat >= "2027-01-01" ? "540.00" : "500.00",
+          }),
+        },
+      ]),
+      HEUTE,
+    );
+    for (const p of reihe.filter((x) => x.monat >= "2027-01-01")) {
+      assert.equal(p.jahresmiete, 6_480, `${p.monat} wurde fortgeschrieben.`);
+    }
+  });
+
+  test("dieselbe Miete zaehlt nur einmal, auch bei doppelten Zeilen", () => {
+    // Eine Abfrage, die ueber mehrere Einheiten oder Anpassungen doppelt
+    // verbindet, liefert zwei Zeilen fuer ein Mietverhaeltnis. Zweimal
+    // gezaehlt sieht das aus wie ein zusaetzlicher Mieter.
+    const einfach = pruefZeilen(HEUTE, [
+      { id: "mv-a", beginn: "2024-01-01", posten: fest({ gesamtmiete: "500.00" }) },
+    ]);
+    const reihe = laufmieteReihe([...einfach, ...einfach], HEUTE);
+    assert.equal(punkt(reihe, "2026-11-01").vertraege, 1);
+    assert.equal(punkt(reihe, "2026-11-01").jahresmiete, 6_000);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Leerer Bestand
+//
+// Verhindert: eine durchgezogene Linie ueber einen Leerstand hinweg.
+//
+// Eine Reihe, die nur die belegten Monate enthaelt, hat im Diagramm keine
+// Luecke -- sie verbindet den Monat davor mit dem danach und behauptet damit
+// fuer die Zeit dazwischen eine Miete. Ein leeres Haus muss als Null
+// dastehen, nicht als fehlende Zeile und nicht als null.
+// ---------------------------------------------------------------------------
+
+describe("Laufmiete: leerer Bestand ist eine Null und keine Luecke", () => {
+  test("ohne jeden Vertrag steht eine vollstaendige Reihe aus Nullen", () => {
+    const reihe = laufmieteReihe([], HEUTE);
+    assert.equal(reihe.length, 25);
+    for (const p of reihe) {
+      assert.equal(p.jahresmiete, 0, `${p.monat} ist nicht 0.`);
+      assert.equal(p.vertraege, 0, `${p.monat} hat Vertraege.`);
+      assert.equal(p.zugaenge, 0);
+      assert.equal(p.abgaenge, 0);
+      assert.equal(typeof p.jahresmiete, "number");
+    }
+    // Und die Lage dazu gibt es trotzdem -- mit Nullen, nicht mit null.
+    const lage = laufmieteLage(reihe);
+    assert.ok(lage);
+    assert.equal(lage.jetzt, 0);
+    assert.equal(lage.vertraegeJetzt, 0);
+    assert.equal(lage.groessteAenderung, null);
+  });
+
+  test("ein Vertrag ohne erfassten Betrag zaehlt als Vertrag mit 0 EUR", () => {
+    // Nicht weglassen: Das waere die stille Korrektur eines Pflegefehlers.
+    // So steht er in der Tabelle und faellt auf.
+    const reihe = laufmieteReihe(
+      pruefZeilen(HEUTE, [{ id: "mv-leer", beginn: "2024-01-01", posten: fest({}) }]),
+      HEUTE,
+    );
+    assert.equal(punkt(reihe, "2026-11-01").vertraege, 1);
+    assert.equal(punkt(reihe, "2026-11-01").jahresmiete, 0);
+  });
+
+  test("laufmieteLage einer leeren Reihe ist null und nicht erfunden", () => {
+    assert.equal(laufmieteLage([]), null);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Die laufende Netto-Mietrendite
+//
+// Verhindert zwei Dinge:
+//
+//   1. Eine Rendite ohne Kaufpreis. Dieselbe Strenge wie bei der
+//      Rueckblick-Rendite: keine 0 %, kein "n/a", sondern null mit einem
+//      Satz, der sagt, welches Feld fehlt.
+//   2. Eine Zahl, die wie eine saubere Vorausschau aussieht. Im Zaehler
+//      stehen zwoelf heutige Monatsmieten, im Nenner Kosten aus dem
+//      Rueckblick -- Belege lassen sich nicht hochrechnen. Diese Mischung
+//      MUSS in der Grundlage stehen, sonst liest sie jemand als Prognose.
+// ---------------------------------------------------------------------------
+
+describe("Laufende Netto-Mietrendite", () => {
+  test("jahresLaufmiete und rohertragLautVertrag sind dieselbe Zahl", () => {
+    // Der alte Name bleibt als Alias, damit kein Aufrufer bricht. Eine
+    // Umbenennung, die an einer Stelle vergessen wird, waere hier keine
+    // Fehlermeldung, sondern eine fehlende Kennzahl.
+    assert.equal(rohertragLautVertrag, jahresLaufmiete);
+    assert.equal(
+      jahresLaufmiete(OBJEKT_A_BASIS).wert,
+      rohertragLautVertrag(OBJEKT_A_BASIS).wert,
+    );
+    // 12 x 4.000,00 = 48.000,00.
+    assert.equal(jahresLaufmiete(OBJEKT_A_BASIS).wert, 48_000);
+  });
+
+  test("ohne Kaufpreis gibt es keine Zahl, sondern eine Begruendung", () => {
+    const laufmiete = jahresLaufmiete(OBJEKT_A_BASIS);
+    const kosten = bewirtschaftungskosten(
+      stamm({ bewirtschaftung_jahr: 12_000 }),
+      OBJEKT_A_BASIS,
+      48_000,
+    );
+    const r = nettomietrenditeLaufend(
+      laufmiete,
+      kosten,
+      gesamtinvest(LEERER_STAMM),
+      OBJEKT_A_BASIS,
+    );
+
+    assert.equal(r.wert, null);
+    assert.equal(r.einheit, "prozent");
+    assert.ok(
+      r.grund && r.grund.includes("Kaufpreis"),
+      `Der Grund nennt den Kaufpreis nicht: ${r.grund}`,
+    );
+  });
+
+  test("die Grundlage nennt, dass die Kosten aus dem Rueckblick stammen", () => {
+    // Von Hand: Laufmiete 12 x 4.000 = 48.000,00, Kosten 12.000,00 ->
+    // Reinertrag 36.000,00. Gesamtinvest 500.000 + 60.000 = 560.000,00.
+    //   36.000 / 560.000 = 0,0642857...  -> 6,43 %
+    const laufmiete = jahresLaufmiete(OBJEKT_A_BASIS);
+    const kosten = bewirtschaftungskosten(
+      stamm({ bewirtschaftung_jahr: 12_000 }),
+      OBJEKT_A_BASIS,
+      48_000,
+    );
+    const r = nettomietrenditeLaufend(
+      laufmiete,
+      kosten,
+      gesamtinvest(OBJEKT_A_STAMM),
+      OBJEKT_A_BASIS,
+    );
+
+    assert.equal(Math.round((r.wert as number) * 1e6) / 1e6, 0.064286);
+    assert.ok(
+      r.grundlage.includes("Rückblick"),
+      `Die Grundlage nennt den Rueckblick nicht: ${r.grundlage}`,
+    );
+    assert.ok(
+      r.grundlage.includes(OBJEKT_A_BASIS.fensterVon) &&
+        r.grundlage.includes(OBJEKT_A_BASIS.fensterBis),
+      "Die Grundlage nennt das Kostenfenster nicht mit Datum.",
+    );
+    assert.ok(
+      r.grundlage.includes("hochrechnen"),
+      "Die Grundlage sagt nicht, dass Kosten sich nicht hochrechnen lassen.",
+    );
+  });
+
+  test("beide Renditen stehen in der Lage und sagen, wie sie sich unterscheiden", () => {
+    const l = wirtschaftLage(
+      { ...OBJEKT_A_STAMM, bewirtschaftung_jahr: 12_000 },
+      // Rueckblick mit Leerstand: gestellt 42.000 statt 48.000 laut Vertrag.
+      basis({ ...OBJEKT_A_BASIS, sollGestellt: 42_000 }),
+    );
+
+    assert.ok(l.nettomietrendite.wert !== null);
+    assert.ok(l.nettomietrenditeLaufend.wert !== null);
+    // Die laufende Rendite ist hier hoeher -- der Leerstand des letzten
+    // Jahres steckt nur im Rueckblick.
+    assert.ok(
+      (l.nettomietrenditeLaufend.wert as number) >
+        (l.nettomietrendite.wert as number),
+      "Bei Leerstand im Rueckblick muss die laufende Rendite hoeher sein.",
+    );
+    // Jede der beiden sagt in einem Satz, worin sie sich unterscheidet.
+    assert.ok(
+      l.nettomietrendite.grundlage.includes("Rückblick"),
+      "Die Rueckblick-Rendite erklaert sich nicht.",
+    );
+    assert.ok(
+      l.nettomietrenditeLaufend.grundlage.includes("heutigen Vertragsbestand"),
+      "Die laufende Rendite erklaert sich nicht.",
+    );
+    // Der alte Feldname zeigt weiter auf dieselbe Zahl.
+    assert.equal(
+      l.nettomietrenditeLautVertrag.wert,
+      l.nettomietrenditeLaufend.wert,
+    );
+    assert.equal(l.rohertragLautVertrag.wert, l.jahresLaufmiete.wert);
   });
 });
