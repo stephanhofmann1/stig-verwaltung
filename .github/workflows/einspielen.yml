@@ -65,11 +65,40 @@ jobs:
         # zwischen zwei anderen -- und dann steht die Datenbank halb
         # migriert da.
         run: |
-          docker run -d --name pg -e POSTGRES_PASSWORD=test \
-            -p 5432:5432 postgres:16
-          for i in $(seq 1 30); do
-            docker exec pg pg_isready -q && break; sleep 1
+          set -euo pipefail
+          docker run -d --name pg -e POSTGRES_PASSWORD=test postgres:16
+
+          # Warten, bis die Datenbank wirklich steht.
+          #
+          # pg_isready allein genuegt nicht. Das Postgres-Abbild startet
+          # beim ersten Lauf einen voruebergehenden Server, um das
+          # Datenverzeichnis einzurichten, und der nimmt ueber den
+          # Unix-Socket schon Verbindungen an: pg_isready meldet "bereit",
+          # der Einrichtungsserver geht gleich darauf wieder aus, und das
+          # erste psql faellt in die Luecke. Am 05.11.2026 ist genau das
+          # passiert -- "No such file or directory", 1,4 Sekunden nach dem
+          # Start. Die Laeufe davor sind nicht sicherer gewesen, sie haben
+          # das Rennen nur gewonnen.
+          #
+          # Deshalb zwei Bedingungen: die Marke, die das Abbild NACH der
+          # Einrichtung schreibt, und eine echte Abfrage. Der Behaelter
+          # ist hier immer frisch, also kommt die Marke auch immer.
+          for i in $(seq 1 60); do
+            if docker logs pg 2>&1 | grep -q "init process complete" \
+               && docker exec -e PGPASSWORD=test pg \
+                    psql -U postgres -d postgres -tAc 'select 1' \
+                    >/dev/null 2>&1; then
+              bereit=ja; break
+            fi
+            sleep 1
           done
+          if [ "${bereit:-}" != ja ]; then
+            echo "::error::Die Probe-Datenbank ist nicht hochgekommen."
+            docker logs pg 2>&1 | tail -30
+            exit 1
+          fi
+          echo "Datenbank steht nach $i Sekunden."
+
           for f in db/0*.sql; do
             echo "--- $f"
             docker exec -i -e PGPASSWORD=test pg \
