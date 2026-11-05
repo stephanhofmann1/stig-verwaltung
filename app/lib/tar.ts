@@ -119,7 +119,29 @@ export function nameIstHarmlos(name: string): boolean {
   if (name.startsWith("/") || /^[A-Za-z]:/.test(name)) return false;
   if (name.includes("\\")) return false;
   if (/[\u0000-\u001f]/.test(name)) return false;
-  return !name.split("/").some((t) => t === ".." || t === ".");
+  return !name.split("/").some((t) => t === "..");
+}
+
+/**
+ * Den Namen auf seine harmlose Form bringen.
+ *
+ * WARUM
+ *
+ * "tar czf paket.tgz -C ordner ." -- der nachliegendste Weg, ein Archiv
+ * zu bauen -- schreibt jeden Namen als "./beleg.pdf". Das ist dieselbe
+ * Datei wie "beleg.pdf", kein Ausbruchsversuch. Am 05.11.2026 wies die
+ * Einlieferung ein Paket mit 57 Amazon-Rechnungen deshalb komplett ab,
+ * mit einer Meldung, die nach Angriff klang. Ein Punkt-Segment wird
+ * entfernt, nicht abgewiesen.
+ *
+ * Punkt-Punkt bleibt verboten: Das ist der Ausbruch, und den fängt
+ * nameIstHarmlos ab. Diese Funktion raeumt nur auf, sie erlaubt nichts.
+ */
+export function normiereTarName(name: string): string {
+  return name
+    .split("/")
+    .filter((t) => t !== "" && t !== ".")
+    .join("/");
 }
 
 /**
@@ -217,6 +239,8 @@ export function leseTar(roh: Buffer): TarEintrag[] {
           "keine Geraetedateien.",
       );
     }
+    // Erst pruefen, dann aufraeumen: Punkt-Punkt soll auch dann
+    // auffallen, wenn das Aufraeumen es sonst verstecken wuerde.
     if (!nameIstHarmlos(name)) {
       throw new TarFehler(
         `Unzulaessiger Name im Archiv: "${name.slice(0, 80)}". ` +
@@ -240,9 +264,18 @@ export function leseTar(roh: Buffer): TarEintrag[] {
       throw new TarFehler(`Mehr als ${MAX_EINTRAEGE} Dateien in einem Archiv.`);
     }
 
+    // Jetzt aufraeumen: "./beleg.pdf" wird zu "beleg.pdf". Ein Archiv,
+    // das nur aus einem Punkt-Segment bestand, hat keinen Namen mehr.
+    const sauber = normiereTarName(name);
+    if (sauber === "") {
+      throw new TarFehler(
+        `Ein Eintrag im Archiv hat keinen Namen ("${name.slice(0, 40)}").`,
+      );
+    }
+
     // Kopie, nicht Sicht: subarray teilt den Speicher des ganzen
     // Archivs, und der soll nach dem Lesen freigegeben werden koennen.
-    eintraege.push({ name, inhalt: Buffer.from(inhalt) });
+    eintraege.push({ name: sauber, inhalt: Buffer.from(inhalt) });
   }
 
   if (eintraege.length === 0) {
