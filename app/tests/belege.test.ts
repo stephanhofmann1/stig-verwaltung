@@ -569,3 +569,66 @@ describe("seitenAuswahl", () => {
     assert.deepEqual(s, [1, 2, 99, 100]);
   });
 });
+
+/**
+ * Liest das Portal wirklich Text aus einem PDF?
+ *
+ * ANLASS, 05.11.2026
+ *
+ * Es konnte es nicht -- und zwar nie. pdfjs lädt seinen Arbeiter zur
+ * Laufzeit nach, und im gebündelten Serverbetrieb lag er nicht dort, wo
+ * pdfjs ihn suchte:
+ *
+ *   Setting up fake worker failed: Cannot find module
+ *   '/app/.next/server/chunks/pdf.worker.mjs'
+ *
+ * lieseBeleg fängt diesen Fehler und meldet "keine Textebene". Damit sah
+ * jedes PDF wie ein Scan aus. 229 Belege sind so eingeliefert worden,
+ * ohne dass eine einzige Zeile daraus gelesen wurde -- und weil die
+ * Felder aus einer mitgelieferten Beifügung kamen, wirkte das Ergebnis
+ * vollständig. Gemeldet wurden "0 Abweichungen zwischen zwei Lesungen".
+ * Es gab nie zwei Lesungen; die zweite schwieg.
+ *
+ * Diese Tests prüfen das Gegenteil: dass aus einem PDF mit Textebene
+ * auch Text herauskommt. Ein Test, der nur prüft, dass lieseBeleg nicht
+ * wirft, hätte den Ausfall mitgetragen.
+ */
+describe("Textebene wirklich lesen", () => {
+  async function pdfMitText(zeilen: string[]): Promise<Buffer> {
+    const dok = await PDFDocument.create();
+    const schrift = await dok.embedFont(StandardFonts.Helvetica);
+    const seite = dok.addPage([595, 842]);
+    zeilen.forEach((z, i) =>
+      seite.drawText(z, { x: 50, y: 780 - i * 20, size: 11, font: schrift }),
+    );
+    return Buffer.from(await dok.save());
+  }
+
+  test("aus einem PDF mit Textebene kommt der Text heraus", async () => {
+    const bytes = await pdfMitText([
+      "Rechnung",
+      "Bestellnummer 303-9211199-0875554",
+      "Zahlbetrag 45,44 EUR",
+    ]);
+    const d = await lieseBeleg(bytes);
+    assert.equal(d.art, "pdf");
+    assert.equal(d.fehler, null, `Lesefehler: ${d.fehler}`);
+    assert.equal(d.ohne_textebene, false, "PDF wurde fälschlich für einen Scan gehalten");
+    assert.match(d.text, /Bestellnummer/);
+    assert.match(d.text, /303-9211199-0875554/);
+  });
+
+  test("der Betragsleser findet den Betrag darin", async () => {
+    const bytes = await pdfMitText(["Rechnung", "Zahlbetrag 1.234,56 EUR"]);
+    const d = await lieseBeleg(bytes);
+    assert.equal(findeBetrag(d.text), 1234.56);
+  });
+
+  test("ein leeres PDF gilt als ohne Textebene -- und nicht als Fehler", async () => {
+    const dok = await PDFDocument.create();
+    dok.addPage([595, 842]);
+    const d = await lieseBeleg(Buffer.from(await dok.save()));
+    assert.equal(d.fehler, null);
+    assert.equal(d.ohne_textebene, true);
+  });
+});
