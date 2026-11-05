@@ -426,9 +426,15 @@ export function findeDatum(text: string): string | null {
  *
  * Gezaehlt werden die VERSCHIEDENEN Belegnummern, nicht ihre Vorkommen:
  * Amazon wiederholt Nummer und Betrag im Kopf jeder Seite.
+ *
+ * Die Nummer darf Bindestriche tragen. Amazon vergibt neben
+ * "DE6UDGSPAEUI" auch "DS-AEU-INV-DE-2025-191950229"; ein Muster aus
+ * nur Buchstaben und Ziffern sah davon zwei Zeichen und zaehlte die
+ * Datei als ein Stueck. Genau so blieb am 05.11.2026 eine Datei mit
+ * drei Rechnungen (3,99 + 19,99 + 13,75 EUR) unerkannt.
  */
 export function zaehleBelegstuecke(text: string): number {
-  const muster = /(?:Rechnungs|Quittungs|Gutschrifts)nummer\s+([A-Z0-9]{8,20})/g;
+  const muster = /(?:Rechnungs|Quittungs|Gutschrifts)nummer\s+([A-Z0-9][A-Z0-9-]{6,40})/g;
   const nummern = new Set<string>();
   for (const t of text.matchAll(muster)) nummern.add(t[1]);
   return nummern.size;
@@ -438,7 +444,7 @@ export function findeSummeMehrererRechnungen(
   text: string,
 ): { summe: number; rechnungen: number } | null {
   const muster =
-    /Rechnungsnummer\s+([A-Z0-9]{8,20})|Zahlbetrag\s*([-]?\d{1,3}(?:\.\d{3})*,\d{2})/g;
+    /Rechnungsnummer\s+([A-Z0-9][A-Z0-9-]{6,40})|Zahlbetrag\s*([-]?\d{1,3}(?:\.\d{3})*,\d{2})/g;
   const jeRechnung = new Map<string, number>();
   let aktuell: string | null = null;
   for (const t of text.matchAll(muster)) {
