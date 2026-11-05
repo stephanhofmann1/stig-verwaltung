@@ -8,11 +8,12 @@ import {
   findeBetrag,
   findeDatum,
   findeKontobewegung,
+  findeSummeMehrererRechnungen,
+  leererBefund,
   leseZahl,
   pruefeModellfelder,
-  werteBelegAus,
-  leererBefund,
   type BewegungZeile,
+  werteBelegAus,
 } from "../lib/belege";
 import { istBild, istPdf, lieseBeleg, seitenAuswahl } from "../lib/belegtext";
 import { vergleichbar } from "../lib/zuordnung";
@@ -630,5 +631,106 @@ describe("Textebene wirklich lesen", () => {
     const d = await lieseBeleg(Buffer.from(await dok.save()));
     assert.equal(d.fehler, null);
     assert.equal(d.ohne_textebene, true);
+  });
+});
+
+describe("Rangfolge der Datumsetiketten", () => {
+  /**
+   * Der Lesetext einer Amazon-Rechnung stellt beide Daten flach
+   * hintereinander, und das Bestelldatum steht zuerst. Eine Alternation
+   * aus allen Etiketten greift deshalb das falsche. Am 05.11.2026 lagen
+   * 30 von 100 Amazon-Belegen mit dem Bestelldatum in den Buechern.
+   * Alle Nummern hier sind erfunden.
+   */
+  const amazon =
+    "Rechnung Seite 1 von 1 USt. 19% 29,40 € 5,59 € Gesamtpreis 34,99 € " +
+    "Rechnungsdetails Bestelldatum 28.08.2026 Bestellnummer 302-1111111-2222222 " +
+    "USt-IDNr. LU20260743 Verkauft von Beispiel GmbH " +
+    "Rechnungsdatum /Lieferdatum 29.08.2026 Rechnungsnummer DE6871MONAEUD " +
+    "Zahlbetrag 34,99 €";
+
+  test("das Rechnungsdatum gewinnt, auch wenn das Bestelldatum vorher steht", () => {
+    assert.equal(findeDatum(amazon), "2026-08-29");
+  });
+
+  test('die Füllung "/Lieferdatum" steht nicht im Weg', () => {
+    assert.equal(findeDatum("Rechnungsdatum /Lieferdatum 27.09.2026"), "2026-09-27");
+  });
+
+  test("ein deutscher Monatsname wird gelesen", () => {
+    assert.equal(
+      findeDatum("Bestelldatum 26 September 2026 Rechnungsdatum /Lieferdatum 27 September 2026"),
+      "2026-09-27",
+    );
+    assert.equal(findeDatum("Belegdatum 07. März 2026"), "2026-03-07");
+  });
+
+  test("ohne Rechnungsdatum gilt das Bestelldatum", () => {
+    assert.equal(findeDatum("Bestelldatum 28.08.2026"), "2026-08-28");
+  });
+
+  test("ohne jedes Etikett das erste Datum im Text", () => {
+    assert.equal(findeDatum("Lieferung am 14.03.2026 an die Baustelle"), "2026-03-14");
+  });
+
+  test("ein unmögliches Datum wird nicht genommen", () => {
+    assert.equal(findeDatum("Rechnungsdatum 31.02.2026"), null);
+  });
+});
+
+describe("Mehrere Rechnungen in einer Datei", () => {
+  /**
+   * Amazon legt die Rechnungen mehrerer Sendungen einer Bestellung in
+   * ein PDF. Die Abbuchung ist eine -- ueber die Summe. Die Zahlen hier
+   * sind der am 05.11.2026 an der Bank bestaetigte Fall: 68,91 + 19,99 +
+   * 39,99 = 128,89 EUR, und genau 128,89 EUR wurden abgebucht.
+   */
+  const drei =
+    "Rechnungsnummer DE11AAAAAAEUD Zahlbetrag 68,91 € " +
+    "Rechnungsnummer DE22BBBBBBEUD Zahlbetrag 19,99 € " +
+    "Rechnungsnummer DE33CCCCCCEUD Zahlbetrag 39,99 €";
+
+  test("die Summe, nicht ein Teil", () => {
+    const m = findeSummeMehrererRechnungen(drei);
+    assert.ok(m);
+    assert.equal(m!.rechnungen, 3);
+    assert.equal(m!.summe, 128.89);
+  });
+
+  test("werteBelegAus nimmt die Summe", () => {
+    assert.equal(werteBelegAus(drei).betrag_brutto, 128.89);
+  });
+
+  test("dieselbe Rechnung auf zwei Seiten wird nicht verdoppelt", () => {
+    // Amazon wiederholt Nummer und Betrag im Seitenkopf. 47,02 EUR auf
+    // zwei Seiten sind 47,02 EUR.
+    const zweiSeiten =
+      "Rechnungsnummer DE66DIQPEAEUD Zahlbetrag 47,02 € Seite 1 von 2 " +
+      "Rechnungsnummer DE66DIQPEAEUD Zahlbetrag 47,02 € Seite 2 von 2";
+    assert.equal(findeSummeMehrererRechnungen(zweiSeiten), null);
+  });
+
+  test("eine einzige Rechnung ergibt null -- das Regelwerk entscheidet", () => {
+    assert.equal(
+      findeSummeMehrererRechnungen("Rechnungsnummer DE11AAAAAAEUD Zahlbetrag 34,99 €"),
+      null,
+    );
+  });
+
+  test("ohne Rechnungsnummern greift die Regel nicht", () => {
+    // Eine polnische Haendlerrechnung schreibt netto/USt/brutto in eine
+    // Zeile. Sie hat kein "Zahlbetrag" und keine Amazon-Nummern -- hier
+    // darf nichts summiert werden.
+    assert.equal(
+      findeSummeMehrererRechnungen("Gesamtsumme: in EUR 9,82 1,87 11,69"),
+      null,
+    );
+  });
+
+  test("eine unglaubwürdige Summe wird verworfen", () => {
+    const viel =
+      "Rechnungsnummer DE11AAAAAAEUD Zahlbetrag 999.999,00 € " +
+      "Rechnungsnummer DE22BBBBBBEUD Zahlbetrag 999.999,00 €";
+    assert.equal(findeSummeMehrererRechnungen(viel), null);
   });
 });
