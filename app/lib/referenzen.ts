@@ -140,3 +140,53 @@ export function stehtDrin(normierteReferenz: string, text: string): boolean {
   if (normierteReferenz.length < MINDESTLAENGE) return false;
   return normiere(text).includes(normierteReferenz);
 }
+
+/**
+ * Referenznummern aus dem DATEINAMEN lesen.
+ *
+ * WARUM SEPARAT
+ *
+ * Am 05.11.2026 kam eine Amazon-Lieferung mit 115 Rechnungen. Eine davon
+ * war die eigene Rechnung eines Marketplace-Händlers (Colour Discount,
+ * Rechnung 1220548). Im Text steht die Amazon-Bestellnummer nicht --
+ * der Händler kennt sie nicht, er sieht nur seine eigene Auftragsnummer.
+ * Im Dateinamen steht sie:
+ *
+ *     amazon_303-2590890-3793143_rechnung_1.pdf
+ *
+ * Ohne den Dateinamen bleibt dieser Beleg unzuordenbar, obwohl die
+ * Nummer vorliegt.
+ *
+ * WARUM NICHT EINFACH findeReferenzen(name)
+ *
+ * Der Unterstrich zaehlt in \b als Wortzeichen. In
+ * "amazon_303-2590890-3793143" steht vor der 303 kein Wortanfang, das
+ * Muster greift nicht. Deshalb werden Trennzeichen erst zu Leerzeichen.
+ */
+export function findeReferenzenImNamen(dateiname: string): Referenz[] {
+  const lesbar = dateiname
+    .replace(/\.[A-Za-z0-9]{1,5}$/, " ")
+    // %20 und Verwandte ganz weg, nicht nur das Prozentzeichen: Sonst
+    // klebt die "20" an der Nummer und macht sie unkenntlich.
+    .replace(/%[0-9A-Fa-f]{2}/g, " ")
+    .replace(/[_+]+/g, " ");
+  return findeReferenzen(lesbar);
+}
+
+/**
+ * Inhalt und Dateiname zusammen, ohne Doppelte.
+ *
+ * Der Inhalt hat Vorrang: Steht dieselbe Nummer in beiden, gilt die
+ * Schreibweise aus dem Beleg.
+ */
+export function findeAlleReferenzen(text: string, dateiname: string): Referenz[] {
+  const treffer = findeReferenzen(text);
+  const gesehen = new Set(treffer.map((r) => `${r.art}:${r.normiert}`));
+  for (const r of findeReferenzenImNamen(dateiname)) {
+    const schluessel = `${r.art}:${r.normiert}`;
+    if (gesehen.has(schluessel)) continue;
+    gesehen.add(schluessel);
+    treffer.push(r);
+  }
+  return treffer;
+}

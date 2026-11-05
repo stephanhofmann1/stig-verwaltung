@@ -1,7 +1,13 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 
-import { findeReferenzen, normiere, stehtDrin } from "../lib/referenzen";
+import {
+  findeAlleReferenzen,
+  findeReferenzen,
+  findeReferenzenImNamen,
+  normiere,
+  stehtDrin,
+} from "../lib/referenzen";
 
 /**
  * Tests der Referenzerkennung.
@@ -140,5 +146,79 @@ describe("Mehrfachfunde", () => {
       "Bestellnummer 303-1111111-1111111\nBestellnummer 304-2222222-2222222",
     );
     assert.equal(r.filter((x) => x.art === "bestellnummer").length, 2);
+  });
+});
+
+describe("Referenzen aus dem Dateinamen", () => {
+  test("die Bestellnummer hinter einem Unterstrich wird gefunden", () => {
+    // Der Fall, der das noetig machte: Die eigene Rechnung eines
+    // Marketplace-Haendlers nennt die Amazon-Bestellnummer nicht. Nur
+    // der Dateiname kennt sie.
+    const r = findeReferenzenImNamen("amazon_303-2590890-3793143_rechnung_1.pdf");
+    assert.equal(r.length, 1);
+    assert.equal(r[0].art, "bestellnummer");
+    assert.equal(r[0].wert, "303-2590890-3793143");
+  });
+
+  test("die Dateiendung wird nicht Teil der Nummer", () => {
+    const r = findeReferenzenImNamen("301-1234567-7654321.pdf");
+    assert.equal(r[0]?.wert, "301-1234567-7654321");
+  });
+
+  test("Prozentzeichen aus URL-Kodierung trennen auch", () => {
+    const r = findeReferenzenImNamen("Rechnung%20302-7777777-8888888%20.pdf");
+    assert.equal(r[0]?.wert, "302-7777777-8888888");
+  });
+
+  test("gewöhnliche Dateinamen ergeben keine Referenz", () => {
+    // Geprueft an 413 echten Dateinamen aus der Ablage am 05.11.2026:
+    // 115 Treffer, alle Amazon-Bestellnummern, kein falscher.
+    for (const n of [
+      "Lohnabrechnung_2026-02.pdf",
+      "Kontoauszug 2026-03-14.pdf",
+      "Scan_20260314_0001.pdf",
+      "Abfallbescheid Stadt Gießen 2026.pdf",
+      "IMG_4711.jpeg",
+      "Angebot Wärmepumpe 12.000 EUR.pdf",
+    ]) {
+      assert.deepEqual(findeReferenzenImNamen(n), [], `falscher Treffer bei ${n}`);
+    }
+  });
+});
+
+describe("Inhalt und Dateiname zusammen", () => {
+  const text = "Rechnung\nBestellnummer 303-2590890-3793143\nZahlbetrag 34,90 €";
+
+  test("dieselbe Nummer in beiden kommt nur einmal", () => {
+    const r = findeAlleReferenzen(text, "amazon_303-2590890-3793143_rechnung_1.pdf");
+    assert.equal(r.filter((x) => x.art === "bestellnummer").length, 1);
+  });
+
+  test("der Inhalt hat Vorrang bei der Schreibweise", () => {
+    // Beide Schreibweisen normieren auf 4711998877 -- es ist dieselbe
+    // Nummer. Geliefert wird die aus dem Beleg, nicht die aus dem Namen:
+    // Der Beleg ist die Quelle, der Dateiname nur ein Hinweis.
+    const r = findeAlleReferenzen(
+      "Kundennummer: 4711/998877",
+      "Kundennummer_4711-998877.pdf",
+    );
+    const k = r.filter((x) => x.art === "kundennummer");
+    assert.equal(k.length, 1, "die Nummer darf nicht doppelt kommen");
+    assert.equal(k[0].wert, "4711/998877");
+  });
+
+  test("eine Nummer, die nur im Namen steht, kommt dazu", () => {
+    const r = findeAlleReferenzen("Rechnung Nr. 1220548 Colour Discount", "amazon_303-2590890-3793143_rechnung_1.pdf");
+    assert.ok(r.some((x) => x.normiert === "30325908903793143"));
+  });
+
+  test("ohne Textebene trägt der Name allein", () => {
+    const r = findeAlleReferenzen("", "amazon_304-1111111-2222222_rechnung_1.pdf");
+    assert.equal(r.length, 1);
+    assert.equal(r[0].normiert, "30411111112222222");
+  });
+
+  test("ohne beides kommt nichts", () => {
+    assert.deepEqual(findeAlleReferenzen("", ""), []);
   });
 });
