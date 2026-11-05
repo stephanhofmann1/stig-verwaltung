@@ -118,3 +118,24 @@ describe("Die Abnahme nach dem Einspielen", () => {
     );
   });
 });
+
+describe("Was der Betrieb braucht, muss im Buendel liegen", () => {
+  test("der Ablauf prueft den pdfjs-Arbeiter im eigenstaendigen Buendel", () => {
+    // Ohne ihn liest das Portal kein PDF -- und meldet es als "keine
+    // Textebene", also als Scan und nicht als Defekt. Vom 02.11. bis
+    // zum 05.11.2026 ist das unbemerkt geblieben.
+    assert.match(WORKFLOW, /pdfjs-dist\/legacy\/build\/pdf\.worker\.mjs/);
+    const stelle = WORKFLOW.indexOf("pdf.worker.mjs");
+    assert.match(
+      WORKFLOW.slice(stelle - 600, stelle + 600),
+      /::error::Fehlt im Buendel/,
+      "die Pruefung muss den Schritt rot faerben, nicht nur etwas ausgeben",
+    );
+  });
+
+  test("next.config nimmt pdfjs aus dem Buendel heraus", () => {
+    const konfig = readFileSync(join(WURZEL, "app", "next.config.ts"), "utf8");
+    assert.match(konfig, /serverExternalPackages:\s*\[[^\]]*"pdfjs-dist"/);
+    assert.match(konfig, /outputFileTracingIncludes/);
+  });
+});

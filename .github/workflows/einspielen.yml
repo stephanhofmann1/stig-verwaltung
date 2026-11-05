@@ -59,6 +59,35 @@ jobs:
         working-directory: app
         run: npx next build
 
+      - name: Was der Betrieb braucht, muss im Buendel liegen
+        working-directory: app
+        # Der Programmbau meldet Erfolg, auch wenn eine Datei fehlt, die
+        # erst zur Laufzeit nachgeladen wird. pdfjs holt seinen Arbeiter
+        # ueber einen zur Laufzeit zusammengesetzten Pfad -- die
+        # Ablaufverfolgung sieht ihn nicht, und ohne ihn liest das Portal
+        # kein einziges PDF.
+        #
+        # Vom 02.11. bis zum 05.11.2026 war genau das der Fall. Der
+        # Fehler wird in lieseBeleg gefangen und als "keine Textebene"
+        # gemeldet: Jedes PDF galt als Scan, 229 Belege kamen herein,
+        # ohne dass eine Zeile daraus gelesen wurde. Kein Test hat das
+        # bemerkt, weil im Quelltextbetrieb alles an seinem Platz liegt.
+        run: |
+          set -euo pipefail
+          fehlt=0
+          for datei in \
+            .next/standalone/node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs \
+            .next/standalone/node_modules/pdfjs-dist/legacy/build/pdf.mjs
+          do
+            if [ -f "$datei" ]; then
+              echo "  da: $datei"
+            else
+              echo "::error::Fehlt im Buendel: $datei"
+              fehlt=1
+            fi
+          done
+          [ "$fehlt" = 0 ]
+
       - name: Migrationen gegen eine leere Datenbank
         # Nicht nur lesen, sondern wirklich einspielen. Eine Migration mit
         # einem Tippfehler fällt sonst erst auf dem Server auf, mitten

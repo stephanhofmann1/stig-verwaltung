@@ -78,6 +78,36 @@ export async function pdfText(bytes: Buffer): Promise<BelegText> {
   // Der legacy-Build ist der für Node gedachte.
   const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
 
+  // Den Arbeiter ausdrücklich benennen.
+  //
+  // Ohne das sucht pdfjs ihn neben der Datei, aus der es selbst geladen
+  // wurde. Im gebündelten Serverbetrieb ist das .next/server/chunks, und
+  // dort liegt er nicht:
+  //
+  //   Setting up fake worker failed: Cannot find module
+  //   '/app/.next/server/chunks/pdf.worker.mjs'
+  //
+  // Der Fehler wird unten gefangen und als "keine Textebene" gemeldet.
+  // Er sieht deshalb wie ein Scan aus und nicht wie ein Defekt -- und so
+  // ist er vom 02.11. bis zum 05.11.2026 unbemerkt geblieben, während
+  // jedes hochgeladene PDF als unlesbar galt.
+  //
+  // createRequire löst gegen node_modules auf, nicht gegen das Bündel;
+  // zusammen mit serverExternalPackages in next.config.ts liegt die
+  // Datei dort auch wirklich.
+  if (!pdfjs.GlobalWorkerOptions.workerSrc) {
+    try {
+      const { createRequire } = await import("node:module");
+      pdfjs.GlobalWorkerOptions.workerSrc = createRequire(import.meta.url).resolve(
+        "pdfjs-dist/legacy/build/pdf.worker.mjs",
+      );
+    } catch {
+      // Lässt sich der Pfad nicht auflösen, versucht pdfjs weiter seinen
+      // eigenen Weg. Dann scheitert es wie bisher -- aber sichtbar, mit
+      // Meldung, und nicht anders als vorher.
+    }
+  }
+
   const dok = await pdfjs.getDocument({
     data: new Uint8Array(bytes),
     // Schriften und Bilder interessieren nicht, nur Text.
