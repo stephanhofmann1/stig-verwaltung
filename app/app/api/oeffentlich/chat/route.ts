@@ -129,7 +129,24 @@ export async function POST(req: Request) {
         }))
     : [];
 
-  const schluessel = process.env.ANTHROPIC_API_KEY;
+  /*
+    Ein eigener Schlüssel für das Schaufenster, mit Rückfall auf den
+    Hauptschlüssel.
+
+    Der Grund ist nicht Ordnungsliebe. Diese Schnittstelle ist von
+    jedermann erreichbar; der Agent, der Mieterkorrespondenz schreibt,
+    ist es nicht. Liegen beide auf demselben Schlüssel, kann ein
+    Besucher mit genug Geduld das Budget verbrauchen, das die Verwaltung
+    zum Arbeiten braucht — und der Posteingang stünde still, weil jemand
+    eine Webseite geärgert hat.
+
+    Mit zwei Schlüsseln aus zwei Arbeitsbereichen, jeder mit eigenem
+    Ausgabenlimit, kostet derselbe Versuch nur das Schaufenster. Die
+    Bremse oben hilft davor, aber sie zählt je Adresse und ist damit
+    kein Schutz gegen viele Adressen.
+  */
+  const schluessel =
+    process.env.ANTHROPIC_API_KEY_OEFFENTLICH ?? process.env.ANTHROPIC_API_KEY;
   if (!schluessel) {
     // Ohne Schlüssel antwortet die Wissensbasis selbst. Der Besucher
     // merkt davon nichts außer einem etwas steiferen Ton.
@@ -160,7 +177,15 @@ export async function POST(req: Request) {
         "content-type": "application/json",
       },
       body: JSON.stringify({
-        model: process.env.MODELL ?? "claude-haiku-4-5",
+        /*
+          Das kleine Modell genügt hier und ist um ein Vielfaches
+          billiger als das, mit dem der Agent arbeitet. Der Assistent
+          beantwortet Fragen aus sechzehn Absätzen Wissensbasis — das
+          ist Leseverständnis, nicht Formulierungskunst. Entwürfe an
+          Mieter sind etwas anderes; die schreibt der Agent weiterhin
+          mit dem größeren Modell.
+        */
+        model: process.env.ASSISTENT_MODELL ?? "claude-haiku-5-5",
         max_tokens: 500,
         system: anweisung(),
         messages: [{ role: "user", content: nutzertext }],

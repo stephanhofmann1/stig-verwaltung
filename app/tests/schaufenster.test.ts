@@ -285,4 +285,24 @@ describe("Der Chat-Endpunkt", () => {
     assert.match(ROUTE, /JE_STUNDE/);
     assert.match(ROUTE, /429/);
   });
+
+  test("nimmt den eigenen Schlüssel vor dem Hauptschlüssel", () => {
+    /*
+      Die Reihenfolge ist der ganze Schutz: Stünde der Hauptschlüssel
+      zuerst, liefe das Schaufenster auf dem Budget des Agenten, und
+      das getrennte Ausgabenlimit wäre wirkungslos.
+    */
+    assert.match(
+      ROUTE,
+      /ANTHROPIC_API_KEY_OEFFENTLICH\s*\?\?\s*process\.env\.ANTHROPIC_API_KEY/,
+    );
+  });
+
+  test("nimmt nicht das Modell des Agenten", () => {
+    // Der Assistent liest eine Wissensbasis; der Agent schreibt an
+    // Mieter. Dasselbe Modell für beides wäre an einer Stelle zu teuer
+    // und an der anderen zu knapp.
+    assert.match(ROUTE, /ASSISTENT_MODELL/);
+    assert.ok(!ROUTE.includes("AGENT_MODELL"));
+  });
 });
