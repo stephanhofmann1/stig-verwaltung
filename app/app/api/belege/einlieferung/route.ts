@@ -5,9 +5,11 @@ import { lieseBeleg } from "@/lib/belegtext";
 import { pruefeKostenart } from "@/lib/kostenarten";
 import {
   ablageMarke,
+  findeSummeMehrererRechnungen,
   legeAb,
   sucheDublette,
   werteBelegAus,
+  zaehleBelegstuecke,
   type BelegBefund,
 } from "@/lib/belege";
 import { uebernehmeSichereBelege } from "@/lib/belegabgleich";
@@ -273,10 +275,23 @@ export async function POST(req: Request) {
 
     // Derselbe Vergleich wie in der nachgeholten Gegenprobe -- eine
     // Regel, eine Stelle.
-    const abweichung = widerspruch(
+    const vergleich = widerspruch(
       { betrag: betragRegel, datum: datumRegel },
       { betrag: betragBei, datum: datumBei },
     );
+
+    // Mehr als ein Belegstueck in einer Datei: Der Betrag ist dann nicht
+    // bestimmbar, solange die Summenregel nicht greift -- findeBetrag
+    // nimmt den letzten im Text, und das kann die Quittung einer
+    // fremden Bestellung sein (05.11.2026: 13,20 EUR statt 41,39 EUR).
+    // Vermerkt statt verschwiegen: Der selbsttaetige Abgleich laesst
+    // Belege mit Abweichung liegen, und genau das soll hier geschehen.
+    const stuecke = zaehleBelegstuecke(gelesen.text);
+    const uneindeutig =
+      stuecke > 1 && findeSummeMehrererRechnungen(gelesen.text) === null
+        ? `Mehrere Belegstücke in einer Datei (${stuecke}). Betrag nicht eindeutig.`
+        : null;
+    const abweichung = [vergleich, uneindeutig].filter(Boolean).join("; ") || null;
     if (abweichung) mitWiderspruch += 1;
     if (bei.brutto !== undefined || bei.datum !== undefined) zweiZeugen += 1;
 

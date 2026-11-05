@@ -14,6 +14,7 @@ import {
   pruefeModellfelder,
   type BewegungZeile,
   werteBelegAus,
+  zaehleBelegstuecke,
 } from "../lib/belege";
 import { istBild, istPdf, lieseBeleg, seitenAuswahl } from "../lib/belegtext";
 import { vergleichbar } from "../lib/zuordnung";
@@ -732,5 +733,42 @@ describe("Mehrere Rechnungen in einer Datei", () => {
       "Rechnungsnummer DE11AAAAAAEUD Zahlbetrag 999.999,00 € " +
       "Rechnungsnummer DE22BBBBBBEUD Zahlbetrag 999.999,00 €";
     assert.equal(findeSummeMehrererRechnungen(viel), null);
+  });
+});
+
+describe("Mehrere Belegstücke in einer Datei", () => {
+  /**
+   * Der Fall vom 05.11.2026: eine Datei mit einer Rechnung über 41,39 €
+   * und einer Quittung über 13,20 € zu einer anderen Bestellung.
+   * findeBetrag nimmt den letzten gleichrangigen Treffer -- hier also
+   * 13,20 €. Gezählt wird, damit das auffällt.
+   */
+  const gemischt =
+    "Seite 1 von 2 Rechnung Rechnungsnummer DE6UDGSPAEUI Zahlbetrag 41,39 € " +
+    "Bestelldatum 07 März 2026 Bestellnummer 303-1111111-2222222 " +
+    "Seite 2 von 2 Quittung Quittungsnummer XX6009PPY2RVVT Zahlbetrag 13,20 € " +
+    "Bestelldatum 07 März 2026 Bestellnummer 303-4444444-5555555";
+
+  test("zwei Stücke werden als zwei gezählt", () => {
+    assert.equal(zaehleBelegstuecke(gemischt), 2);
+  });
+
+  test("die Summenregel greift hier nicht -- die Nummern sind verschiedener Art", () => {
+    // Nur eine Rechnungsnummer: Summieren waere geraten.
+    assert.equal(findeSummeMehrererRechnungen(gemischt), null);
+  });
+
+  test("ein Stück auf mehreren Seiten bleibt eins", () => {
+    assert.equal(
+      zaehleBelegstuecke(
+        "Seite 1 von 2 Rechnungsnummer DE66DIQPEAEUD Zahlbetrag 47,02 € " +
+          "Seite 2 von 2 Rechnungsnummer DE66DIQPEAEUD Zahlbetrag 47,02 €",
+      ),
+      1,
+    );
+  });
+
+  test("ohne Belegnummer null Stücke", () => {
+    assert.equal(zaehleBelegstuecke("Gesamtsumme: in EUR 9,82 1,87 11,69"), 0);
   });
 });
