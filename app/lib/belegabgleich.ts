@@ -1,10 +1,12 @@
 import { query, tx } from "./db";
 import { vergleichbar } from "./zuordnung";
+import { stehtDrin } from "./referenzen";
 
 /**
  * Ordnet Abbuchungen den passenden Belegen zu.
  *
  * Reihenfolge der Sicherheit:
+ *   0. Eine Referenz des Belegs steht im Zweck    → sicher
  *   1. Belegnummer steht im Verwendungszweck      → sicher
  *   2. Aussteller erkannt und Betrag passt genau  → sicher
  *   3. nur der Betrag passt, genau ein Kandidat   → unsicher
@@ -42,6 +44,19 @@ export interface BelegVorschlag {
   sicherheit: "sicher" | "unsicher";
   begruendung: string;
   beleg_bezeichnung?: string;
+  /**
+   * Weitere Belege zu DERSELBEN Abbuchung.
+   *
+   * Eine Amazon-Bestellung kann in mehreren Lieferungen kommen, und jede
+   * traegt ihre eigene Rechnung -- abgebucht wird trotzdem einmal, unter
+   * der gemeinsamen Bestellnummer. Ein Vorschlag je Abbuchung bliebe
+   * dann unvollstaendig, und die Bewegung staende weiter als "teilweise
+   * belegt" da.
+   *
+   * Die Oberflaeche zeigt weiterhin einen Eintrag je Bewegung; beim
+   * Festschreiben werden alle gebucht.
+   */
+  weitere?: Array<{ beleg_id: string; betrag: number }>;
 }
 
 /** Abbuchungen ohne (vollständigen) Beleg. */
@@ -83,6 +98,26 @@ export async function offeneBelege(): Promise<BelegKandidat[]> {
   `);
 }
 
+/**
+ * Die normierten Referenzen je Beleg.
+ *
+ * Einmal geladen und als Karte gehalten: Der Abgleich vergleicht jede
+ * Abbuchung gegen jeden Beleg, und eine Abfrage je Paar waere bei 500
+ * Bewegungen und 230 Belegen 115.000 Abfragen.
+ */
+async function referenzenJeBeleg(): Promise<Map<string, string[]>> {
+  const zeilen = await query<{ beleg_id: string; normiert: string }>(
+    `SELECT beleg_id, normiert FROM beleg_referenz`,
+  );
+  const karte = new Map<string, string[]>();
+  for (const z of zeilen) {
+    const vorhanden = karte.get(z.beleg_id);
+    if (vorhanden) vorhanden.push(z.normiert);
+    else karte.set(z.beleg_id, [z.normiert]);
+  }
+  return karte;
+}
+
 function bezeichne(b: BelegKandidat): string {
   const teile = [
     b.aussteller ?? b.kontakt_name ?? "Unbekannt",
@@ -94,12 +129,64 @@ function bezeichne(b: BelegKandidat): string {
 export async function schlageBelegeVor(): Promise<BelegVorschlag[]> {
   const ausgaben = await offeneAusgaben();
   const belege = await offeneBelege();
+  const referenzen = await referenzenJeBeleg();
   const vorschlaege: BelegVorschlag[] = [];
 
   for (const a of ausgaben) {
     const betrag = Math.abs(Number(a.betrag));
     const text = vergleichbar(`${a.absender ?? ""} ${a.verwendungszweck ?? ""}`);
     const rohText = `${a.absender ?? ""} ${a.verwendungszweck ?? ""}`.toUpperCase();
+    const normierterZweck = `${a.absender ?? ""} ${a.verwendungszweck ?? ""}`;
+
+    // 0. Eine Referenz des Belegs steht im Verwendungszweck.
+    //
+    // Das ist der verlaesslichste Treffer, den es gibt: Die Nummer hat
+    // der Zahlungsempfaenger vergeben, sie steht auf dem Beleg und sie
+    // steht in der Abbuchung. Bei Amazon ist das die Bestellnummer
+    // ("304-2954807-8841912 Amazon.de ..."), bei Versorgern die
+    // Kundennummer, bei der Stadtkasse das Kassenzeichen.
+    //
+    // Vorher suchte nur Regel 1 nach der BELEGNUMMER -- und die steht in
+    // einer Amazon-Abbuchung nie. 162 Abbuchungen und 211 Rechnungen
+    // lagen deshalb am 05.11.2026 nebeneinander, ohne einen Treffer.
+    const perReferenz = belege.filter(
+      (b) =>
+        Number(b.offen) > 0.005 &&
+        (referenzen.get(b.id) ?? []).some((r) => stehtDrin(r, normierterZweck)),
+    );
+    if (perReferenz.length === 1) {
+      const b = perReferenz[0];
+      vorschlaege.push({
+        buchung_id: a.id,
+        beleg_id: b.id,
+        betrag: Math.min(betrag, Number(b.offen)),
+        sicherheit: "sicher",
+        begruendung: "Referenznummer des Belegs steht im Verwendungszweck.",
+        beleg_bezeichnung: bezeichne(b),
+      });
+      continue;
+    }
+    if (perReferenz.length > 1) {
+      // Mehrere Belege tragen dieselbe Referenz -- eine Bestellung, in
+      // Teillieferungen berechnet. Nur wenn ihre offenen Betraege
+      // zusammen genau die Abbuchung ergeben, ist das eindeutig.
+      const summe = perReferenz.reduce((s, b) => s + Number(b.offen), 0);
+      if (Math.abs(summe - betrag) < 0.005) {
+        const [erster, ...rest] = perReferenz;
+        vorschlaege.push({
+          buchung_id: a.id,
+          beleg_id: erster.id,
+          betrag: Number(erster.offen),
+          sicherheit: "sicher",
+          begruendung:
+            `${perReferenz.length} Belege mit derselben Referenz, zusammen genau ` +
+            "der Betrag der Abbuchung (Teillieferungen einer Bestellung).",
+          beleg_bezeichnung: bezeichne(erster),
+          weitere: rest.map((b) => ({ beleg_id: b.id, betrag: Number(b.offen) })),
+        });
+        continue;
+      }
+    }
 
     // 1. Belegnummer im Verwendungszweck
     const perNummer = belege.filter(
@@ -187,18 +274,29 @@ export async function uebernehmeSichereBelege(): Promise<{
   const v = await schlageBelegeVor();
   const sicher = v.filter((x) => x.sicherheit === "sicher" && x.beleg_id);
 
+  let gebucht = 0;
   await tx(async (c) => {
     for (const x of sicher) {
-      await c.query(
-        `INSERT INTO belegbuchung (buchung_id, beleg_id, betrag, sicherheit, begruendung)
-         VALUES ($1,$2,$3,'sicher',$4)
-         ON CONFLICT (buchung_id, beleg_id) DO NOTHING`,
-        [x.buchung_id, x.beleg_id, x.betrag, x.begruendung],
-      );
+      // Der Haupttreffer und, bei Teillieferungen, die weiteren Belege
+      // derselben Bestellung. Ohne sie bliebe die Bewegung als
+      // "teilweise belegt" stehen -- und niemand wuesste, was fehlt.
+      const alle = [
+        { beleg_id: x.beleg_id!, betrag: x.betrag },
+        ...(x.weitere ?? []),
+      ];
+      for (const t of alle) {
+        await c.query(
+          `INSERT INTO belegbuchung (buchung_id, beleg_id, betrag, sicherheit, begruendung)
+           VALUES ($1,$2,$3,'sicher',$4)
+           ON CONFLICT (buchung_id, beleg_id) DO NOTHING`,
+          [x.buchung_id, t.beleg_id, t.betrag, x.begruendung],
+        );
+        gebucht += 1;
+      }
     }
   });
 
-  return { uebernommen: sicher.length, offen: v.length - sicher.length };
+  return { uebernommen: gebucht, offen: v.length - sicher.length };
 }
 
 /**
