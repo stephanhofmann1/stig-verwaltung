@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
@@ -327,4 +327,43 @@ test("jede ON-CONFLICT-Klausel trifft eine vorhandene Eindeutigkeit", () => {
   }
   assert.ok(gefunden > 0, "Keine ON-CONFLICT-Klausel gefunden");
   assert.deepEqual(fehler, [], fehler.join("\n"));
+});
+
+/**
+ * In db/ gehoeren nur Migrationen.
+ *
+ * Anlass, 05.11.2026: Dort lag saat-gestaltung.sql -- erfundene Mieter
+ * fuer die oertliche Gestaltungsarbeit, beginnend mit DELETE FROM
+ * kontakt, mietverhaeltnis, vorgang, nachricht. migrieren.sh nimmt
+ * db/*.sql und hat die Datei auf dem Server ausgefuehrt. Dass dabei
+ * nichts verloren ging, lag am Fremdschluessel und nicht an einer
+ * Absicht.
+ *
+ * Der Waechter prueft das Verzeichnis, nicht das Skript: Das Muster in
+ * migrieren.sh laesst sich aendern, ohne dass ein Test es merkt -- eine
+ * fremde Datei in db/ dagegen faellt hier sofort auf. Und er prueft das
+ * Offensichtliche mit: keine zwei Migrationen mit derselben Nummer.
+ */
+describe("db/ enthaelt nur Migrationen", () => {
+  const dbVerzeichnis = join(import.meta.dirname, "..", "..", "db");
+  const sqlDateien = readdirSync(dbVerzeichnis).filter((d) => d.endsWith(".sql"));
+
+  test("jede .sql-Datei traegt drei Ziffern und einen Unterstrich", () => {
+    const fremd = sqlDateien.filter((d) => !/^\d{3}_.+\.sql$/.test(d));
+    assert.deepEqual(
+      fremd,
+      [],
+      "Keine Migration. Saatdaten und Hilfsskripte gehoeren nach entwicklung/.",
+    );
+  });
+
+  test("keine Nummer zweimal", () => {
+    const nummern = sqlDateien.map((d) => d.slice(0, 3));
+    const doppelt = nummern.filter((n, i) => nummern.indexOf(n) !== i);
+    assert.deepEqual([...new Set(doppelt)], []);
+  });
+
+  test("es gibt ueberhaupt Migrationen -- sonst prueft der Waechter nichts", () => {
+    assert.ok(sqlDateien.length > 25, `nur ${sqlDateien.length} gefunden`);
+  });
 });
