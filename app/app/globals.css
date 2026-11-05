@@ -10,6 +10,12 @@
    Regeln, bei gleicher Spezifitaet gewinnt globals.css. Die Regeln dort
    sind deshalb bewusst eine Stufe spezifischer. */
 @import "./raster.css";
+/* Das Schaufenster — die oeffentliche Seite /willkommen. Eigene Datei aus
+   demselben Grund wie das Raster: Sie gehoert zu einer Seite, nicht zur
+   Arbeitsflaeche, und braucht eine eigene Typografieskala. Alle Regeln
+   dort haengen unter .schaufenster und sind damit eine Stufe
+   spezifischer -- die Reihenfolge des @import spielt also keine Rolle. */
+@import "./schaufenster.css";
 
 /* ===========================================================================
    STIG Verwaltung — Gestaltungssystem

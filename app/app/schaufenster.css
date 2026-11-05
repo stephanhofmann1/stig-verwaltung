@@ -1,0 +1,1237 @@
+/* ===========================================================================
+   Schaufenster — die öffentliche Seite /willkommen
+   ---------------------------------------------------------------------------
+   Diese Datei gehoert zu app/willkommen/page.tsx und
+   components/SchaufensterTeile.tsx. Sie wird wie raster.css per @import
+   in globals.css eingebunden.
+
+   Warum eine eigene Datei und nicht die Klassen der Anwendung:
+
+   Die Anwendung ist eine Arbeitsflaeche. Dort ist dichte Information
+   richtig, Text steht in 15 px, und eine Ueberschrift ordnet eine
+   Tabelle ein. Das Schaufenster hat die umgekehrte Aufgabe: Es wird
+   einmal gelesen, von jemandem, der noch nichts weiss. Dafuer braucht
+   es grosse Typografie, viel Leerraum und wenige Elemente je Bildschirm.
+   Mit .karte und .abschnitt waere das nicht zu machen, ohne die
+   Arbeitsflaeche zu verbiegen.
+
+   Drei Regeln fuer alle, die hier etwas ergaenzen:
+
+   1. Keine festen Farbwerte. Nur die Marken aus globals.css. Nur so
+      laeuft der Dunkelmodus mit, ohne dass hier ein zweiter Satz Werte
+      gepflegt werden muss -- und nur so bleibt das Schaufenster
+      automatisch bei der Anwendung, wenn jemand die Tonlage aendert.
+
+   2. Alles haengt unter .schaufenster. Diese Datei wird per @import am
+      Anfang von globals.css eingebunden, steht also VOR dessen Regeln;
+      die Wurzelklasse macht jede Regel hier eine Stufe spezifischer und
+      damit unabhaengig von der Reihenfolge.
+
+   3. Keine Karten, keine Schatten, keine Rahmen um Textbloecke.
+      Getrennt wird mit Haarlinien und Leerraum. Das ist dieselbe
+      Entscheidung wie in globals.css (--radius-m: 0, --schatten-1:
+      none) -- hier nur mit mehr Luft dazwischen.
+   =========================================================================== */
+
+/* --- Das Gerüst für diese eine Seite ------------------------------------
+
+   Die Arbeitsflaeche stellt ab 1100 px die Navigation als Schiene an den
+   linken Rand und rueckt den Inhalt daneben. Das ist fuer eine
+   Anwendung richtig und fuer ein Schaufenster falsch: Dort gibt es
+   nichts zu navigieren, und die Baender sollen ueber die volle Breite
+   laufen.
+
+   Geschaltet wird ueber body[data-seite="schaufenster"], gesetzt in
+   app/layout.tsx aus einem Anfragekopf, den proxy.ts mitgibt. Die
+   hoehere Spezifitaet dieser Regeln ist Absicht -- diese Datei wird per
+   @import VOR globals.css eingebunden und kaeme sonst nicht dagegen an. */
+
+body[data-seite="schaufenster"] .rahmen {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
+
+@media (min-width: 1100px) {
+  body[data-seite="schaufenster"] .kopf {
+    position: sticky;
+    inset: auto;
+    top: 0;
+    width: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--linie);
+    overflow: visible;
+    backdrop-filter: saturate(140%) blur(8px);
+  }
+  body[data-seite="schaufenster"] .kopf-innen {
+    max-width: 76rem;
+    margin: 0 auto;
+    min-height: var(--kopf-hoehe);
+    flex-direction: row;
+    align-items: center;
+    padding: 0 max(var(--mass), env(safe-area-inset-right, 0px)) 0
+      max(var(--mass), env(safe-area-inset-left, 0px));
+  }
+  /* In der Schiene traegt die Wortmarke die Groesse einer Ueberschrift.
+     In einer Kopfzeile waere das zu viel -- dort ist sie Absender, nicht
+     Titel. */
+  body[data-seite="schaufenster"] .marke {
+    font-size: var(--t-grund);
+  }
+  body[data-seite="schaufenster"] .rahmen {
+    margin-left: 0;
+  }
+}
+
+.schaufenster {
+  /* Eigene Schriftstufen. Die Skala der Anwendung endet bei 19 px
+     (--t-abschnitt); hier faengt sie dort erst an. clamp statt fester
+     Werte, weil dieselbe Zeile auf 390 px und auf 1600 px traegt. */
+  --s-riese: clamp(2.6rem, 9.4vw, 8.5rem); /* Die eine Zeile oben */
+  --s-gross: clamp(2rem, 5.6vw, 4.6rem); /* Abschnittsueberschrift */
+  --s-mittel: clamp(1.4rem, 3.4vw, 2.6rem); /* Eintrag im Register */
+  --s-lauf: clamp(1.05rem, 1.7vw, 1.3rem); /* Vorspann */
+  --s-text: 1rem; /* Fliesstext */
+
+  --s-breite: 76rem; /* etwas weiter als --rahmen-breite */
+  --s-luft: clamp(4.5rem, 11vw, 10rem); /* Abstand zwischen Abschnitten */
+
+  font-size: var(--s-text);
+  line-height: 1.6;
+  letter-spacing: -0.006em;
+  color: var(--fg);
+}
+
+/* Nur fuer die Vorlesesoftware. Die Tabelle weiter unten zeigt erfundene
+   Zahlen; wer sie sieht, liest das in der Leiste darueber, wer sie
+   vorgelesen bekommt, braucht es in der Beschriftung. Nicht
+   display:none -- das nehmen Vorlesegeraete ebenfalls heraus. */
+.schaufenster .s-nur-vorlesen {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* --- Geruest ------------------------------------------------------------ */
+
+.schaufenster .s-band {
+  width: 100%;
+  border-top: 1px solid var(--linie);
+}
+.schaufenster .s-band:first-child {
+  border-top: 0;
+}
+
+.schaufenster .s-innen {
+  max-width: var(--s-breite);
+  margin: 0 auto;
+  /* Der seitliche Einzug steht als max(), damit er auch dann traegt,
+     wenn das Telefon quer gehalten wird und die Kamera-Aussparung in
+     den Satzspiegel ragt. Siehe die Anmerkung zu viewportFit in
+     app/layout.tsx. */
+  padding-left: max(var(--mass), env(safe-area-inset-left, 0px));
+  padding-right: max(var(--mass), env(safe-area-inset-right, 0px));
+}
+
+.schaufenster .s-abschnitt {
+  padding-block: var(--s-luft);
+}
+
+/* Ueberschrift links, Text rechts -- die Form, die jeder Abschnitt
+   ausser dem ersten benutzt. Unter 56rem untereinander. */
+.schaufenster .s-kopf {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: clamp(var(--abstand-5), 5vw, 4.5rem);
+  align-items: start;
+  padding-bottom: clamp(var(--abstand-6), 6vw, 5.5rem);
+}
+@media (max-width: 56rem) {
+  .schaufenster .s-kopf {
+    grid-template-columns: 1fr;
+    gap: var(--abstand-5);
+  }
+}
+/* Ein zweiter Kopf im selben Abschnitt braucht den Abstand, den sonst
+   der Abschnittswechsel bringt. */
+.schaufenster .s-kopf[data-abstand="oben"] {
+  padding-top: var(--s-luft);
+}
+
+.schaufenster .s-marke {
+  font-size: var(--t-mikro);
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--fg-still);
+  margin: 0;
+  padding-top: 0.6rem;
+}
+
+.schaufenster h1,
+.schaufenster h2,
+.schaufenster h3 {
+  margin: 0;
+  font-weight: 500;
+  letter-spacing: -0.042em;
+  line-height: 0.96;
+  text-wrap: balance;
+}
+.schaufenster h2 {
+  font-size: var(--s-gross);
+}
+.schaufenster h3 {
+  font-size: var(--t-abschnitt);
+  letter-spacing: -0.024em;
+  line-height: 1.2;
+}
+
+.schaufenster .s-lauf {
+  font-size: var(--s-lauf);
+  line-height: 1.55;
+  color: var(--fg-leise);
+  max-width: 52ch;
+  margin: 0;
+}
+.schaufenster .s-kopf .s-lauf {
+  margin-top: var(--abstand-5);
+}
+
+/* Die eine kursive Hervorhebung. Instrument Serif steht in der
+   Anwendung sonst nirgends -- hier traegt sie genau ein Wort je
+   Abschnitt und macht den Unterschied zwischen Oberflaeche und Aussage. */
+.schaufenster em.s-betont {
+  font-family: var(--schrift-betont);
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+}
+
+/* --- Der Kopf der Seite ------------------------------------------------- */
+
+.schaufenster .s-buehne {
+  padding-block: clamp(3rem, 8vw, 7rem) clamp(3rem, 6vw, 5.5rem);
+}
+.schaufenster .s-buehne h1 {
+  font-size: var(--s-riese);
+  line-height: 0.92;
+  letter-spacing: -0.048em;
+  max-width: 14ch;
+  margin-top: clamp(var(--abstand-5), 3vw, 2.5rem);
+}
+/* Die Zeilen laufen beim Laden von unten ein. Jede Zeile ist ein
+   eigener Ausschnitt; das padding-bottom gibt den Unterlaengen Platz,
+   die der Ausschnitt sonst abschneidet (das "g" in "geschrieben"). */
+.schaufenster .s-zeile {
+  display: block;
+  overflow: hidden;
+  padding-bottom: 0.1em;
+  margin-bottom: -0.1em;
+}
+.schaufenster .s-zeile > span {
+  display: block;
+  transform: translateY(102%);
+  animation: s-herein 1.1s cubic-bezier(0.16, 0.84, 0.3, 1) forwards;
+}
+.schaufenster .s-zeile:nth-child(2) > span {
+  animation-delay: 0.08s;
+}
+.schaufenster .s-zeile:nth-child(3) > span {
+  animation-delay: 0.16s;
+}
+@keyframes s-herein {
+  to {
+    transform: translateY(0);
+  }
+}
+
+.schaufenster .s-unten {
+  margin-top: clamp(var(--abstand-6), 5vw, 4.5rem);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.85fr);
+  gap: clamp(var(--abstand-5), 5vw, 5rem);
+  align-items: end;
+}
+@media (max-width: 56rem) {
+  .schaufenster .s-unten {
+    grid-template-columns: 1fr;
+    gap: var(--abstand-5);
+    align-items: start;
+  }
+}
+
+.schaufenster .s-tatsachen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--abstand-3);
+  font-size: var(--t-klein);
+  color: var(--fg-leise);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.schaufenster .s-tatsachen li {
+  padding-top: var(--abstand-3);
+  border-top: 1px solid var(--linie);
+}
+
+/* --- Knoepfe und Verweise ----------------------------------------------- */
+
+.schaufenster .s-wege {
+  display: flex;
+  gap: clamp(var(--abstand-4), 2vw, var(--abstand-6));
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: clamp(var(--abstand-5), 3vw, 2.2rem);
+}
+
+.schaufenster .s-knopf {
+  font: inherit;
+  font-weight: 500;
+  padding: 0.9rem 1.9rem;
+  border: 1px solid var(--fg);
+  background: var(--fg);
+  color: var(--grund);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--abstand-2);
+  cursor: pointer;
+  transition:
+    background 0.25s,
+    border-color 0.25s,
+    color 0.25s;
+}
+.schaufenster .s-knopf:hover {
+  background: var(--akzent);
+  border-color: var(--akzent);
+  color: var(--grund);
+}
+
+.schaufenster .s-verweis {
+  font-weight: 500;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--abstand-2);
+  border-bottom: 1px solid var(--linie-stark);
+  padding-bottom: 0.2rem;
+  color: var(--fg);
+  transition:
+    color 0.25s,
+    border-color 0.25s;
+}
+.schaufenster .s-verweis:hover {
+  color: var(--akzent);
+  border-color: var(--akzent);
+}
+.schaufenster .s-verweis svg {
+  transition: transform 0.3s cubic-bezier(0.16, 0.84, 0.3, 1);
+}
+.schaufenster .s-verweis:hover svg {
+  transform: translateX(4px);
+}
+
+/* Der Weg in die Anwendung, oben in der Kopfzeile. Er sitzt dort, wo
+   sonst "Abmelden" steht -- an derselben Stelle also, an der man ihn
+   nach dem Anmelden wiederfindet. */
+.kopf-weiter {
+  margin-left: auto;
+  font-size: var(--t-klein);
+  font-weight: 500;
+  text-decoration: none;
+  color: var(--fg);
+  border-bottom: 1px solid var(--linie-stark);
+  padding-bottom: 0.15rem;
+}
+.kopf-weiter:hover {
+  color: var(--akzent);
+  border-color: var(--akzent);
+}
+
+/* --- Zahlenreihe -------------------------------------------------------- */
+
+.schaufenster .s-zahlen {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  border-top: 1px solid var(--linie);
+}
+@media (max-width: 52rem) {
+  .schaufenster .s-zahlen {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+.schaufenster .s-zahl {
+  padding: clamp(var(--abstand-5), 3vw, 2.6rem) var(--abstand-5)
+    clamp(var(--abstand-5), 3vw, 2.6rem) 0;
+  border-right: 1px solid var(--linie);
+}
+.schaufenster .s-zahl:last-child {
+  border-right: 0;
+}
+@media (max-width: 52rem) {
+  .schaufenster .s-zahl:nth-child(2n) {
+    border-right: 0;
+    padding-right: 0;
+  }
+  .schaufenster .s-zahl:nth-child(n + 3) {
+    border-top: 1px solid var(--linie);
+  }
+}
+.schaufenster .s-zahl b {
+  display: block;
+  font-size: clamp(2.3rem, 4.6vw, 3.8rem);
+  font-weight: 500;
+  letter-spacing: -0.05em;
+  line-height: 0.9;
+  font-variant-numeric: tabular-nums;
+}
+.schaufenster .s-zahl span {
+  display: block;
+  font-size: var(--t-klein);
+  color: var(--fg-leise);
+  margin-top: var(--abstand-4);
+  line-height: 1.45;
+  max-width: 22ch;
+}
+
+/* --- Register (die fuenf Ablaeufe, die vier Fragen) --------------------- */
+
+.schaufenster .s-register {
+  border-top: 1px solid var(--linie);
+}
+.schaufenster .s-eintrag {
+  border-bottom: 1px solid var(--linie);
+}
+.schaufenster .s-knauf {
+  width: 100%;
+  background: none;
+  border: 0;
+  padding: clamp(var(--abstand-5), 2.6vw, 2.1rem) 0;
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr) auto;
+  gap: clamp(var(--abstand-3), 2vw, var(--abstand-6));
+  align-items: center;
+  cursor: pointer;
+  font: inherit;
+  color: var(--fg);
+  text-align: left;
+  transition: opacity 0.3s;
+}
+.schaufenster .s-knauf:hover {
+  opacity: 0.55;
+}
+@media (max-width: 44rem) {
+  .schaufenster .s-knauf {
+    grid-template-columns: 2.4rem minmax(0, 1fr) auto;
+    gap: var(--abstand-3);
+  }
+}
+.schaufenster .s-nr {
+  font-size: var(--t-klein);
+  color: var(--fg-still);
+  font-variant-numeric: tabular-nums;
+}
+.schaufenster .s-name {
+  font-size: var(--s-mittel);
+  font-weight: 500;
+  letter-spacing: -0.038em;
+  line-height: 1.05;
+}
+.schaufenster .s-rechts {
+  display: flex;
+  align-items: center;
+  gap: clamp(var(--abstand-3), 2vw, var(--abstand-5));
+}
+.schaufenster .s-stand {
+  font-size: var(--t-mikro);
+  font-weight: 600;
+  letter-spacing: 0.17em;
+  text-transform: uppercase;
+  color: var(--fg-still);
+  white-space: nowrap;
+}
+.schaufenster .s-stand[data-art="bau"] {
+  color: var(--akzent);
+}
+@media (max-width: 38rem) {
+  .schaufenster .s-stand {
+    display: none;
+  }
+}
+
+/* Das Kreuz dreht sich zum Minus. Nur der senkrechte Strich dreht --
+   der waagerechte bleibt stehen und ist in beiden Zustaenden dasselbe
+   Zeichen. */
+.schaufenster .s-kreuz {
+  width: 1rem;
+  height: 1rem;
+  position: relative;
+  flex: none;
+}
+.schaufenster .s-kreuz::before,
+.schaufenster .s-kreuz::after {
+  content: "";
+  position: absolute;
+  background: var(--fg);
+  transition: transform 0.45s cubic-bezier(0.16, 0.84, 0.3, 1);
+}
+.schaufenster .s-kreuz::before {
+  left: 0;
+  right: 0;
+  top: calc(50% - 0.5px);
+  height: 1px;
+}
+.schaufenster .s-kreuz::after {
+  top: 0;
+  bottom: 0;
+  left: calc(50% - 0.5px);
+  width: 1px;
+}
+.schaufenster .s-knauf[aria-expanded="true"] .s-kreuz::after {
+  transform: rotate(90deg);
+}
+
+/* Aufgeklappt wird ueber grid-template-rows statt max-height: Damit
+   braucht niemand eine Hoehe zu schaetzen, und der Inhalt darf
+   wachsen, ohne dass die Animation abgeschnitten wird. */
+.schaufenster .s-faltung {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.55s cubic-bezier(0.16, 0.84, 0.3, 1);
+}
+.schaufenster .s-faltung[data-offen="ja"] {
+  grid-template-rows: 1fr;
+}
+.schaufenster .s-faltung > div {
+  overflow: hidden;
+}
+.schaufenster .s-inhalt {
+  padding: 0 0 clamp(var(--abstand-6), 4vw, 3.4rem) 4.5rem;
+}
+@media (max-width: 44rem) {
+  .schaufenster .s-inhalt {
+    padding-left: 0;
+  }
+}
+.schaufenster .s-inhalt p {
+  font-size: var(--s-lauf);
+  line-height: 1.55;
+  color: var(--fg-leise);
+  max-width: 54ch;
+  margin: 0;
+}
+
+/* Zwei Spalten: was die Plattform tut, was beim Menschen bleibt. */
+.schaufenster .s-paar {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: clamp(var(--abstand-5), 4vw, 3.5rem);
+  margin-top: clamp(var(--abstand-6), 3.4vw, 2.8rem);
+}
+@media (max-width: 48rem) {
+  .schaufenster .s-paar {
+    grid-template-columns: 1fr;
+    gap: var(--abstand-6);
+  }
+}
+.schaufenster .s-paar h4 {
+  margin: 0 0 var(--abstand-4);
+  font-size: var(--t-mikro);
+  font-weight: 600;
+  letter-spacing: 0.17em;
+  text-transform: uppercase;
+  color: var(--fg-still);
+  padding-bottom: var(--abstand-3);
+  border-bottom: 1px solid var(--linie);
+}
+.schaufenster .s-paar ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--abstand-3);
+}
+.schaufenster .s-paar li {
+  font-size: var(--t-grund);
+  color: var(--fg-leise);
+  line-height: 1.5;
+  padding-left: 1.25rem;
+  position: relative;
+}
+/* Strich statt Punkt. Der Punkt der Anwendung gehoert zu Statuspillen;
+   hier soll nichts nach Zustand aussehen. */
+.schaufenster .s-paar li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.68em;
+  width: 0.55rem;
+  height: 1px;
+  background: var(--fg-still);
+}
+.schaufenster .s-paar [data-seite="mensch"] li::before {
+  background: var(--akzent);
+}
+
+/* Anteil: eine Zahl und ein Strich, der sie noch einmal zeigt. */
+.schaufenster .s-anteil {
+  margin-top: clamp(var(--abstand-5), 2.6vw, 2rem);
+  display: flex;
+  align-items: baseline;
+  gap: var(--abstand-4);
+}
+.schaufenster .s-anteil b {
+  font-size: clamp(1.9rem, 3.6vw, 3rem);
+  font-weight: 500;
+  letter-spacing: -0.048em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.schaufenster .s-anteil span {
+  font-size: var(--t-klein);
+  color: var(--fg-still);
+}
+.schaufenster .s-spur {
+  margin-top: var(--abstand-4);
+  height: 1px;
+  background: var(--linie);
+  position: relative;
+}
+.schaufenster .s-spur i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  height: 1px;
+  background: var(--fg);
+  width: 0;
+  transition: width 1s cubic-bezier(0.16, 0.84, 0.3, 1);
+}
+.schaufenster .s-faltung[data-offen="ja"] .s-spur i {
+  width: var(--anteil, 0%);
+}
+
+/* --- Staffel und Liste -------------------------------------------------- */
+
+.schaufenster .s-staffel {
+  border-top: 1px solid var(--linie);
+}
+.schaufenster .s-stufe {
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr) auto;
+  gap: clamp(var(--abstand-3), 2vw, var(--abstand-6));
+  align-items: baseline;
+  padding: clamp(var(--abstand-5), 2.6vw, 2.2rem) 0;
+  border-bottom: 1px solid var(--linie);
+}
+@media (max-width: 44rem) {
+  .schaufenster .s-stufe {
+    grid-template-columns: 2.4rem minmax(0, 1fr);
+    gap: var(--abstand-3);
+  }
+  .schaufenster .s-stufe .s-stand {
+    display: block;
+    grid-column: 2;
+  }
+}
+.schaufenster .s-stufe b {
+  display: block;
+  font-size: var(--t-abschnitt);
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  margin-bottom: var(--abstand-2);
+}
+.schaufenster .s-stufe i {
+  font-style: normal;
+  font-size: var(--t-grund);
+  color: var(--fg-leise);
+  line-height: 1.5;
+  max-width: 50ch;
+  display: block;
+}
+/* Gesperrt: die Zeile bleibt lesbar, tritt aber zurueck. Sie beschreibt
+   etwas, das nicht stattfindet. */
+.schaufenster .s-stufe[data-art="gesperrt"] b,
+.schaufenster .s-stufe[data-art="gesperrt"] i {
+  opacity: 0.55;
+}
+
+/* Zweispaltige Liste aus Begriff und Erklaerung. */
+.schaufenster .s-zeilen {
+  border-top: 1px solid var(--linie);
+  margin-top: clamp(var(--abstand-6), 4vw, 3.5rem);
+}
+.schaufenster .s-zeilen > div {
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  gap: clamp(var(--abstand-4), 4vw, 3.5rem);
+  padding: clamp(var(--abstand-5), 2.4vw, 1.9rem) 0;
+  border-bottom: 1px solid var(--linie);
+  align-items: baseline;
+}
+@media (max-width: 44rem) {
+  .schaufenster .s-zeilen > div {
+    grid-template-columns: 1fr;
+    gap: var(--abstand-2);
+  }
+}
+.schaufenster .s-zeilen b {
+  font-size: var(--t-abschnitt);
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+}
+.schaufenster .s-zeilen i {
+  font-style: normal;
+  font-size: var(--t-grund);
+  color: var(--fg-leise);
+  line-height: 1.55;
+}
+
+/* Zwei nebeneinanderstehende Erklaerungen ohne Rahmen. */
+.schaufenster .s-duo {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: clamp(var(--abstand-5), 5vw, 5rem);
+  margin-top: clamp(var(--abstand-6), 5vw, 4.5rem);
+}
+@media (max-width: 48rem) {
+  .schaufenster .s-duo {
+    grid-template-columns: 1fr;
+    gap: var(--abstand-6);
+  }
+}
+.schaufenster .s-duo .s-marke {
+  padding-top: 0;
+  margin-bottom: var(--abstand-4);
+}
+.schaufenster .s-duo p {
+  margin: var(--abstand-3) 0 0;
+  font-size: var(--t-grund);
+  color: var(--fg-leise);
+  line-height: 1.55;
+  max-width: 42ch;
+}
+
+/* --- Die Oberflaeche im Bild -------------------------------------------- */
+
+/* Nachbau, kein Bildschirmabzug: Ein Abzug der echten Verwaltung wuerde
+   Mieternamen, Betraege und Adressen zeigen. Was hier steht, ist
+   erfunden -- die Form ist die der Anwendung, die Daten sind es nicht. */
+.schaufenster .s-schirm {
+  border: 1px solid var(--linie);
+  background: var(--flaeche);
+  margin-top: clamp(var(--abstand-6), 4vw, 3.5rem);
+}
+.schaufenster .s-leiste {
+  display: flex;
+  align-items: center;
+  gap: var(--abstand-4);
+  padding: var(--abstand-4) var(--abstand-5);
+  border-bottom: 1px solid var(--linie);
+  font-size: var(--t-klein);
+  color: var(--fg-still);
+  background: var(--flaeche-tief);
+}
+.schaufenster .s-leiste b {
+  font-weight: 600;
+  color: var(--fg);
+  letter-spacing: -0.02em;
+}
+.schaufenster .s-leiste span:last-child {
+  margin-left: auto;
+}
+@media (max-width: 38rem) {
+  .schaufenster .s-leiste span:not(:last-child) {
+    display: none;
+  }
+}
+
+.schaufenster .s-flaechen {
+  display: grid;
+  grid-template-columns: 11rem minmax(0, 1fr);
+}
+@media (max-width: 52rem) {
+  .schaufenster .s-flaechen {
+    grid-template-columns: 1fr;
+  }
+  .schaufenster .s-schiene {
+    display: none;
+  }
+}
+.schaufenster .s-schiene {
+  border-right: 1px solid var(--linie);
+  padding: var(--abstand-4) 0;
+  font-size: var(--t-klein);
+}
+.schaufenster .s-schiene p {
+  margin: 0;
+  padding: var(--abstand-5) var(--abstand-5) var(--abstand-2);
+  font-size: var(--t-mikro);
+  font-weight: 600;
+  letter-spacing: 0.17em;
+  text-transform: uppercase;
+  color: var(--fg-still);
+}
+.schaufenster .s-schiene span {
+  display: block;
+  padding: 0.42rem var(--abstand-5);
+  color: var(--fg-leise);
+}
+.schaufenster .s-schiene span[data-hier="ja"] {
+  color: var(--fg);
+  font-weight: 500;
+  box-shadow: inset 2px 0 0 var(--akzent);
+}
+
+.schaufenster .s-tafel {
+  padding: clamp(var(--abstand-5), 2.4vw, var(--abstand-6));
+  min-width: 0;
+}
+.schaufenster .s-tafel > p:first-child {
+  margin: 0 0 var(--abstand-3);
+  font-size: var(--t-mikro);
+  font-weight: 600;
+  letter-spacing: 0.17em;
+  text-transform: uppercase;
+  color: var(--fg-still);
+}
+.schaufenster .s-tafel h4 {
+  margin: 0 0 var(--abstand-5);
+  font-size: var(--t-abschnitt);
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  padding-bottom: var(--abstand-5);
+  border-bottom: 1px solid var(--linie);
+}
+
+.schaufenster .s-nachricht {
+  padding-bottom: var(--abstand-5);
+  margin-bottom: var(--abstand-5);
+  border-bottom: 1px solid var(--linie);
+}
+.schaufenster .s-wer {
+  display: flex;
+  gap: var(--abstand-3);
+  align-items: baseline;
+  flex-wrap: wrap;
+  margin-bottom: var(--abstand-3);
+}
+.schaufenster .s-wer b {
+  font-size: var(--t-mikro);
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+.schaufenster .s-wer span {
+  font-size: var(--t-klein);
+  color: var(--fg-still);
+}
+.schaufenster .s-nachricht p {
+  margin: 0;
+  font-size: var(--t-grund);
+  color: var(--fg-leise);
+  line-height: 1.6;
+  max-width: 54ch;
+}
+
+/* Der Entwurf traegt links den Akzentstrich -- dieselbe Form wie in der
+   Anwendung: Bronze heisst "hier wartet etwas auf Sie". */
+.schaufenster .s-entwurf {
+  border-left: 1px solid var(--akzent);
+  padding-left: var(--abstand-5);
+}
+.schaufenster .s-entwurf .s-wer b {
+  color: var(--akzent);
+}
+.schaufenster .s-entwurf > p {
+  color: var(--fg);
+  font-size: var(--t-lese);
+  min-height: 4.4em;
+}
+.schaufenster .s-grundlage {
+  margin-top: var(--abstand-5);
+  font-size: var(--t-klein);
+  color: var(--fg-still);
+  line-height: 1.65;
+}
+.schaufenster .s-grundlage b {
+  display: block;
+  font-size: var(--t-mikro);
+  font-weight: 600;
+  letter-spacing: 0.17em;
+  text-transform: uppercase;
+  margin-bottom: var(--abstand-2);
+}
+.schaufenster .s-grundlage u {
+  text-decoration: none;
+  color: var(--fg-leise);
+  border-bottom: 1px solid var(--linie);
+}
+
+/* Der Schreibbalken hinter dem Text, der sich tippt. */
+.schaufenster .s-balken {
+  display: inline-block;
+  width: 1.5px;
+  height: 1em;
+  background: var(--akzent);
+  vertical-align: -0.12em;
+  animation: s-blinkt 1.05s steps(2) infinite;
+}
+@keyframes s-blinkt {
+  50% {
+    opacity: 0;
+  }
+}
+
+.schaufenster .s-tasten {
+  display: flex;
+  gap: var(--abstand-3);
+  align-items: center;
+  flex-wrap: wrap;
+  padding-top: var(--abstand-5);
+}
+.schaufenster .s-taste {
+  font: inherit;
+  font-size: var(--t-klein);
+  font-weight: 500;
+  padding: 0.6rem 1.3rem;
+  border: 1px solid var(--akzent);
+  background: var(--akzent);
+  color: var(--grund);
+  cursor: pointer;
+  transition:
+    background 0.25s,
+    color 0.25s;
+}
+.schaufenster .s-taste:hover {
+  background: transparent;
+  color: var(--akzent);
+}
+.schaufenster .s-taste[data-art="still"] {
+  background: transparent;
+  color: var(--fg-still);
+  border-color: var(--linie-stark);
+}
+.schaufenster .s-taste[data-art="still"]:hover {
+  color: var(--fg);
+  border-color: var(--fg-still);
+}
+.schaufenster .s-tasten span {
+  font-size: var(--t-klein);
+  color: var(--fg-still);
+  margin-left: auto;
+}
+.schaufenster .s-tasten span[data-art="fertig"] {
+  color: var(--gut);
+  margin-left: 0;
+}
+
+/* Das Feld, mit dem nachgesteuert wird. */
+.schaufenster .s-steuer {
+  margin-top: var(--abstand-5);
+  padding-top: var(--abstand-5);
+  border-top: 1px solid var(--linie);
+}
+.schaufenster .s-steuer b {
+  display: block;
+  font-size: var(--t-mikro);
+  font-weight: 600;
+  letter-spacing: 0.17em;
+  text-transform: uppercase;
+  color: var(--fg-still);
+  margin-bottom: var(--abstand-3);
+}
+.schaufenster .s-steuer em {
+  display: block;
+  font-style: normal;
+  font-size: var(--t-grund);
+  color: var(--fg-still);
+  border: 1px solid var(--feldrand);
+  background: var(--feld-flaeche);
+  padding: var(--abstand-3) var(--abstand-4);
+}
+.schaufenster .s-steuer > span {
+  display: block;
+  margin-top: var(--abstand-3);
+  font-size: var(--t-klein);
+  color: var(--fg-still);
+  line-height: 1.6;
+  max-width: 58ch;
+}
+
+/* --- Tabelle ------------------------------------------------------------ */
+
+.schaufenster .s-rolle {
+  overflow-x: auto;
+  border-top: 1px solid var(--linie);
+  margin-top: clamp(var(--abstand-6), 4vw, 3.5rem);
+}
+.schaufenster table {
+  border-collapse: collapse;
+  width: 100%;
+  min-width: 38rem;
+}
+.schaufenster th,
+.schaufenster td {
+  text-align: left;
+  padding: var(--abstand-4) var(--abstand-5) var(--abstand-4) 0;
+  border-bottom: 1px solid var(--linie);
+  font-size: var(--t-grund);
+}
+.schaufenster th {
+  font-size: var(--t-mikro);
+  font-weight: 600;
+  letter-spacing: 0.17em;
+  text-transform: uppercase;
+  color: var(--fg-still);
+}
+.schaufenster td[data-art="zahl"],
+.schaufenster th[data-art="zahl"] {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  padding-right: clamp(var(--abstand-5), 3vw, 2.2rem);
+}
+.schaufenster td[data-art="still"] {
+  color: var(--fg-still);
+}
+.schaufenster td[data-art="offen"] {
+  color: var(--akzent);
+}
+.schaufenster .s-rolle + p {
+  margin: var(--abstand-5) 0 0;
+  font-size: var(--t-grund);
+  color: var(--fg-leise);
+}
+
+/* --- Assistent ---------------------------------------------------------- */
+
+.schaufenster .s-chat {
+  border: 1px solid var(--linie);
+  margin-top: clamp(var(--abstand-6), 4vw, 3.5rem);
+  background: var(--flaeche);
+}
+.schaufenster .s-chat-kopf {
+  display: flex;
+  align-items: center;
+  gap: var(--abstand-3);
+  padding: var(--abstand-4) var(--abstand-5);
+  border-bottom: 1px solid var(--linie);
+  font-size: var(--t-mikro);
+  font-weight: 600;
+  letter-spacing: 0.17em;
+  text-transform: uppercase;
+}
+.schaufenster .s-punkt {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: var(--radius-rund);
+  background: var(--akzent);
+  flex: none;
+}
+.schaufenster .s-chat-kopf span:last-child {
+  margin-left: auto;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  font-size: var(--t-klein);
+  color: var(--fg-still);
+}
+.schaufenster .s-lauf {
+  padding: clamp(var(--abstand-5), 2.4vw, var(--abstand-6));
+  display: flex;
+  flex-direction: column;
+  gap: var(--abstand-5);
+  min-height: 14rem;
+  max-height: 30rem;
+  overflow-y: auto;
+}
+/* Beitraege ohne Blasen: ein Strich links, Farbe macht den Unterschied.
+   Blasen wuerden hier wie ein fremdes Fenster wirken -- in der
+   Anwendung gibt es keine. */
+.schaufenster .s-sagt {
+  max-width: 58ch;
+  font-size: var(--t-lese);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  padding-left: var(--abstand-4);
+  border-left: 1px solid var(--linie);
+  color: var(--fg-leise);
+  margin: 0;
+}
+.schaufenster .s-sagt[data-wer="ich"] {
+  border-left-color: var(--akzent);
+  color: var(--fg);
+  font-weight: 500;
+}
+.schaufenster .s-vorschlaege {
+  display: flex;
+  gap: var(--abstand-2);
+  flex-wrap: wrap;
+  padding: 0 clamp(var(--abstand-5), 2.4vw, var(--abstand-6))
+    clamp(var(--abstand-5), 2.4vw, var(--abstand-6));
+}
+.schaufenster .s-vorschlag {
+  font: inherit;
+  font-size: var(--t-klein);
+  padding: 0.5rem 0.9rem;
+  border: 1px solid var(--linie-stark);
+  background: transparent;
+  color: var(--fg-leise);
+  cursor: pointer;
+  transition:
+    color 0.25s,
+    border-color 0.25s;
+}
+.schaufenster .s-vorschlag:hover {
+  color: var(--fg);
+  border-color: var(--fg-still);
+}
+.schaufenster .s-eingabe {
+  display: flex;
+  border-top: 1px solid var(--linie);
+}
+.schaufenster .s-eingabe input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: var(--t-lese);
+  padding: var(--abstand-4) clamp(var(--abstand-5), 2.4vw, var(--abstand-6));
+  border: 0;
+  background: transparent;
+  color: var(--fg);
+}
+.schaufenster .s-eingabe input:focus {
+  outline: 2px solid var(--akzent);
+  outline-offset: -2px;
+}
+.schaufenster .s-eingabe button {
+  font: inherit;
+  font-size: var(--t-klein);
+  font-weight: 500;
+  padding: 0 clamp(var(--abstand-5), 3vw, 2.2rem);
+  border: 0;
+  border-left: 1px solid var(--linie);
+  background: transparent;
+  color: var(--fg);
+  cursor: pointer;
+  transition:
+    background 0.25s,
+    color 0.25s;
+}
+.schaufenster .s-eingabe button:hover:not(:disabled) {
+  background: var(--akzent);
+  color: var(--grund);
+}
+.schaufenster .s-eingabe button:disabled {
+  color: var(--fg-still);
+  cursor: default;
+}
+
+.schaufenster .s-siegel {
+  margin-top: var(--abstand-6);
+  padding-top: var(--abstand-5);
+  border-top: 1px solid var(--linie);
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  gap: clamp(var(--abstand-4), 4vw, 3.5rem);
+}
+@media (max-width: 48rem) {
+  .schaufenster .s-siegel {
+    grid-template-columns: 1fr;
+    gap: var(--abstand-2);
+  }
+}
+.schaufenster .s-siegel b {
+  font-size: var(--t-grund);
+  font-weight: 500;
+}
+.schaufenster .s-siegel p {
+  margin: 0;
+  font-size: var(--t-klein);
+  color: var(--fg-leise);
+  line-height: 1.6;
+}
+
+/* --- Schluss ------------------------------------------------------------ */
+
+.schaufenster .s-schluss .s-marke + h2 {
+  margin-top: var(--abstand-5);
+}
+.schaufenster .s-schluss h2 {
+  font-size: clamp(2.4rem, 7.4vw, 6.5rem);
+  letter-spacing: -0.05em;
+  line-height: 0.92;
+  max-width: 13ch;
+}
+.schaufenster .s-schluss-unten {
+  margin-top: clamp(var(--abstand-6), 5vw, 4.5rem);
+  padding-top: clamp(var(--abstand-5), 3vw, 2.6rem);
+  border-top: 1px solid var(--linie);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.85fr);
+  gap: clamp(var(--abstand-5), 5vw, 4.5rem);
+  align-items: end;
+}
+@media (max-width: 52rem) {
+  .schaufenster .s-schluss-unten {
+    grid-template-columns: 1fr;
+    gap: var(--abstand-6);
+    align-items: start;
+  }
+}
+.schaufenster .s-post {
+  display: flex;
+  align-items: center;
+  gap: var(--abstand-4);
+  flex-wrap: wrap;
+  margin-top: var(--abstand-4);
+}
+.schaufenster .s-post b {
+  font-size: var(--t-abschnitt);
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  user-select: all;
+  overflow-wrap: anywhere;
+  border-bottom: 1px solid var(--akzent);
+  padding-bottom: 0.2rem;
+}
+.schaufenster .s-fuss {
+  padding-block: var(--abstand-6);
+  display: flex;
+  gap: var(--abstand-6);
+  flex-wrap: wrap;
+  font-size: var(--t-klein);
+  color: var(--fg-still);
+  border-top: 1px solid var(--linie);
+}
+
+/* --- Bewegung abbestellt ------------------------------------------------
+   Wer im Betriebssystem "weniger Bewegung" gewaehlt hat, bekommt die
+   Seite im Endzustand: Die Zeilen stehen, der Entwurf steht da, nichts
+   faehrt ein. Das Aufklappen bleibt, aber ohne Uebergang. */
+@media (prefers-reduced-motion: reduce) {
+  .schaufenster .s-zeile > span {
+    transform: none;
+    animation: none;
+  }
+  .schaufenster .s-faltung,
+  .schaufenster .s-spur i,
+  .schaufenster .s-kreuz::before,
+  .schaufenster .s-kreuz::after,
+  .schaufenster .s-verweis svg {
+    transition: none;
+  }
+  .schaufenster .s-balken {
+    animation: none;
+  }
+}

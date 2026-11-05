@@ -6,6 +6,10 @@ import { pruefeSitzung, COOKIE_NAME, type Rolle } from "@/lib/sitzung";
  * Nichts ist ohne Anmeldung erreichbar.
  *
  * Offen, jeweils mit eigenem Schutz:
+ *   /willkommen          — das Schaufenster: die einzige Seite, die zeigt,
+ *                          wie hier gearbeitet wird. Sie liest nichts aus
+ *                          der Datenbank; was dort steht, steht fest im
+ *                          Quelltext (siehe lib/schaufenster.ts).
  *   /anmelden            — die Anmeldeseite selbst
  *   /api/anmelden        — dito
  *   /api/mail/eingang    — Maileingang, abgesichert über EINGANG_SCHLUESSEL
@@ -24,6 +28,7 @@ import { pruefeSitzung, COOKIE_NAME, type Rolle } from "@/lib/sitzung";
  */
 
 const OFFEN = [
+  "/willkommen",
   "/anmelden",
   "/api/anmelden",
   "/api/mail/eingang",
@@ -94,7 +99,26 @@ export function proxy(req: NextRequest) {
   const pfad = req.nextUrl.pathname;
 
   if (OFFEN.some((p) => pfad === p || pfad.startsWith(p))) {
-    return NextResponse.next();
+    /*
+      Das Schaufenster bekommt ein anderes Grundgerüst als die
+      Arbeitsfläche: keine Navigationsschiene, keine Spaltenbreite,
+      volle Seite. Das Layout ist eine Server-Komponente und kennt den
+      Pfad nicht von sich aus -- Next bietet dafür keine Schnittstelle.
+      Es über einen Anfragekopf mitzugeben, ist der vorgesehene Weg.
+
+      Nur hier gesetzt, nicht im Browser lesbar und ohne Wirkung auf
+      irgendetwas anderes: Wer den Kopf von außen mitschickt, erreicht
+      damit nichts, denn für jeden anderen Pfad wird er unten
+      überschrieben.
+    */
+    if (pfad === "/willkommen") {
+      const kopfzeilen = new Headers(req.headers);
+      kopfzeilen.set("x-schaufenster", "ja");
+      return NextResponse.next({ request: { headers: kopfzeilen } });
+    }
+    const kopfzeilen = new Headers(req.headers);
+    kopfzeilen.delete("x-schaufenster");
+    return NextResponse.next({ request: { headers: kopfzeilen } });
   }
 
   // Der Aufgabenschlüssel öffnet zusätzlich die Entwurfs-Schnittstelle.
@@ -117,8 +141,25 @@ export function proxy(req: NextRequest) {
       return NextResponse.json({ fehler: "nicht angemeldet" }, { status: 401 });
     }
     const ziel = req.nextUrl.clone();
-    ziel.pathname = "/anmelden";
-    ziel.search = pfad === "/" ? "" : `?weiter=${encodeURIComponent(pfad)}`;
+    if (pfad === "/") {
+      /*
+        Die Wurzel gehört dem Schaufenster, nicht der Anmeldung.
+
+        Vorher landete jeder, der stig-immobilien.de aufrief, sofort vor
+        einem Passwortfeld. Für die zwei Menschen, die sich hier anmelden
+        können, war das der kürzeste Weg; für alle anderen war die Adresse
+        eine verschlossene Tür ohne Schild. Jetzt steht dort, was diese
+        Plattform ist, und von dort führt ein Weg zur Anmeldung.
+
+        Wer angemeldet ist, kommt hier gar nicht vorbei: Die Prüfung oben
+        hat dann schon durchgelassen, und / zeigt das Cockpit wie bisher.
+      */
+      ziel.pathname = "/willkommen";
+      ziel.search = "";
+    } else {
+      ziel.pathname = "/anmelden";
+      ziel.search = `?weiter=${encodeURIComponent(pfad)}`;
+    }
     return NextResponse.redirect(ziel);
   }
 
@@ -135,7 +176,15 @@ export function proxy(req: NextRequest) {
     return NextResponse.redirect(ziel);
   }
 
-  return NextResponse.next();
+  /*
+    Auch auf dem geschützten Weg wird der Kopf entfernt. Sonst könnte
+    ihn jemand von außen mitschicken und bekäme die Verwaltung ohne
+    Navigation zu sehen -- harmlos, aber verwirrend, und eine Zusage,
+    die hier niemand gemacht hat.
+  */
+  const kopfzeilen = new Headers(req.headers);
+  kopfzeilen.delete("x-schaufenster");
+  return NextResponse.next({ request: { headers: kopfzeilen } });
 }
 
 /**

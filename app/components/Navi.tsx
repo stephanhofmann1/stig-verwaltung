@@ -189,6 +189,26 @@ export function Navi({ benutzer }: { benutzer: string | null }) {
   if (pfad === "/anmelden") return null;
 
   /**
+   * Das Schaufenster ist nicht die Anwendung.
+   *
+   * Unter /willkommen steht, wie hier verwaltet wird -- fuer jeden
+   * sichtbar, ohne Anmeldung. Die Verwaltungsnavigation gehoert dort
+   * nicht hin: Zehn Punkte, die alle auf die Anmeldeseite umleiten,
+   * sind kein Angebot, sondern eine Reihe verschlossener Tueren.
+   *
+   * Was bleibt, ist der eine Weg, der von dort fuehrt. Er steht an
+   * derselben Stelle wie sonst "Abmelden" -- also dort, wo man ihn
+   * nach dem Anmelden wiederfindet.
+   */
+  if (pfad === "/willkommen") {
+    return (
+      <Link className="kopf-weiter" href="/anmelden">
+        Anmelden
+      </Link>
+    );
+  }
+
+  /**
    * Der Mieterbereich ist nicht die Verwaltung.
    *
    * Wer mit der Rolle "mieter" angemeldet ist, sieht unter /mieter seine
