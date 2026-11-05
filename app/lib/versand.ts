@@ -1,5 +1,13 @@
 import { tx, one } from "./db";
 import type { Nachricht } from "./typen";
+import {
+  alsResendAnhaenge,
+  alsSmtpAnhaenge,
+  anhaengeZu,
+  leseInhalt,
+  pruefePaket,
+  type AnhangNutzlast,
+} from "./anhaenge";
 
 const ABSENDER =
   process.env.ABSENDER_EMAIL ?? "verwaltung@stig-immobilien.de";
@@ -249,6 +257,43 @@ export async function sendeEntwurf(
   }
   const weg = entscheidung.weg;
 
+  // Die Anhänge werden VOR dem Versand geladen und geprüft, nicht
+  // unterwegs. Zwei Gründe, und beide sind derselbe:
+  //
+  //   Eine Datei, die nicht mehr auf der Platte liegt, soll den Versand
+  //   verhindern und nicht halb durchlassen. Eine Mail, bei der drei von
+  //   sieben Bildern fehlen, ist schlimmer als eine, die nicht hinausgeht
+  //   -- beim Empfänger sieht sie vollständig aus.
+  //
+  //   Die Größenprüfung muss greifen, bevor irgendetwas gesendet ist.
+  //   Danach steht der Entwurf auf 'gesendet' und die Ablehnung des
+  //   Gegenservers landet in einem anderen Postfach (siehe
+  //   lib/anhaenge.ts, GRENZE_PAKET_BYTES).
+  let nutzlast: AnhangNutzlast[] = [];
+  const zeilen = await anhaengeZu(n.id);
+  if (zeilen.length > 0) {
+    const paket = pruefePaket(zeilen.map((z) => Number(z.groesse_bytes)));
+    if (!paket.ok) return { ok: false, fehler: paket.fehler };
+
+    try {
+      nutzlast = await Promise.all(
+        zeilen.map(async (z) => {
+          const voll = await one<{ ablage_pfad: string }>(
+            `SELECT ablage_pfad FROM nachricht_anhang WHERE id = $1`,
+            [z.id],
+          );
+          if (!voll) throw new Error(`Anhang ${z.dateiname} nicht gefunden`);
+          return { dateiname: z.dateiname, inhalt: await leseInhalt(voll.ablage_pfad) };
+        }),
+      );
+    } catch (e) {
+      return {
+        ok: false,
+        fehler: `Anhang nicht lesbar, nichts gesendet: ${(e as Error).message}`,
+      };
+    }
+  }
+
   if (weg === "smtp") {
     const { createTransport } = await import("nodemailer");
     const transport = createTransport({
@@ -270,6 +315,11 @@ export async function sendeEntwurf(
         messageId,
         inReplyTo: n.in_reply_to ?? undefined,
         references: n.referenzen.length ? n.referenzen : undefined,
+        // Derselbe Satz Dateien wie im Resend-Zweig, nur in der Form, die
+        // nodemailer erwartet. Die beiden Umwandlungen stehen in
+        // lib/anhaenge.ts nebeneinander und werden im Test gegeneinander
+        // geprüft -- damit nicht ein Weg Anhänge trägt und der andere nicht.
+        attachments: nutzlast.length ? alsSmtpAnhaenge(nutzlast) : undefined,
       });
     } catch (e) {
       return { ok: false, fehler: `SMTP: ${(e as Error).message}` };
@@ -289,6 +339,9 @@ export async function sendeEntwurf(
         cc: n.cc_emails.length ? n.cc_emails : undefined,
         subject: n.betreff,
         text: n.koerper_text,
+        ...(nutzlast.length
+          ? { attachments: alsResendAnhaenge(nutzlast) }
+          : {}),
         headers: {
           "Message-ID": messageId,
           ...(n.in_reply_to ? { "In-Reply-To": n.in_reply_to } : {}),

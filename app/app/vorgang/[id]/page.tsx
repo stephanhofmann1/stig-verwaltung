@@ -7,6 +7,7 @@ import { aktenzeichen, tag, zeitpunkt } from "@/lib/formate";
 import { angemeldeteSitzung } from "@/lib/anmeldung";
 import { EntwurfKarte } from "@/components/EntwurfKarte";
 import { VorgangSchalter } from "@/components/VorgangSchalter";
+import { Anhaenge } from "@/components/Anhaenge";
 
 export const dynamic = "force-dynamic";
 
@@ -250,6 +251,10 @@ export default async function Vorgangsakte({
                   )}
                 </div>
                 <p className="eintrag-text">{e.koerper_text}</p>
+                {/* Nur lesen: Was empfangen oder gesendet wurde, bleibt in
+                    der Akte so stehen. Die Route weist das Entfernen auch
+                    ab -- hier steht erst gar kein Knopf. */}
+                <Anhaenge nachrichtId={e.id} aenderbar={false} />
               </article>
             ),
           )}

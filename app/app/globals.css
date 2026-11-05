@@ -1915,6 +1915,108 @@ p.hinweis.abschnitt { margin-top: var(--abstand-7); }
   resize: vertical;
 }
 
+/* --- 14j. Anhänge ------------------------------------------------------
+   An einem Entwurf und an jeder Nachricht in der Akte. Die Gestaltung
+   hat eine einzige Aufgabe, und es ist nicht die Liste: Sie muss die
+   Paketgröße sichtbar machen, bevor jemand auf "Senden" klickt.
+
+   Denn die Grenze liegt nicht bei uns, sondern beim empfangenden
+   Server, und er meldet sich erst, wenn die Mail schon hinaus ist --
+   in einem anderen Postfach, nicht in diesem Portal (Begründung in
+   lib/anhaenge.ts). Alles, was danach kommt, ist zu spät. Deshalb
+   steht die Größe oben rechts in der Zeile und nicht unter der Liste,
+   und deshalb wechselt sie bei 80 Prozent die Farbe, statt erst beim
+   Überschreiten zu erscheinen: Eine Warnung, die nur im Fehlerfall da
+   ist, kommt für den, der gerade das sechste Bild anhängt, zu spät. */
+
+.anhaenge {
+  margin-top: var(--abstand-4);
+  padding-top: var(--abstand-3);
+  border-top: 1px solid var(--linie);
+}
+
+.anhaenge-kopf {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--abstand-3);
+  margin: 0 0 var(--abstand-2);
+  font-size: var(--t-klein);
+  color: var(--fg-leise);
+}
+
+/* Tabellenziffern: Die Zahl ändert sich bei jedem Hochladen, und
+   springende Ziffernbreiten lassen die ganze Zeile zucken. */
+.anhaenge-mass {
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-still);
+}
+.anhaenge-mass[data-eng="ja"] {
+  color: var(--warn);
+  font-weight: var(--g-kopf);
+}
+
+.anhaenge-liste {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--linie);
+}
+.anhaenge-liste:empty {
+  display: none;
+}
+.anhaenge-liste li {
+  display: flex;
+  align-items: center;
+  gap: var(--abstand-3);
+  background: var(--flaeche-ruhig);
+  padding: var(--abstand-2) var(--abstand-3);
+}
+.anhaenge-liste a {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.anhaenge-groesse {
+  flex: 0 0 auto;
+  font-size: var(--t-klein);
+  color: var(--fg-still);
+  font-variant-numeric: tabular-nums;
+}
+/* Der Entfernen-Knopf darf die Zeile nicht dominieren -- er steht an
+   jeder Zeile, und das Normale ist, dass niemand ihn drückt. */
+.anhaenge-liste button {
+  flex: 0 0 auto;
+  font-size: var(--t-klein);
+  padding: var(--abstand-1) var(--abstand-2);
+  min-height: 2rem;
+}
+
+.anhaenge-warnung {
+  margin: var(--abstand-2) 0 0;
+  padding: var(--abstand-2) var(--abstand-3);
+  background: var(--warn-flaeche);
+  color: var(--warn);
+  font-size: var(--t-klein);
+  border-radius: var(--radius-s);
+}
+
+.anhaenge-feld {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--abstand-2);
+  margin-top: var(--abstand-3);
+  font-size: var(--t-klein);
+  color: var(--fg-leise);
+}
+.anhaenge-feld input[type="file"] {
+  font-size: var(--t-klein);
+  max-width: 100%;
+}
+
 /* --- 15. Schmale Schirme (Telefon) --------------------------------------
    Prüfmaß 390 px: 16 px Seitenabstand, kein waagerechtes Rollen der Seite. */
 

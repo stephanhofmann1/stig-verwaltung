@@ -7,6 +7,7 @@ import {
   EntwurfAnweisung,
   type FassungAnzeige,
 } from "@/components/EntwurfAnweisung";
+import { Anhaenge } from "@/components/Anhaenge";
 
 /**
  * Ein Entwurf in der Freigabe und in der Vorgangsakte.
@@ -219,6 +220,11 @@ export function EntwurfKarte(p: Props) {
         spellCheck
         aria-label="Entwurfstext"
       />
+
+      {/* Die Anhaenge stehen zwischen Text und Knoepfen: Wer gegenliest,
+          soll sie sehen, bevor er auf "Senden" klickt -- und nicht
+          darunter, wo sie beim Ueberfliegen wegfallen. */}
+      <Anhaenge nachrichtId={p.id} aenderbar blockiert={busy || laeuft} />
 
       <div className="knopfreihe">
         <button onClick={senden} disabled={busy || laeuft}>
