@@ -11,7 +11,7 @@ import {
   type BelegBefund,
 } from "@/lib/belege";
 import { uebernehmeSichereBelege } from "@/lib/belegabgleich";
-import { findeReferenzen } from "@/lib/referenzen";
+import { findeAlleReferenzen } from "@/lib/referenzen";
 import { leseTar, TarFehler, MAX_EINTRAEGE } from "@/lib/tar";
 
 export const dynamic = "force-dynamic";
@@ -333,8 +333,10 @@ export async function POST(req: Request) {
 
     // Referenznummern mitschreiben. Sie sind der verlässlichste Weg zur
     // Abbuchung: Bei Amazon steht die Bestellnummer im Verwendungszweck,
-    // die Rechnungsnummer nie.
-    for (const r of findeReferenzen(gelesen.text)) {
+    // die Rechnungsnummer nie. Der Dateiname zaehlt mit -- bei der
+    // eigenen Rechnung eines Marketplace-Haendlers steht die
+    // Bestellnummer nur dort.
+    for (const r of findeAlleReferenzen(gelesen.text, name)) {
       await query(
         `INSERT INTO beleg_referenz (beleg_id, art, wert, normiert)
          VALUES ($1,$2,$3,$4)

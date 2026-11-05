@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { angemeldeteSitzung } from "@/lib/anmeldung";
 import { query } from "@/lib/db";
 import { lieseBeleg } from "@/lib/belegtext";
-import { findeReferenzen } from "@/lib/referenzen";
+import { findeAlleReferenzen } from "@/lib/referenzen";
 import { uebernehmeSichereBelege } from "@/lib/belegabgleich";
 
 export const dynamic = "force-dynamic";
@@ -45,8 +45,12 @@ export async function POST() {
     );
   }
 
-  const belege = await query<{ id: string; ablage_pfad: string | null }>(
-    `SELECT id, ablage_pfad FROM beleg
+  const belege = await query<{
+    id: string;
+    ablage_pfad: string | null;
+    dateiname: string | null;
+  }>(
+    `SELECT id, ablage_pfad, dateiname FROM beleg
       WHERE ablage_pfad IS NOT NULL
       ORDER BY angelegt_am`,
   );
@@ -67,11 +71,15 @@ export async function POST() {
     }
     const d = await lieseBeleg(inhalt);
     gelesen += 1;
-    if (!d.text || d.text.trim().length < 40) {
-      ohneText += 1;
-      continue;
-    }
-    for (const r of findeReferenzen(d.text)) {
+    const ohneTextebene = !d.text || d.text.trim().length < 40;
+    if (ohneTextebene) ohneText += 1;
+    // Auch ohne Textebene lohnt der Durchlauf: Der Dateiname kann die
+    // Nummer tragen, auch wenn der Scan nichts hergibt. Fruehe Rueckkehr
+    // waere hier ein verschenkter Beleg.
+    for (const r of findeAlleReferenzen(
+      ohneTextebene ? "" : d.text,
+      b.dateiname ?? "",
+    )) {
       const eingefuegt = await query<{ id: string }>(
         `INSERT INTO beleg_referenz (beleg_id, art, wert, normiert)
          VALUES ($1,$2,$3,$4)
