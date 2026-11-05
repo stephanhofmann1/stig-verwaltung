@@ -28,9 +28,19 @@ Code reist über dieses Repository, Daten als Paket.
 
 ## Einspielen
 
-Push auf `main` → GitHub prüft (Typen, 265 Tests, Programmbau, alle
+`main` bewegt sich → GitHub prüft (Typen, alle Tests, Programmbau, alle
 Migrationen gegen eine leere Datenbank) → und spielt nur bei Erfolg ein.
 Ein kaputter Stand erreicht den Server nicht.
+
+Der Weg dahin führt über einen Pull Request, und zwar nicht aus Formalismus:
+Ein Regelwerk auf `main` verlangt die grüne Prüfung, also kommt dort nichts
+Ungeprüftes an — auch nicht von Hand. Steht der Pull Request auf
+Auto-Merge, führt GitHub selbst zusammen, sobald die Prüfung durch ist, und
+das Einspielen läuft an. Kein Paket, kein Skript, kein SSH.
+
+Wer am Repository Admin ist, kann das Regelwerk umgehen. Das ist der
+Notausgang und soll einer bleiben: Jeder direkte Push auf `main` spielt ein,
+ohne dass irgendetwas vorher geprüft worden wäre.
 
 Nötiges Repository-Geheimnis: `SSH_PRIVATE_KEY` — der private Teil eines
 Schlüsselpaars, dessen öffentlicher Teil in `~/.ssh/authorized_keys` des
