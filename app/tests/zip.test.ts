@@ -29,6 +29,26 @@ function entpacker(): string {
   return execFileSync("sh", ["-c", "command -v unzip"]).toString().trim();
 }
 
+/**
+ * Warum hier kein Name mit Umlaut gegen unzip geprueft wird.
+ *
+ * Erster Versuch am 05.11.2026: Das Archiv enthielt
+ * "belege/0001_Gießen_Rechnung.pdf", und `unzip -Z1` sollte genau diesen
+ * Namen zurueckgeben. Oertlich ging das. Auf dem Rechner der Werkbank kam
+ * "Gie├Яen" zurueck. Zweiter Versuch mit ausdruecklich gesetztem
+ * LC_ALL=C.UTF-8: Jetzt scheiterte es oertlich und lief unter LC_ALL=C.
+ *
+ * Info-ZIP wandelt gespeicherte Namen je nach Uebersetzung und
+ * Spracheinstellung in den lokalen Zeichensatz um. Was es ausgibt, haengt
+ * also am Entpacker, nicht am Archiv -- ein Test darauf prueft die
+ * Umgebung und nennt das Ergebnis Archivfehler.
+ *
+ * Geprueft wird deshalb, was wir wirklich verantworten: dass der Name als
+ * UTF-8 im Archiv steht und dass das Kennzeichen dafuer gesetzt ist. Die
+ * Rundreise durch unzip bleibt, aber mit Namen aus reinem ASCII -- dort
+ * kann nichts umgewandelt werden.
+ */
+
 describe("CRC32", () => {
   test("bekannter Wert für \"123456789\"", () => {
     // Der Standardwert aus der Literatur für diese Zeichenfolge.
@@ -63,11 +83,27 @@ describe("Archiv schreiben", () => {
     assert.equal(z.readUInt16LE(z.length - 22 + 10), 3);
   });
 
-  test("Umlaute im Namen werden als UTF-8 gekennzeichnet", async () => {
+  test("Umlaute stehen als UTF-8 im Archiv und sind gekennzeichnet", async () => {
     const z = await zipPuffer([{ name: "Gießen/Beleg.pdf", inhalt: Buffer.from("X") }]);
     const merker = z.readUInt16LE(6);
     assert.equal(merker & 0x0800, 0x0800, "UTF-8-Merker gesetzt");
     assert.equal(merker & 0x0008, 0x0008, "nachgestellter Datensatz angekündigt");
+
+    // Der Name steht zweimal im Archiv -- im Ortsdatensatz und im
+    // zentralen Verzeichnis. Beide Male als UTF-8, und zwar Byte für Byte
+    // so, wie Node den String kodiert. Das ist unabhängig davon, was ein
+    // Entpackprogramm später daraus macht.
+    const alsUtf8 = Buffer.from("Gießen/Beleg.pdf", "utf8");
+    let gefunden = 0;
+    let von = 0;
+    for (;;) {
+      const i = z.indexOf(alsUtf8, von);
+      if (i === -1) break;
+      gefunden += 1;
+      von = i + 1;
+    }
+    assert.equal(gefunden, 2, "Name im Ortsdatensatz und im Verzeichnis");
+    assert.equal(z.readUInt16LE(26), alsUtf8.length, "Namenslänge in Bytes, nicht in Zeichen");
   });
 });
 
@@ -80,7 +116,7 @@ describe("Wirklich entpackbar", () => {
 
     const z = await zipPuffer([
       { name: "LIESMICH.txt", inhalt: Buffer.from("Paket für den Steuerberater\n") },
-      { name: "belege/0001_Gießen_Rechnung.pdf", pfad: aufPlatte },
+      { name: "belege/0001_Rechnung.pdf", pfad: aufPlatte },
       { name: "journal.csv", inhalt: Buffer.from("nr;datum;betrag\n1;2026-01-02;45,44\n") },
     ]);
     const archiv = join(ordner, "paket.zip");
@@ -93,14 +129,14 @@ describe("Wirklich entpackbar", () => {
     const liste = execFileSync("unzip", ["-Z1", archiv]).toString().trim().split("\n");
     assert.deepEqual(liste.sort(), [
       "LIESMICH.txt",
-      "belege/0001_Gießen_Rechnung.pdf",
+      "belege/0001_Rechnung.pdf",
       "journal.csv",
     ].sort());
 
     const raus = join(ordner, "raus");
     execFileSync("unzip", ["-q", archiv, "-d", raus]);
     assert.equal(
-      readFileSync(join(raus, "belege/0001_Gießen_Rechnung.pdf")).toString(),
+      readFileSync(join(raus, "belege/0001_Rechnung.pdf")).toString(),
       "%PDF-1.4 erfundener Beleg",
     );
     assert.match(readFileSync(join(raus, "journal.csv")).toString(), /45,44/);
