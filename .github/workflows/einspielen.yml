@@ -65,11 +65,40 @@ jobs:
         # zwischen zwei anderen -- und dann steht die Datenbank halb
         # migriert da.
         run: |
-          docker run -d --name pg -e POSTGRES_PASSWORD=test \
-            -p 5432:5432 postgres:16
-          for i in $(seq 1 30); do
-            docker exec pg pg_isready -q && break; sleep 1
+          set -euo pipefail
+          docker run -d --name pg -e POSTGRES_PASSWORD=test postgres:16
+
+          # Warten, bis die Datenbank wirklich steht.
+          #
+          # pg_isready allein genuegt nicht. Das Postgres-Abbild startet
+          # beim ersten Lauf einen voruebergehenden Server, um das
+          # Datenverzeichnis einzurichten, und der nimmt ueber den
+          # Unix-Socket schon Verbindungen an: pg_isready meldet "bereit",
+          # der Einrichtungsserver geht gleich darauf wieder aus, und das
+          # erste psql faellt in die Luecke. Am 05.11.2026 ist genau das
+          # passiert -- "No such file or directory", 1,4 Sekunden nach dem
+          # Start. Die Laeufe davor sind nicht sicherer gewesen, sie haben
+          # das Rennen nur gewonnen.
+          #
+          # Deshalb zwei Bedingungen: die Marke, die das Abbild NACH der
+          # Einrichtung schreibt, und eine echte Abfrage. Der Behaelter
+          # ist hier immer frisch, also kommt die Marke auch immer.
+          for i in $(seq 1 60); do
+            if docker logs pg 2>&1 | grep -q "init process complete" \
+               && docker exec -e PGPASSWORD=test pg \
+                    psql -U postgres -d postgres -tAc 'select 1' \
+                    >/dev/null 2>&1; then
+              bereit=ja; break
+            fi
+            sleep 1
           done
+          if [ "${bereit:-}" != ja ]; then
+            echo "::error::Die Probe-Datenbank ist nicht hochgekommen."
+            docker logs pg 2>&1 | tail -30
+            exit 1
+          fi
+          echo "Datenbank steht nach $i Sekunden."
+
           for f in db/0*.sql; do
             echo "--- $f"
             docker exec -i -e PGPASSWORD=test pg \
@@ -130,23 +159,56 @@ jobs:
         run: scp -q /tmp/neu.tgz root@78.47.196.190:/opt/stig/neu.tgz
 
       - name: Auspacken, migrieren, starten
+        # Das Fernstueck steht als Hier-Dokument und nicht in einer
+        # verschachtelten Anfuehrungszeichenkette: Darin war jedes
+        # Anfuehrungszeichen dreifach zu schuetzen, und ein Skript, das
+        # man nicht mehr lesen kann, aendert niemand gern richtig.
         run: |
-          ssh root@78.47.196.190 'bash -lc "
-            set -e
-            cd /opt/stig
-            echo \"== Auspacken ==\"
-            tar xzf neu.tgz && rm -f neu.tgz
-            chmod +x start.sh migrieren.sh einrichten.sh db/nachbuchen.sh 2>/dev/null || true
-            echo
-            echo \"== Datenbank migrieren ==\"
-            ./migrieren.sh
-            echo
-            echo \"== Anwendung neu bauen und starten ==\"
-            ./start.sh up -d --build
-            echo
-            echo \"== Stand ==\"
-            ./start.sh ps
-          "'
+          ssh root@78.47.196.190 'bash -s' <<'FERN'
+          set -e
+          cd /opt/stig
+
+          echo "== Auspacken =="
+          # Welche .sql-Dateien das Paket mitbringt -- abgelesen, BEVOR
+          # ausgepackt wird.
+          tar tzf neu.tgz \
+            | sed -n 's|^\(\./\)\?db/\([^/]*\.sql\)$|\2|p' \
+            | sort > /tmp/soll.txt
+          tar xzf neu.tgz && rm -f neu.tgz
+          chmod +x start.sh migrieren.sh einrichten.sh db/nachbuchen.sh 2>/dev/null || true
+
+          # Tar legt Dateien dazu, nimmt aber keine weg. Eine .sql, die
+          # das Paket nicht mehr enthaelt, bleibt also in db/ liegen --
+          # und migrieren.sh bricht bei jeder Fremddatei dort ab, zu
+          # Recht. Am 05.11.2026 war genau das der Fall: Die Saatdatei
+          # mit den DELETEs lag auf dem Server, nachdem sie aus dem Paket
+          # entfernt worden war.
+          #
+          # Beiseitegelegt, nicht geloescht. Beiseite genuegt, um den
+          # Lauf freizumachen, und was geloescht ist, kann niemand mehr
+          # nachsehen.
+          ls db/*.sql 2>/dev/null | sed 's|^db/||' | sort > /tmp/ist.txt
+          UEBRIG=$(comm -13 /tmp/soll.txt /tmp/ist.txt)
+          if [ -n "$UEBRIG" ]; then
+            mkdir -p abgelegt
+            for n in $UEBRIG; do
+              echo "  nicht mehr im Paket, beiseitegelegt: db/$n"
+              mv "db/$n" "abgelegt/$n"
+            done
+          fi
+
+          echo
+          echo "== Datenbank migrieren =="
+          ./migrieren.sh
+
+          echo
+          echo "== Anwendung neu bauen und starten =="
+          ./start.sh up -d --build
+
+          echo
+          echo "== Stand =="
+          ./start.sh ps
+          FERN
 
       - name: Läuft es wirklich?
         # Ein Container, der "Up" meldet, kann trotzdem bei jeder Anfrage
@@ -165,10 +227,17 @@ jobs:
         # Benutzer wirklich nimmt. Geprüft wird die Anmeldeseite, weil sie
         # ohne Sitzung antwortet -- und auf ihren Inhalt, nicht nur auf
         # den Statuscode: Eine Fehlerseite des Proxys käme auch mit 200.
+        #
+        # Gesucht wird das Passwortfeld und nicht der Produktname. Der Name
+        # steht nur noch im Seitentitel und soll verschwinden, sobald ein
+        # zweiter Mandant die Plattform nutzt -- die Prüfung wäre dann rot,
+        # obwohl das Einspielen geglückt ist. Ein Eingabefeld dagegen muss
+        # die Anmeldeseite immer tragen, und eine Fehlerseite des Proxys
+        # trägt es nie.
         run: |
           for i in $(seq 1 15); do
             if curl -fsS --max-time 10 https://stig-immobilien.de/anmelden \
-                 | grep -q "STIG Verwaltung"; then
+                 | grep -q 'type="password"'; then
               echo "Die Anwendung antwortet und liefert die Anmeldeseite aus."
               exit 0
             fi

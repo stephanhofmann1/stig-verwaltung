@@ -1,13 +1,17 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { one, query } from "@/lib/db";
+import { one } from "@/lib/db";
 import { tag } from "@/lib/formate";
+import { baujahrAusNotizen, dokumenteFuer, istBild } from "@/lib/dokumente";
 import {
-  baujahrAusNotizen,
-  dokumenteFuer,
-  istBild,
-  mietzusammensetzung,
-} from "@/lib/dokumente";
+  eigeneMietverhaeltnisse,
+  einheitenDesObjekts,
+  mieteDerEinheit,
+  objektKennzahlen,
+} from "@/lib/objekte";
+import { objektWirtschaft } from "@/lib/rendite";
+import { ObjektWirtschaft } from "@/components/ObjektWirtschaft";
+import { LaufmieteVerlauf } from "@/components/LaufmieteVerlauf";
 import { Bildergalerie } from "@/components/Bildergalerie";
 import { DokumentListe } from "@/components/DokumentListe";
 import { DokumentHochladen } from "@/components/DokumentHochladen";
@@ -24,12 +28,13 @@ export const dynamic = "force-dynamic";
  * Draufsehen wissen will, und die Dokumente, die fürs ganze Haus gelten --
  * Energieausweis, Lageplan.
  *
+ * Abfrage und Zahlen stehen seit der Objektübersicht in lib/objekte.ts.
+ * Diese Seite und /objekte lesen dieselbe Ableitung; vorher wäre für die
+ * Übersicht eine zweite Rechnung derselben Zahlen entstanden, und genau so
+ * sind Cockpit und Objektseite beim Wort "Leerstand" auseinandergelaufen.
+ *
  * Zur Vorsicht bei "frei": Aus "kein Mietverhältnis erfasst" folgt nicht
- * "leer". Die Spalte belegung_gepflegt (db/017) sagt, ob jemand die
- * Belegung dieser Einheit wirklich gepflegt hat; solange sie aus ist,
- * steht hier "Belegung offen" und nicht "frei". Der umgekehrte Vorgabewert
- * hat im September dazu geführt, dass vermietete Zimmer öffentlich
- * angeboten wurden.
+ * "leer" -- siehe den Kopf von lib/objekte.ts.
  */
 
 interface Kopf {
@@ -40,31 +45,6 @@ interface Kopf {
   ort: string;
   notizen: string | null;
   zahlungsdaten_ab: string | null;
-}
-
-interface EinheitZeile {
-  id: string;
-  bezeichnung: string;
-  etage: string | null;
-  art: string;
-  flaeche_qm: string | null;
-  schluessel: string | null;
-  eltern_id: string | null;
-  eltern: string | null;
-  vermarktung: string;
-  verfuegbar_ab: string | null;
-  belegung_gepflegt: boolean;
-  angebot_kaltmiete: string | null;
-  angebot_nebenkosten: string | null;
-  mv_id: string | null;
-  mieter: string | null;
-  beginn: string | null;
-  ende: string | null;
-  status: string | null;
-  m_kalt: string | null;
-  m_nk: string | null;
-  m_moebel: string | null;
-  m_gesamt: string | null;
 }
 
 const euro = (betrag: number | null) =>
@@ -98,112 +78,35 @@ export default async function Objektseite({
   );
   if (!kopf) notFound();
 
-  const einheiten = await query<EinheitZeile>(
-    `
-    SELECT e.id, e.bezeichnung, e.etage, e.art,
-           e.flaeche_qm::text, e.schluessel, e.eltern_id,
-           eltern.bezeichnung AS eltern,
-           e.vermarktung, e.verfuegbar_ab::text, e.belegung_gepflegt,
-           e.angebot_kaltmiete::text, e.angebot_nebenkosten::text,
-           mv.id AS mv_id, k.anzeigename AS mieter,
-           mv.beginn::text, mv.ende::text, mv.status,
-           -- Die Miete, die heute gilt: miete_am() aus db/022 nimmt die
-           -- jüngste Anpassung und fällt sonst auf das Mietverhältnis
-           -- zurück. Hier nicht nachgerechnet -- dieselbe Regel wie in
-           -- der Sollstellung.
-           m.kaltmiete::text            AS m_kalt,
-           m.nebenkosten::text          AS m_nk,
-           m.moeblierungszuschlag::text AS m_moebel,
-           m.gesamtmiete::text          AS m_gesamt
-      FROM einheit e
-      LEFT JOIN einheit eltern ON eltern.id = e.eltern_id
-      LEFT JOIN LATERAL (
-            SELECT * FROM mietverhaeltnis x
-             WHERE x.einheit_id = e.id
-               AND x.status <> 'beendet'
-               AND (x.ende IS NULL OR x.ende >= current_date)
-             ORDER BY x.beginn DESC LIMIT 1) mv ON true
-      LEFT JOIN kontakt k ON k.id = mv.kontakt_id
-      LEFT JOIN LATERAL miete_am(mv.id, current_date) m ON true
-     WHERE e.objekt_id = $1
-     ORDER BY COALESCE(eltern.bezeichnung, e.bezeichnung),
-              (e.eltern_id IS NOT NULL), e.bezeichnung
-  `,
-    [id],
-  );
+  const einheiten = await einheitenDesObjekts(id);
+  const zahlen = objektKennzahlen(einheiten);
+  const mitVertrag = eigeneMietverhaeltnisse(einheiten);
 
   const dokumente = await dokumenteFuer({ objekt_id: id });
+  // Kaufpreis, Finanzierung und die daraus gerechnete Lage. Gibt null
+  // zurueck, wenn es das Objekt nicht gibt -- das ist oben schon
+  // abgefangen, der Zweig bleibt trotzdem stehen.
+  const wirtschaft = await objektWirtschaft(id);
   const bilder = dokumente.filter((d) => istBild(d.mime_typ));
   const akten = dokumente.filter((d) => !istBild(d.mime_typ));
 
-  // --- Belegung ------------------------------------------------------------
-  // Ein Zimmer unter einer WG gilt als belegt, wenn das Mietverhältnis an
-  // der WG hängt. Im 2. OG läuft ein Altmietverhältnis über die ganze
-  // Etage; ohne diese Zeile wären die fünf Zimmer darunter "frei".
-  const belegt = new Set(
-    einheiten.filter((e) => e.mv_id).map((e) => e.id),
-  );
-  const istBelegt = (e: EinheitZeile) =>
-    !!e.mv_id || (e.eltern_id ? belegt.has(e.eltern_id) : false);
-
-  const miete = (e: EinheitZeile) =>
-    e.mv_id
-      ? mietzusammensetzung({
-          kaltmiete: e.m_kalt,
-          nebenkosten: e.m_nk,
-          moeblierung: e.m_moebel,
-          gesamtmiete: e.m_gesamt,
-        }).summe
-      : null;
-
-  const sollSumme = einheiten.reduce((s, e) => s + (miete(e) ?? 0), 0);
-
-  // Leerstand nur dort, wo die Belegung gepflegt ist und die Einheit
-  // überhaupt angeboten wird. Eine Gemeinschaftsfläche steht nie leer --
-  // sie wird gar nicht einzeln vermietet.
-  const frei = einheiten.filter(
-    (e) =>
-      !istBelegt(e) &&
-      e.art !== "gemeinschaft" &&
-      e.belegung_gepflegt &&
-      e.vermarktung === "anbieten",
-  );
-  const offen = einheiten.filter(
-    (e) => !istBelegt(e) && e.art !== "gemeinschaft" && !e.belegung_gepflegt,
-  );
-  const entgangen = frei.reduce(
-    (s, e) =>
-      s +
-      mietzusammensetzung({
-        kaltmiete: e.angebot_kaltmiete,
-        nebenkosten: e.angebot_nebenkosten,
-        moeblierung: null,
-        gesamtmiete: null,
-      }).summe,
-    0,
-  );
-
-  // Flächen: nur summieren, was da ist, und sagen, wie viel fehlt. Eine
-  // Summe aus halben Angaben sieht vollständig aus und ist es nicht.
-  const mitFlaeche = einheiten.filter((e) => e.flaeche_qm !== null);
-  const flaeche = mitFlaeche.reduce((s, e) => s + Number(e.flaeche_qm), 0);
-  const ohneFlaeche = einheiten.length - mitFlaeche.length;
-
   const baujahr = baujahrAusNotizen(kopf.notizen);
-  const einzeln = einheiten.filter((e) => e.art !== "gemeinschaft");
 
   return (
     <>
       <div className="akte-kopf">
-        <span className="aktenzeichen ziffern">{einzeln.length}</span>
+        <span className="aktenzeichen ziffern">{zahlen.einzeln}</span>
         <div>
+          {/* Die einzige h1 der Seite. Alles darunter ist ein Abschnitt
+              dieses Dokuments und trägt h2 -- acht h1 hintereinander sind
+              für einen Screenreader acht Dokumente. */}
           <h1>{kopf.name}</h1>
           <div className="akte-meta">
             <span>
               {kopf.strasse}, {kopf.plz} {kopf.ort}
             </span>
             {baujahr && <span>Baujahr {baujahr}</span>}
-            <span>{einzeln.length} Einheiten</span>
+            <span>{zahlen.einzeln} Einheiten</span>
             {kopf.zahlungsdaten_ab ? (
               <span>Kontodaten ab {tag(kopf.zahlungsdaten_ab)}</span>
             ) : (
@@ -215,90 +118,134 @@ export default async function Objektseite({
         </div>
       </div>
 
-      {/* --- Summen --- */}
-      <div
-        style={{
-          display: "grid",
-          gap: "0.75rem 2rem",
-          gridTemplateColumns: "repeat(auto-fit, minmax(11rem, 1fr))",
-          borderTop: "1px solid var(--linie)",
-          borderBottom: "1px solid var(--linie)",
-          padding: "1rem 0",
-          margin: "1.5rem 0",
-        }}
-      >
-        <div>
-          <div className="hinweis">Soll je Monat</div>
-          <div className="ziffern" style={{ fontSize: "1.375rem", fontWeight: 600 }}>
-            {euroGenau(sollSumme)}
-          </div>
-          <div className="hinweis">
-            {einheiten.filter(istBelegt).filter((e) => e.art !== "gemeinschaft").length}{" "}
-            von {einzeln.length} Einheiten belegt
+      {/* --- Summen ---
+          Stand als Inline-Raster mit festen Abständen im Markup. Jetzt
+          .karten/.karte/.kennzahl -- dieselben Kennzahlen wie im Cockpit
+          sehen dann auch gleich aus. */}
+      <div className="karten">
+        <div className="karte">
+          <div className="kennzahl">
+            <span className="kennzahl-schild">Soll je Monat (warm)</span>
+            <span className="kennzahl-wert ziffern">
+              {euroGenau(zahlen.sollMonat)}
+            </span>
+            {/* Kalt und BK getrennt, und was sich NICHT aufteilen laesst
+                als eigener Posten. Rund zwei Drittel der WG-Zimmer sind
+                als Inklusivmiete vermietet und haben gar keine getrennte
+                Kaltmiete; dazu kommen Moeblierungszuschlaege. Wer diesen
+                Teil in die Kaltspalte schiebt, schreibt eine Kaltmiete
+                hin, die niemand vereinbart hat -- und aus der spaeter
+                eine Mieterhoehung begruendet wird. Dieselbe Trennung wie
+                im Mietenbuch, aus derselben Ableitung in lib/objekte.ts. */}
+            <span className="erklaerung ziffern">
+              Kalt {euroGenau(zahlen.sollMonatKalt)} · BK{" "}
+              {euroGenau(zahlen.sollMonatNebenkosten)}
+              {zahlen.sollMonatOhneAufteilung !== 0 && (
+                <>
+                  {" "}
+                  · ohne Aufteilung{" "}
+                  {euroGenau(zahlen.sollMonatOhneAufteilung)}
+                </>
+              )}
+            </span>
+            <span className="erklaerung">
+              {zahlen.belegt} von {zahlen.einzeln} Einheiten belegt
+            </span>
           </div>
         </div>
-        <div>
-          <div className="hinweis">Leerstand</div>
-          <div className="ziffern" style={{ fontSize: "1.375rem", fontWeight: 600 }}>
-            {frei.length}
-          </div>
-          <div className="hinweis">
-            {entgangen > 0
-              ? `${euro(entgangen)} Angebotsmiete je Monat`
-              : "keine Angebotsmiete hinterlegt"}
-            {offen.length > 0 && ` · ${offen.length} × Belegung offen`}
+        <div className="karte">
+          <div className="kennzahl">
+            {/* Nicht mehr "Leerstand": Dieselbe Zahl hieß auf dem Cockpit
+                etwas anderes. Hier sind nur die vermarktbaren Einheiten
+                gemeint, und das steht jetzt im Schild statt in keinem
+                Text. */}
+            <span className="kennzahl-schild">Frei und angeboten</span>
+            <span
+              className="kennzahl-wert ziffern"
+              data-art={zahlen.angebotenFrei.length > 0 ? "warn" : "gut"}
+            >
+              {zahlen.angebotenFrei.length}
+            </span>
+            <span className="erklaerung">
+              {zahlen.entgangeneAngebotsmiete > 0
+                ? `${euro(zahlen.entgangeneAngebotsmiete)} Angebotsmiete je Monat`
+                : "keine Angebotsmiete hinterlegt"}
+              {zahlen.belegungOffen > 0 &&
+                ` · ${zahlen.belegungOffen} × Belegung offen`}
+            </span>
           </div>
         </div>
-        <div>
-          <div className="hinweis">Fläche</div>
-          <div className="ziffern" style={{ fontSize: "1.375rem", fontWeight: 600 }}>
-            {flaeche > 0
-              ? `${flaeche.toLocaleString("de-DE", { maximumFractionDigits: 1 })} m²`
-              : "—"}
-          </div>
-          <div className="hinweis">
-            {ohneFlaeche > 0
-              ? `${ohneFlaeche} Einheiten ohne Flächenangabe`
-              : "alle Einheiten erfasst"}
+        <div className="karte">
+          <div className="kennzahl">
+            <span className="kennzahl-schild">Fläche</span>
+            <span className="kennzahl-wert ziffern">
+              {zahlen.flaeche > 0
+                ? `${zahlen.flaeche.toLocaleString("de-DE", { maximumFractionDigits: 1 })} m²`
+                : "—"}
+            </span>
+            <span className="erklaerung">
+              {zahlen.ohneFlaeche > 0
+                ? `${zahlen.ohneFlaeche} Einheiten ohne Flächenangabe`
+                : "alle Einheiten erfasst"}
+            </span>
           </div>
         </div>
       </div>
+
+      <p className="erklaerung">
+        <strong>Frei und angeboten</strong> zählt nur vermarktbare
+        Einheiten: ohne Gemeinschaftsflächen, ohne die auf &bdquo;nicht
+        anbieten&ldquo; gestellten Flächen und ohne Einheiten im Bau. Eine
+        Einheit, deren Belegung nie gepflegt wurde, gilt als belegt und
+        steht getrennt als &bdquo;Belegung offen&ldquo; — lieber ein freies
+        Zimmer nicht anbieten als ein bewohntes. Das Cockpit zählt unter
+        &bdquo;Leerstand&ldquo; dieselben freien Einheiten, nimmt aber
+        zusätzlich auf, was in den nächsten drei Monaten frei wird.
+      </p>
 
       {kopf.notizen && <p className="hinweis">{kopf.notizen}</p>}
 
       <div className="knopfreihe">
-        <Link href="/mietenbuch" className="rueckmeldung">
+        {/* Die Rückwege der Seite. Als `rueckmeldung` waren sie graues
+            13-Pixel-Kleingedrucktes neben den Knöpfen und wurden nicht als
+            Weg gelesen -- wer hier landete, kam nur über den Zurück-Knopf
+            des Browsers wieder heraus. */}
+        <Link href="/objekte" className="verweis">
+          Alle Objekte
+        </Link>
+        <Link href="/mietenbuch" className="verweis">
           Mietenbuch
         </Link>
-        <Link href="/stammdaten" className="rueckmeldung">
-          Stammdaten
+        <Link href="/stammdaten" className="verweis">
+          Einheiten &amp; Mietverhältnisse
         </Link>
       </div>
 
       {/* --- Einheiten --- */}
-      <div className="titelzeile" style={{ marginTop: "2rem" }}>
-        <h1>Einheiten</h1>
+      <div className="titelzeile">
+        <h2>Einheiten</h2>
         <span className="zaehler ziffern">{einheiten.length}</span>
       </div>
 
       <div className="register">
         {einheiten.map((e) => {
-          const betrag = miete(e);
-          const ueberWg = !e.mv_id && e.eltern_id && belegt.has(e.eltern_id);
+          const betrag = mieteDerEinheit(e);
+          const ueberWg =
+            !e.mv_id && e.eltern_id && mitVertrag.has(e.eltern_id);
           return (
-            <div className="posten" key={e.id}>
+            // Die Zeile trägt zwei Wege (Einheit, Mietverhältnis), und ein
+            // Link darf keinen Link enthalten. Also bleibt sie ein div --
+            // ohne das Aufleuchten, das eine Klickbarkeit verspricht, die
+            // nur die beiden Wörter haben.
+            <div className="posten" data-still="ja" key={e.id}>
               <span className="nummer">{e.etage ?? "—"}</span>
               <span className="betreff">
                 <Link href={`/einheit/${e.id}`}>{e.bezeichnung}</Link>
                 {e.art === "gewerbe" && (
-                  <span style={{ fontWeight: 400, color: "var(--tinte-leise)" }}>
-                    {" "}· Gewerbe
-                  </span>
+                  <span className="hinweis"> · Gewerbe</span>
                 )}
                 {e.art === "gemeinschaft" && (
-                  <span style={{ fontWeight: 400, color: "var(--tinte-leise)" }}>
-                    {" "}· Wohnung/WG
-                  </span>
+                  <span className="hinweis"> · Wohnung/WG</span>
                 )}
               </span>
               <span className="zeit ziffern">
@@ -314,10 +261,12 @@ export default async function Objektseite({
                   <span>belegt über {e.eltern}</span>
                 ) : e.art === "gemeinschaft" ? (
                   <span>einzeln vermietet</span>
-                ) : e.belegung_gepflegt ? (
-                  <span>frei</span>
-                ) : (
+                ) : !e.belegung_gepflegt ? (
                   <span className="marker">Belegung offen</span>
+                ) : e.vermarktung === "anbieten" ? (
+                  <span>frei und angeboten</span>
+                ) : (
+                  <span>frei, wird nicht angeboten</span>
                 )}
                 {e.flaeche_qm && <span>{Number(e.flaeche_qm)} m²</span>}
                 {e.status === "gekuendigt" && (
@@ -325,7 +274,9 @@ export default async function Objektseite({
                     gekündigt{e.ende ? ` zum ${tag(e.ende)}` : ""}
                   </span>
                 )}
-                {e.vermarktung === "im_bau" && <span className="marker">im Bau</span>}
+                {e.vermarktung === "im_bau" && (
+                  <span className="marker">im Bau</span>
+                )}
                 {e.schluessel && <span className="ziffern">{e.schluessel}</span>}
               </span>
             </div>
@@ -333,9 +284,52 @@ export default async function Objektseite({
         })}
       </div>
 
+      {/* --- Wirtschaft ---
+          Was das Haus traegt. Steht bewusst NACH den Einheiten: Die
+          Rendite ist das Ergebnis der Belegung darueber, nicht ihr
+          Ausgangspunkt. Ohne erfassten Kaufpreis zeigt der Abschnitt
+          keine geschaetzte Zahl, sondern Gedankenstriche und den Satz,
+          was fehlt -- und das Formular, mit dem man es nachtraegt. */}
+      {wirtschaft && (
+        <div className="abschnitt">
+          <div className="titelzeile">
+            <h2>Wirtschaft</h2>
+            <span className="zaehler">
+              {wirtschaft.stamm.kaufpreis === null
+                ? "Kaufpreis nicht erfasst"
+                : "Stand der erfassten Werte"}
+            </span>
+          </div>
+          <ObjektWirtschaft
+            objektId={id}
+            stamm={wirtschaft.stamm}
+            lage={wirtschaft.lage}
+          />
+
+          {/* Die Laufmiete steht NACH den Kennwerten, nicht davor.
+
+              Die Kennwerte beantworten "was traegt der Bestand heute".
+              Der Verlauf beantwortet die Anschlussfrage: "und wie lange
+              noch". Erst die Zahl, dann ihre Haltbarkeit -- umgekehrt
+              liest man eine Kurve, ohne ihren heutigen Wert zu kennen.
+
+              Der vordere Teil der Kurve ist KEINE Prognose. Er zeigt
+              ausschliesslich, was unterschrieben ist: Eine Kuendigung
+              zum 21.12. laesst die Linie ab Januar fallen, weil fuer
+              dieses Zimmer nichts Neues vorliegt -- nicht, weil es leer
+              bleiben wird. Das Bauteil schreibt diesen Satz selbst unter
+              das Diagramm; hier steht er, damit niemand ihn beim naechsten
+              Umbau fuer Zierde haelt und entfernt. */}
+          <LaufmieteVerlauf
+            reihe={wirtschaft.laufmiete}
+            fehler={wirtschaft.laufmieteFehler}
+          />
+        </div>
+      )}
+
       {/* --- Dokumente --- */}
-      <div className="titelzeile" style={{ marginTop: "2.5rem" }}>
-        <h1>Dokumente zum Haus</h1>
+      <div className="titelzeile">
+        <h2>Dokumente zum Haus</h2>
         <span className="zaehler ziffern">{dokumente.length}</span>
       </div>
       <p className="hinweis">
@@ -348,7 +342,7 @@ export default async function Objektseite({
         loeschbar={darfSchreiben}
         leerText="Keine Bilder zum Haus hinterlegt."
       />
-      <div style={{ marginTop: "1rem" }}>
+      <div className="abschnitt">
         <DokumentListe dokumente={akten} loeschbar={darfSchreiben} />
       </div>
 

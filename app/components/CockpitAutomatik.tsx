@@ -1,5 +1,5 @@
 import type { AutomatikPosten, LageberichtLage, LaufLage } from "@/lib/kennzahlen";
-import { CockpitKarte } from "@/components/CockpitKarte";
+import { CockpitKarte, Erklaerung } from "@/components/CockpitKarte";
 
 /**
  * Zustand der Automatik.
@@ -63,11 +63,26 @@ export function CockpitAutomatik({
       }
       hinweis={
         <>
-          Die nächtlichen Läufe aus der Tabelle <code>lauf</code>. Ein „ok“ von
-          vorgestern ist kein ok — dann erreicht der Zeitplaner die Anwendung
-          nicht, und alle anderen Zahlen auf dieser Seite sind ebenfalls von
-          vorgestern.
+          Die nächtlichen Läufe aus der Tabelle <code>lauf</code>.
         </>
+      }
+      erklaerung={
+        <Erklaerung satz="Ein „ok“ von vorgestern ist kein ok — dann sind auch alle anderen Zahlen dieser Seite von vorgestern">
+          <p className="hinweis">
+            Ein Lauf, der seit drei Wochen an einem abgelaufenen Token
+            scheitert, verhält sich nach außen genauso wie einer, der nichts zu
+            tun hatte: Beide schweigen. Auffallen würde es erst, wenn sich ein
+            Mieter beschwert, dass niemand auf seine Mail geantwortet hat.
+          </p>
+          <p className="hinweis">
+            Zwei Zustände sind deshalb ausdrücklich benannt.{" "}
+            <strong>Steht</strong> heißt: Der letzte Lauf meldet ok, ist aber
+            älter als 26 Stunden — dann erreicht der Zeitplaner die Anwendung
+            nicht. Eine <strong>Serie</strong> sind mehrere Fehlläufe
+            hintereinander; ein einmaliger Umfaller ist kein Grund, etwas zu
+            tun, eine Serie schon.
+          </p>
+        </Erklaerung>
       }
       mehr="/laeufe"
       mehrText="Läufe im Verlauf"
@@ -88,13 +103,19 @@ export function CockpitAutomatik({
 
       <div className="register">
         {posten.map((p) => {
-          const scharf =
-            p.lage === "nie" || p.lage === "steht" || p.lage === "gescheitert";
           return (
+            // Ein Lauf ist eine Meldung, kein Ort. Der Weg in den Verlauf
+            // steht einmal unter der Karte und nicht in jeder Zeile.
+            //
+            // data-urteil statt data-heikel: Die Kante links traegt die Farbe
+            // des Urteils (globals.css), und ein Lauf hat genau das --
+            // gescheitert, mit Hinweis, ok. "Heikel" ist eine Eigenschaft von
+            // Vorgaengen, nicht von Laeufen.
             <div
               className="posten"
+              data-still="ja"
               key={p.name}
-              data-heikel={scharf ? "ja" : "nein"}
+              data-urteil={PUNKT[p.lage]}
             >
               {/* Nur Farbe, kein Inhalt: Das Wort steht als Schild in der
                   Unterzeile und wird vorgelesen. */}

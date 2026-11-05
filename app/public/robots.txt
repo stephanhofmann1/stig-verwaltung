@@ -1,0 +1,4 @@
+# Diese Hausverwaltung ist nicht für die Öffentlichkeit bestimmt.
+# Hier liegen Mietverhältnisse, Zahlungen und Mieterdaten.
+User-agent: *
+Disallow: /

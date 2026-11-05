@@ -45,8 +45,13 @@ export function DokumentListe({
 
   return (
     <div className="register">
+      {/* Kein Ziel fuer die ganze Zeile: das erzeugte PDF haengt am
+          Verweis "ansehen", und bei fehlenden Angaben gibt es ueberhaupt
+          keines. data-still nimmt deshalb das Aufleuchten zurueck -- eine
+          Zeile, die sich wie ein Knopf anfuehlt und keiner ist, lehrt den
+          Nutzer, Knoepfe zu uebersehen. */}
       {erzeugte.map((e) => (
-        <div className="posten" key={e.id}>
+        <div className="posten" data-still="ja" key={e.id}>
           <span className="nummer">PDF</span>
           <span className="betreff">{e.titel}</span>
           <span className="zeit">
@@ -69,8 +74,11 @@ export function DokumentListe({
         </div>
       ))}
 
+      {/* Auch hier kein Zeilenziel: in der Zeile stehen schon drei eigene
+          Wege (ansehen, herunterladen, loeschen). Ein Link um alles herum
+          waere ein Link, der Knoepfe enthaelt. */}
       {dokumente.map((d) => (
-        <div className="posten" key={d.id}>
+        <div className="posten" data-still="ja" key={d.id}>
           <span className="nummer">{ART_KURZ[d.art] ?? "Dok"}</span>
           <span className="betreff">{titel(d)}</span>
           <span className="zeit">
@@ -86,7 +94,7 @@ export function DokumentListe({
               <span className="marker">für den Mieter sichtbar</span>
             )}
             <a href={dokumentUrl(d.id, true)}>herunterladen</a>
-            {loeschbar && <DokumentLoeschen id={d.id} was={titel(d)} still />}
+            {loeschbar && <DokumentLoeschen id={d.id} was={titel(d)} />}
           </span>
         </div>
       ))}

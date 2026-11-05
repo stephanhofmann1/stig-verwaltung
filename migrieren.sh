@@ -76,15 +76,54 @@ nachbuchen || exit 1
 
 echo
 echo "== Offene Schritte =="
+
+# Nur nummerierte Dateien sind Migrationen. Alles andere in db/ wird
+# ABGEWIESEN, nicht etwa uebersprungen.
+#
+# Anlass, 05.11.2026: In db/ lag eine Datei saat-gestaltung.sql --
+# erfundene Mieter fuer die oertliche Gestaltungsarbeit, und sie begann
+# mit DELETE FROM kontakt, mietverhaeltnis, vorgang, nachricht. Das
+# Muster db/*.sql hat sie mitgenommen und auf dem SERVER ausgefuehrt.
+#
+# Gutgegangen ist das aus zwei Gruenden, die beide Zufall waren: Der
+# Mandant der oertlichen Datenbank gibt es auf dem Server nicht, also
+# scheiterte die Datei am Fremdschluessel und die Transaktion rollte
+# zurueck -- und selbst ohne das haetten die DELETEs unter einem
+# unbekannten Mandanten keine Zeile getroffen. Auf einen Zufall darf
+# sich das nicht stuetzen.
+#
+# Zwei Aenderungen daraus:
+#   1. Das Muster verlangt drei Ziffern und einen Unterstrich.
+#   2. Eine nicht passende .sql-Datei bricht den Lauf ab. Stillschweigend
+#      ueberspringen waere die gleiche Falle mit umgekehrtem Vorzeichen:
+#      Eine echte Migration mit Tippfehler im Namen liefe nie, und
+#      niemand erfuehre davon.
 for f in db/*.sql; do
   name="$(basename "$f")"
+  case "$name" in
+    [0-9][0-9][0-9]_*.sql) : ;;
+    *)
+      echo "  ABBRUCH: $name ist keine Migration."
+      echo "  In db/ gehoeren nur Dateien der Form 000_name.sql."
+      echo "  Saatdaten und Hilfsskripte gehoeren nach entwicklung/."
+      exit 1
+      ;;
+  esac
+
   schon=$(psql_stig -tAc "SELECT 1 FROM schema_migration WHERE datei = '${name}'")
   if [ "$schon" = "1" ]; then
     echo "  uebersprungen: $name"
     continue
   fi
   echo "  spiele ein:    $name"
-  psql_stig -q < "$f"
+  # ON_ERROR_STOP und die Pruefung des Rueckgabewerts: Vorher wurde die
+  # Datei auch dann als eingespielt vermerkt, wenn sie gescheitert war.
+  # Ein fehlgeschlagener Schritt, der als erledigt in schema_migration
+  # steht, laeuft nie wieder -- und fehlt von da an stillschweigend.
+  if ! psql_stig -q -v ON_ERROR_STOP=1 < "$f"; then
+    echo "  FEHLGESCHLAGEN: $name -- nicht vermerkt, Lauf abgebrochen."
+    exit 1
+  fi
   psql_stig -q -c "INSERT INTO schema_migration (datei) VALUES ('${name}')" >/dev/null
 done
 

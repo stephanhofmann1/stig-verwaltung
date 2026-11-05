@@ -1,5 +1,13 @@
 import { tx, one } from "./db";
 import type { Nachricht } from "./typen";
+import {
+  alsResendAnhaenge,
+  alsSmtpAnhaenge,
+  anhaengeZu,
+  leseInhalt,
+  pruefePaket,
+  type AnhangNutzlast,
+} from "./anhaenge";
 
 const ABSENDER =
   process.env.ABSENDER_EMAIL ?? "verwaltung@stig-immobilien.de";
@@ -32,6 +40,67 @@ export function baueThreadHeader(bezug: {
 }
 
 /**
+ * Baut das Zitat der Nachricht, auf die geantwortet wird.
+ *
+ * Warum überhaupt: Ohne Zitat geht beim Empfänger nur der neue Text ein.
+ * Die Thread-Kopfzeilen sortieren die Mail zwar in den richtigen Strang,
+ * aber wer sie einzeln öffnet, weiterleitet oder ausdruckt — und bei einer
+ * Abrechnung mit Ausschlussfrist tut das irgendwann jemand — sieht eine
+ * Antwort ohne Frage.
+ *
+ * Verschachtelung entsteht von selbst: Trägt die Elternnachricht schon ein
+ * Zitat, bekommt deren ">" ein weiteres davor und wird zu ">>". Deshalb
+ * wird hier nichts über Ebenen gerechnet.
+ *
+ * Reine Funktion ohne Datenbank: Was wörtlich an einen Dritten hinausgeht,
+ * muss ohne Server prüfbar sein.
+ */
+export function zitiere(eltern: {
+  von_name?: string | null;
+  von_email: string;
+  koerper_text?: string | null;
+  gesendet_am?: string | null;
+  empfangen_am?: string | null;
+  angelegt_am?: string | null;
+}): string {
+  const text = (eltern.koerper_text ?? "").replace(/\s+$/, "");
+  // Nichts zu zitieren ist kein Fehler -- eine leere Zeile "schrieb:" ohne
+  // Inhalt waere schlechter als gar kein Zitat.
+  if (!text) return "";
+
+  const wer = eltern.von_name?.trim()
+    ? `${eltern.von_name.trim()} <${eltern.von_email}>`
+    : eltern.von_email;
+
+  const roh = eltern.gesendet_am ?? eltern.empfangen_am ?? eltern.angelegt_am;
+  const d = roh ? new Date(roh) : null;
+  const gueltig = d && !Number.isNaN(d.getTime());
+
+  // Feste Zeitzone: Der Server läuft in UTC, gelesen wird die Mail in
+  // Deutschland. Ohne Angabe stünde im Zitat eine Uhrzeit, die niemand
+  // wiedererkennt.
+  const kopf = gueltig
+    ? `Am ${new Intl.DateTimeFormat("de-DE", {
+        timeZone: "Europe/Berlin",
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      }).format(d)} um ${new Intl.DateTimeFormat("de-DE", {
+        timeZone: "Europe/Berlin",
+        hour: "2-digit",
+        minute: "2-digit",
+      }).format(d)} schrieb ${wer}:`
+    : `${wer} schrieb:`;
+
+  const zeilen = text
+    .split(/\r?\n/)
+    .map((z) => (z.startsWith(">") ? `>${z}` : `> ${z}`))
+    .join("\n");
+
+  return `\n\n${kopf}\n\n${zeilen}`;
+}
+
+/**
  * Legt einen Entwurf an, der auf eine eingegangene Nachricht antwortet.
  * Der Entwurf wird NICHT versendet — er landet in der Freigabe-Queue.
  */
@@ -50,6 +119,12 @@ export async function erstelleEntwurf(opts: {
   if (!bezug) throw new Error("Bezugsnachricht nicht gefunden");
 
   const header = baueThreadHeader(bezug);
+
+  // Das Zitat entsteht beim Anlegen, nicht beim Versand: In der Freigabe
+  // soll woertlich stehen, was den Empfaenger erreicht. Ein Entwurf, der
+  // weniger zeigt als die Mail enthaelt, ist dieselbe Art Luege wie ein
+  // Status "gesendet" ohne Versand.
+  const koerper = opts.koerper.replace(/\s+$/, "") + zitiere(bezug);
   const betreff =
     opts.betreff ??
     (/^\s*(re|aw)\s*:/i.test(bezug.betreff)
@@ -80,7 +155,7 @@ export async function erstelleEntwurf(opts: {
         an,
         Array.from(new Set(cc)),
         betreff,
-        opts.koerper,
+        koerper,
         header.in_reply_to,
         header.referenzen,
         opts.verfasstVon,
@@ -104,14 +179,59 @@ export interface VersandErgebnis {
   ok: boolean;
   message_id?: string;
   fehler?: string;
+  /** Nichts hat das System verlassen (nur lokal möglich). */
+  trocken?: boolean;
+}
+
+export interface Versandentscheidung {
+  weg: "resend" | "smtp" | "trocken";
+  darfSenden: boolean;
+  grund?: string;
+}
+
+/**
+ * Entscheidet, auf welchem Weg gesendet wird -- und ob überhaupt.
+ *
+ * Bewusst eine reine Funktion ohne Datenbank: "Darf das raus?" ist die
+ * wichtigste Frage im ganzen Versand und muss ohne Server prüfbar sein.
+ *
+ * Im Trockenmodus verlässt nichts das System. Vorher wurde die Nachricht
+ * trotzdem auf 'gesendet' gesetzt -- im Portal stand "gesendet", obwohl
+ * niemand etwas erhalten hatte. Ein Status, der lügt, ist schlimmer als
+ * ein Fehler: man verlässt sich darauf und merkt erst, dass die Antwort
+ * nie ankam, wenn die Frist vorbei ist. Im Betrieb wird deshalb
+ * abgewiesen und der Entwurf bleibt ein Entwurf; lokal bleibt der
+ * Trockenmodus erlaubt, damit sich der Ablauf ohne Zugangsdaten
+ * durchspielen lässt.
+ *
+ * Ein leer gesetzter Schlüssel ist kein Schlüssel -- "" gilt hier
+ * bewusst als fehlend, nicht als vorhanden.
+ */
+export function entscheideVersandweg(lage: {
+  resendKey?: string | null;
+  smtpHost?: string | null;
+  produktion: boolean;
+}): Versandentscheidung {
+  if (lage.resendKey) return { weg: "resend", darfSenden: true };
+  if (lage.smtpHost) return { weg: "smtp", darfSenden: true };
+  if (lage.produktion) {
+    return {
+      weg: "trocken",
+      darfSenden: false,
+      grund:
+        "Kein Versandweg konfiguriert (RESEND_API_KEY oder SMTP_HOST fehlt) " +
+        "— es wurde nichts gesendet, der Entwurf bleibt offen.",
+    };
+  }
+  return { weg: "trocken", darfSenden: true };
 }
 
 /**
  * Versendet einen freigegebenen Entwurf.
  *
- * Ohne RESEND_API_KEY läuft das im Trockenmodus: Die Nachricht wird als
- * gesendet markiert, aber nichts verlässt das System. So lässt sich der
- * komplette Ablauf testen, bevor die Domain steht.
+ * Ohne konfigurierten Versandweg wird im Betrieb abgewiesen, statt die
+ * Nachricht fälschlich als gesendet zu markieren -- siehe
+ * entscheideVersandweg().
  */
 export async function sendeEntwurf(
   nachrichtId: string,
@@ -127,11 +247,52 @@ export async function sendeEntwurf(
   const key = process.env.RESEND_API_KEY;
   const smtpHost = process.env.SMTP_HOST;
   // Resend bevorzugt, SMTP als Rückfallebene, sonst Trockenmodus.
-  const weg: "resend" | "smtp" | "trocken" = key
-    ? "resend"
-    : smtpHost
-      ? "smtp"
-      : "trocken";
+  const entscheidung = entscheideVersandweg({
+    resendKey: key,
+    smtpHost,
+    produktion: process.env.NODE_ENV === "production",
+  });
+  if (!entscheidung.darfSenden) {
+    return { ok: false, fehler: entscheidung.grund };
+  }
+  const weg = entscheidung.weg;
+
+  // Die Anhänge werden VOR dem Versand geladen und geprüft, nicht
+  // unterwegs. Zwei Gründe, und beide sind derselbe:
+  //
+  //   Eine Datei, die nicht mehr auf der Platte liegt, soll den Versand
+  //   verhindern und nicht halb durchlassen. Eine Mail, bei der drei von
+  //   sieben Bildern fehlen, ist schlimmer als eine, die nicht hinausgeht
+  //   -- beim Empfänger sieht sie vollständig aus.
+  //
+  //   Die Größenprüfung muss greifen, bevor irgendetwas gesendet ist.
+  //   Danach steht der Entwurf auf 'gesendet' und die Ablehnung des
+  //   Gegenservers landet in einem anderen Postfach (siehe
+  //   lib/anhaenge.ts, GRENZE_PAKET_BYTES).
+  let nutzlast: AnhangNutzlast[] = [];
+  const zeilen = await anhaengeZu(n.id);
+  if (zeilen.length > 0) {
+    const paket = pruefePaket(zeilen.map((z) => Number(z.groesse_bytes)));
+    if (!paket.ok) return { ok: false, fehler: paket.fehler };
+
+    try {
+      nutzlast = await Promise.all(
+        zeilen.map(async (z) => {
+          const voll = await one<{ ablage_pfad: string }>(
+            `SELECT ablage_pfad FROM nachricht_anhang WHERE id = $1`,
+            [z.id],
+          );
+          if (!voll) throw new Error(`Anhang ${z.dateiname} nicht gefunden`);
+          return { dateiname: z.dateiname, inhalt: await leseInhalt(voll.ablage_pfad) };
+        }),
+      );
+    } catch (e) {
+      return {
+        ok: false,
+        fehler: `Anhang nicht lesbar, nichts gesendet: ${(e as Error).message}`,
+      };
+    }
+  }
 
   if (weg === "smtp") {
     const { createTransport } = await import("nodemailer");
@@ -154,6 +315,11 @@ export async function sendeEntwurf(
         messageId,
         inReplyTo: n.in_reply_to ?? undefined,
         references: n.referenzen.length ? n.referenzen : undefined,
+        // Derselbe Satz Dateien wie im Resend-Zweig, nur in der Form, die
+        // nodemailer erwartet. Die beiden Umwandlungen stehen in
+        // lib/anhaenge.ts nebeneinander und werden im Test gegeneinander
+        // geprüft -- damit nicht ein Weg Anhänge trägt und der andere nicht.
+        attachments: nutzlast.length ? alsSmtpAnhaenge(nutzlast) : undefined,
       });
     } catch (e) {
       return { ok: false, fehler: `SMTP: ${(e as Error).message}` };
@@ -173,6 +339,9 @@ export async function sendeEntwurf(
         cc: n.cc_emails.length ? n.cc_emails : undefined,
         subject: n.betreff,
         text: n.koerper_text,
+        ...(nutzlast.length
+          ? { attachments: alsResendAnhaenge(nutzlast) }
+          : {}),
         headers: {
           "Message-ID": messageId,
           ...(n.in_reply_to ? { "In-Reply-To": n.in_reply_to } : {}),
@@ -206,7 +375,11 @@ export async function sendeEntwurf(
     );
   });
 
-  return { ok: true, message_id: messageId };
+  return {
+    ok: true,
+    message_id: messageId,
+    ...(weg === "trocken" ? { trocken: true } : {}),
+  };
 }
 
 export async function verwirfEntwurf(nachrichtId: string) {

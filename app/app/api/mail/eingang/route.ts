@@ -8,6 +8,8 @@ import {
   type AnhangEingang,
   type BelegErgebnis,
 } from "@/lib/belege";
+import { endungFuerAblage, speichereAnhang } from "@/lib/anhaenge";
+import { erkenneTyp, sichererDateiname } from "@/lib/dokumente";
 
 export const dynamic = "force-dynamic";
 
@@ -151,6 +153,35 @@ export async function POST(req: Request) {
           [mail.von_email],
         );
         for (const a of anhaenge) {
+          // ZUERST an die Nachricht, DANN der Belegweg. Die Reihenfolge
+          // ist die ganze Änderung vom 05.11.2026.
+          //
+          // Vorher lief nur der Belegweg, und der nimmt nur, was
+          // istBelegKandidat() für eine Rechnung hält. Alles andere --
+          // ein Foto vom Schaden, ein Kalendereintrag, eine
+          // Unterschriftsdatei -- fiel weg, ohne Spur in der Akte. Wer
+          // den Vorgang später las, erfuhr nicht, dass es den Anhang je
+          // gegeben hatte.
+          //
+          // Jetzt wird jeder Anhang an der Nachricht abgelegt, egal was
+          // drin ist. Der Belegweg läuft danach unverändert daneben und
+          // darf scheitern, ohne dass die Korrespondenz etwas verliert.
+          try {
+            const inhalt = Buffer.from(a.inhalt_base64, "base64");
+            await speichereAnhang({
+              nachrichtId: eingang.nachricht_id,
+              dateiname: sichererDateiname(a.dateiname),
+              inhalt,
+              // Was der Absender behauptet. Wird beim Ausliefern NICHT
+              // geglaubt (lib/anhaenge.ts: auslieferung).
+              mime: a.mime_typ ?? null,
+              endung: endungFuerAblage(erkenneTyp(inhalt), a.dateiname),
+              richtung: "eingehend",
+            });
+          } catch (e) {
+            console.error("[eingang] Anhang nicht abgelegt:", a.dateiname, e);
+          }
+
           try {
             belege.push(
               await sichereAnhang(a, {

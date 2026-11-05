@@ -17,6 +17,7 @@ import {
 import { Bildergalerie } from "@/components/Bildergalerie";
 import { DokumentListe, type ErzeugtesDokument } from "@/components/DokumentListe";
 import { DokumentHochladen } from "@/components/DokumentHochladen";
+import { MietverhaeltnisBearbeiten } from "@/components/MietverhaeltnisBearbeiten";
 
 export const dynamic = "force-dynamic";
 
@@ -34,9 +35,14 @@ export const dynamic = "force-dynamic";
  * sie, statt ein Dokument mit leeren Feldern zu drucken.
  *
  * Nicht auf dieser Seite: Ausweis- und Passnummern. Die werden nicht
- * gespeichert und nicht angezeigt. Geburtsdatum und Geburtsort stehen im
- * Mietvertrag und bleiben dort; fehlen sie, meldet es die Prüfliste beim
- * Mietvertrag -- dafür müssen sie hier nicht stehen.
+ * gespeichert und nicht angezeigt.
+ *
+ * Geburtsdatum und Geburtsort stehen nicht im Datenblatt. Sie gehören in
+ * den Mietvertrag und nicht auf eine Seite, die beim Draufschauen offen
+ * liegt. Seit es ein Bearbeiten-Formular gibt, werden sie aber geladen:
+ * Nachtragen kann niemand, was er nicht sieht. Sie stehen deshalb
+ * ausschließlich in den Eingabefeldern unten -- nur für die Rolle
+ * "verwalter", und nur wenn das Formular geöffnet ist.
  */
 
 interface Kopf {
@@ -63,6 +69,10 @@ interface Kopf {
   rufname: string | null;
   anschrift: string | null;
   telefon: string | null;
+  // Nur fuer das Bearbeiten-Formular, nicht fuer das Datenblatt:
+  geburtsdatum: string | null;
+  geburtsort: string | null;
+  anschrift_vorher: string | null;
   einheit_id: string;
   einheit: string;
   etage: string | null;
@@ -113,12 +123,13 @@ export default async function Mietverhaeltnisseite({
             mv.vertrag_datum::text, mv.kuendigungsverzicht_monate,
             mv.kaution::text, mv.kaution_raten, mv.moebliert,
             mv.melde_zusatz, mv.wgb_uebergeben_am::text,
-            mv.zahlt_im_voraus, mv.notizen,
+            mv.zahlt_im_voraus, mv.notizen, mv.anschrift_vorher,
             mv.kaltmiete::text, mv.nebenkosten::text,
             mv.moeblierungszuschlag::text AS moeblierung,
             mv.gesamtmiete::text,
             k.id AS kontakt_id, k.anzeigename AS mieter, k.rufname,
             k.anschrift, k.telefon,
+            k.geburtsdatum::text, k.geburtsort,
             e.id AS einheit_id, e.bezeichnung AS einheit, e.etage,
             o.id AS objekt_id, o.name AS objekt, o.strasse, o.plz, o.ort,
             o.zahlungsdaten_ab::text
@@ -220,14 +231,22 @@ export default async function Mietverhaeltnisseite({
 
   // Die beiden erzeugten Dokumente -- mit Prüfliste statt leerer Felder.
   const erzeugte: ErzeugtesDokument[] = [];
+  // Dieselben beiden Prueflisten gehen weiter unten ins Bearbeiten-Formular.
+  // Die Seite benannte den Mangel bisher korrekt und bot keinen Weg, ihn zu
+  // beheben -- deshalb werden die Listen hier festgehalten und nicht nur in
+  // die Dokumentliste gegeben.
+  let fehltVertrag: string[] = [];
+  let fehltWgb: string[] = [];
   try {
     const d = await vertragsdaten(id);
+    fehltVertrag = fehlendeFelder(d);
+    fehltWgb = fehlendeFelderWgb(d);
     erzeugte.push(
-      { id: `vertrag-${id}`, titel: "Mietvertrag", fehlt: fehlendeFelder(d) },
+      { id: `vertrag-${id}`, titel: "Mietvertrag", fehlt: fehltVertrag },
       {
         id: `wgb-${id}`,
         titel: "Wohnungsgeberbestätigung (§ 19 BMG)",
-        fehlt: fehlendeFelderWgb(d),
+        fehlt: fehltWgb,
       },
     );
   } catch {
@@ -293,7 +312,7 @@ export default async function Mietverhaeltnisseite({
 
       {/* --- Mieter --- */}
       <div className="titelzeile" style={{ marginTop: "1.5rem" }}>
-        <h1>Mieter</h1>
+        <h2>Mieter</h2>
       </div>
       <dl
         style={{
@@ -363,7 +382,7 @@ export default async function Mietverhaeltnisseite({
 
       {/* --- Laufzeit --- */}
       <div className="titelzeile" style={{ marginTop: "2rem" }}>
-        <h1>Laufzeit</h1>
+        <h2>Laufzeit</h2>
       </div>
       <dl
         style={{
@@ -429,7 +448,7 @@ export default async function Mietverhaeltnisseite({
       {kuendigung && (
         <>
           <div className="titelzeile" style={{ marginTop: "2rem" }}>
-            <h1>Kündigung</h1>
+            <h2>Kündigung</h2>
           </div>
           <p>
             Eingegangen am <strong>{tag(kuendigung.eingegangen_am)}</strong>,
@@ -447,7 +466,7 @@ export default async function Mietverhaeltnisseite({
 
       {/* --- Miete --- */}
       <div className="titelzeile" style={{ marginTop: "2rem" }}>
-        <h1>Miete</h1>
+        <h2>Miete</h2>
         <span className="zaehler ziffern">{euro(jetzt.miete.summe)}</span>
       </div>
       {jetzt.miete.inklusiv ? (
@@ -472,12 +491,14 @@ export default async function Mietverhaeltnisseite({
       )}
 
       <div className="titelzeile" style={{ marginTop: "1.25rem" }}>
-        <h1 style={{ fontSize: "1rem" }}>Verlauf</h1>
+        <h2 style={{ fontSize: "1rem" }}>Verlauf</h2>
         <span className="zaehler ziffern">{zeitleiste.length}</span>
       </div>
       <div className="register">
         {[...zeitleiste].reverse().map((z) => (
-          <div className="posten" key={`${z.giltAb}-${z.quelle}`}>
+          // Eine Mietaenderung ist ein Stand zu einem Datum, keine eigene
+          // Seite. Stumm statt scheinbar klickbar.
+          <div className="posten" data-still="ja" key={`${z.giltAb}-${z.quelle}`}>
             <span className="nummer ziffern">{z.giltAb.slice(2, 7)}</span>
             <span className="betreff">{z.quelle}</span>
             <span className="zeit ziffern">{euro(z.miete.summe)}</span>
@@ -499,7 +520,7 @@ export default async function Mietverhaeltnisseite({
 
       {/* --- Kaution --- */}
       <div className="titelzeile" style={{ marginTop: "2rem" }}>
-        <h1>Kaution</h1>
+        <h2>Kaution</h2>
         <span className="zaehler ziffern">
           {kaution > 0 ? euro(kaution) : "keine"}
         </span>
@@ -516,7 +537,8 @@ export default async function Mietverhaeltnisseite({
       {kautionseingaenge.length > 0 ? (
         <div className="register">
           {kautionseingaenge.map((b, i) => (
-            <div className="posten" key={i}>
+            // Eine Buchung hat in dieser Verwaltung keine eigene Seite.
+            <div className="posten" data-still="ja" key={i}>
               <span className="nummer ziffern">{b.buchungstag.slice(2, 7)}</span>
               <span className="betreff">{b.absender ?? "ohne Absender"}</span>
               <span className="zeit ziffern">{euro(Number(b.betrag))}</span>
@@ -542,7 +564,7 @@ export default async function Mietverhaeltnisseite({
 
       {/* --- Zahlungsverlauf --- */}
       <div className="titelzeile" style={{ marginTop: "2rem" }}>
-        <h1>Zahlungsverlauf</h1>
+        <h2>Zahlungsverlauf</h2>
         <span className="zaehler ziffern">{soll.length} Monate</span>
       </div>
       {soll.length === 0 ? (
@@ -555,8 +577,11 @@ export default async function Mietverhaeltnisseite({
             const stand = standVon(s);
             const bezahlt = Number(s.bezahlt);
             return (
+              // Die Monatszeile gehoert zu genau diesem Mietverhaeltnis --
+              // ein Link wuerde auf die Seite zeigen, auf der man steht.
               <div
                 className="posten"
+                data-still="ja"
                 key={s.id}
                 data-heikel={stand.heikel ? "ja" : undefined}
               >
@@ -591,7 +616,7 @@ export default async function Mietverhaeltnisseite({
 
       {/* --- Dokumente --- */}
       <div className="titelzeile" style={{ marginTop: "2.5rem" }}>
-        <h1>Dokumente</h1>
+        <h2>Dokumente</h2>
         <span className="zaehler ziffern">{dokumente.length}</span>
       </div>
       <DokumentListe
@@ -612,11 +637,42 @@ export default async function Mietverhaeltnisseite({
         />
       )}
 
+      {/* --- Ändern ---
+          Steht bewusst unter den Dokumenten: Dort nennt die Prüfliste,
+          warum Mietvertrag und Wohnungsgeberbestätigung nicht druckbar
+          sind. Der Weg, das zu beheben, gehört direkt darunter und nicht
+          an den Anfang der Seite. */}
+      {darfSchreiben && (
+        <MietverhaeltnisBearbeiten
+          id={id}
+          beginn={kopf.beginn}
+          stand={{
+            ende: kopf.ende,
+            kaltmiete: kopf.kaltmiete,
+            nebenkosten: kopf.nebenkosten,
+            // Passname, nicht Rufname -- daran haengen die Dokumente.
+            voller_name: kopf.mieter,
+            geburtsdatum: kopf.geburtsdatum,
+            geburtsort: kopf.geburtsort,
+            anschrift_vorher: kopf.anschrift_vorher,
+            melde_zusatz: kopf.melde_zusatz,
+            vertrag_datum: kopf.vertrag_datum,
+            moeblierungszuschlag: kopf.moeblierung,
+            kaution: kopf.kaution,
+          }}
+          fehltVertrag={fehltVertrag}
+          fehltWgb={fehltWgb}
+        />
+      )}
+
       <div className="knopfreihe" style={{ marginTop: "2rem" }}>
-        <Link href={`/einheit/${kopf.einheit_id}`} className="rueckmeldung">
+        {/* Die beiden Rueckwege sind der einzige Ausgang der Seite und
+            waren als `rueckmeldung` kaum zu sehen -- grau, klein, ohne
+            Unterstreichung. */}
+        <Link href={`/einheit/${kopf.einheit_id}`} className="verweis">
           Zur Einheit
         </Link>
-        <Link href="/mietenbuch" className="rueckmeldung">
+        <Link href="/mietenbuch" className="verweis">
           Mietenbuch
         </Link>
       </div>

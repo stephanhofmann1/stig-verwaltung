@@ -82,12 +82,18 @@ function luecken(k: KontoZeile) {
     k.monate,
   );
   if (fehlt.length === 0) {
-    return <span style={{ color: "#1b6b3a" }}>keine</span>;
+    return (
+      <span className="rueckmeldung" data-art="gut">
+        keine
+      </span>
+    );
   }
+  // Die Marke statt des Hex: eine Inline-Farbe bleibt im Dunkelmodus
+  // stehen, wo sie nicht mehr lesbar ist.
   return (
-    <span style={{ color: "#b3261e" }}>
+    <span className="rueckmeldung" data-art="fehler">
       {fehlt.length} {fehlt.length === 1 ? "Monat" : "Monate"}
-      <div className="hinweis" style={{ color: "#b3261e" }}>
+      <div className="rueckmeldung" data-art="fehler">
         {fasseZusammen(fehlt).join(" · ")}
       </div>
     </span>
@@ -180,7 +186,7 @@ export default async function Konten() {
                   {k.notizen && <div className="hinweis">{k.notizen}</div>}
                 </td>
                 <td>{k.objekt ?? "—"}</td>
-                <td style={{ textAlign: "right" }}>{k.buchungen}</td>
+                <td className="betrag">{k.buchungen}</td>
                 <td>
                   {Number(k.buchungen) === 0
                     ? "—"
@@ -194,11 +200,13 @@ export default async function Konten() {
         </table>
       )}
 
-      <p style={{ marginTop: "1rem" }}>
+      <p>
         <KontoNeu objekte={objekte} />
       </p>
 
-      <h1 style={{ marginTop: "2.5rem" }}>Beginn der Kontodaten</h1>
+      {/* Ein h1 je Seite. Die Abschnitte darunter sind h2 -- acht h1
+          hintereinander sind fuer einen Screenreader acht Dokumente. */}
+      <h2 className="abschnitt">Beginn der Kontodaten</h2>
       <p className="hinweis">
         Ab diesem Tag gilt ein Monat als abgeglichen. Monate davor werden
         nie gemahnt — für sie liegen keine Kontodaten vor. Der Wert gehört
@@ -208,7 +216,7 @@ export default async function Konten() {
       </p>
       <KontodatenBeginn objekte={objekte} />
 
-      <h1 style={{ marginTop: "2.5rem" }}>Kontoauszug einlesen</h1>
+      <h2 className="abschnitt">Kontoauszug einlesen</h2>
       <p className="hinweis">
         Erst lesen, dann übernehmen. Bis du auf „Übernehmen" klickst, wird
         nichts gespeichert. Dieselbe Datei mehrfach einzulesen ist gefahrlos
@@ -216,7 +224,7 @@ export default async function Konten() {
       </p>
       <AuszugUpload konten={namen} />
 
-      <h1 style={{ marginTop: "2.5rem" }}>Eingelesene Auszüge</h1>
+      <h2 className="abschnitt">Eingelesene Auszüge</h2>
       {importe.length === 0 ? (
         <p className="hinweis">
           Noch nichts protokolliert. Ab jetzt steht hier jeder eingelesene
@@ -249,7 +257,7 @@ export default async function Konten() {
                     ? `${datum(i.zeitraum_von)} – ${datum(i.zeitraum_bis)}`
                     : "—"}
                 </td>
-                <td style={{ textAlign: "right" }}>
+                <td className="betrag">
                   {i.gelesen}
                   <div className="hinweis">
                     {i.neu} neu
@@ -258,19 +266,19 @@ export default async function Konten() {
                 </td>
                 <td>
                   {i.abgeschnitten && (
-                    <div style={{ color: "#b3261e" }}>
+                    <div className="rueckmeldung" data-art="fehler">
                       <strong>Abgeschnitten.</strong> Der Zeitraum sieht
                       vollständig aus, ist es aber nicht — in Scheiben von
                       höchstens drei Monaten erneut exportieren.
                     </div>
                   )}
                   {i.geraten && (
-                    <div style={{ color: "#b3261e" }}>
+                    <div className="rueckmeldung" data-art="fehler">
                       Format unbekannt, Spalten geraten.
                     </div>
                   )}
                   {!i.abgeschnitten && !i.geraten && i.warnungen.length === 0 && (
-                    <span style={{ color: "#1b6b3a" }}>
+                    <span className="rueckmeldung" data-art="gut">
                       {i.format}, ohne Befund
                     </span>
                   )}

@@ -1,0 +1,579 @@
+/* ===========================================================================
+   Mietenbuch — Raster
+   ---------------------------------------------------------------------------
+   Diese Datei gehoert zu components/MietenbuchRaster.tsx,
+   MietenbuchLegende.tsx und MietenbuchZeitraum.tsx. Sie stand vorher als
+   Zeichenkette RASTER_CSS im Bauteil und wurde bei jedem Rendern ueber ein
+   <style>-Tag ins Dokument geschoben. Folge: Wer das Gestaltungssystem
+   ueberarbeitete, aenderte alles -- nur die groesste und dichteste Tabelle
+   der Anwendung nicht, weil ihre Regeln in einer .tsx-Datei lagen. Jetzt
+   liegen sie hier und werden in globals.css eingebunden.
+
+   Zwei Regeln fuer alle, die hier etwas ergaenzen:
+
+   1. Keine festen Farbwerte. Nur die Marken aus globals.css
+      (--flaeche, --linie, --fg, --gut, --warn, --fehl, --abstand-*,
+      --text-* ...). Nur so laeuft der Dunkelmodus mit, ohne dass hier
+      ein zweiter Satz Werte gepflegt werden muss.
+
+   2. Immer eine Stufe spezifischer als globals.css. Diese Datei wird
+      per @import eingebunden, und @import steht am Anfang -- die Regeln
+      hier kommen also VOR denen aus globals.css. Bei gleicher
+      Spezifitaet gewinnt deshalb globals.css. Jede Regel, die etwas aus
+      globals.css ueberschreiben soll, traegt darum eine Klasse mehr
+      (z. B. table.mb-raster statt table).
+=========================================================================== */
+
+/* --- 1. Der eine Rollbehaelter -------------------------------------------
+
+   Vorher rollten zwei Behaelter ineinander: .tabelle-rolle waagerecht und
+   -- auf schmalen Schirmen -- die Tabelle selbst noch einmal. Wer zog,
+   bewegte zufaellig den einen oder den anderen. Hier rollt genau ein
+   Behaelter, und zwar in beide Richtungen. Das ist zugleich die
+   Voraussetzung dafuer, dass der Monatskopf kleben kann: ein klebendes
+   Element haelt sich am naechsten rollenden Vorfahren fest, und das muss
+   derselbe sein, in dem die Tabelle liegt.                                */
+
+.mb-rolle {
+  overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  /* Die Rollleiste bekommt ihren Platz reserviert, damit die Spalten
+     nicht springen, wenn das Raster kuerzer wird. */
+  scrollbar-gutter: stable;
+
+  /* Begrenzte Hoehe: nur was in sich rollt, kann einen klebenden Kopf
+     haben. Unter 26rem wird nicht gegangen -- sonst sieht man bei 38
+     Einheiten drei Zeilen. */
+  max-height: calc(100vh - var(--kopf-hoehe) - 9rem);
+  max-height: max(26rem, calc(100svh - var(--kopf-hoehe) - 9rem));
+
+  background: var(--flaeche);
+  border: 1px solid var(--linie);
+  border-radius: var(--radius-m);
+  margin-bottom: var(--abstand-3);
+
+  /* Ausbruch aus dem 72-rem-Rahmen: 12 Monate plus Einheitenspalte plus
+     drei Summenspalten brauchen rund 95 rem. Das Raster darf deshalb den
+     ganzen Schirm nutzen; der Seitenabstand (--mass) bleibt stehen.
+     min(0px, ...) haelt den Ausbruch auf schmalen Schirmen bei null --
+     dort ist der Rahmen schon so breit wie der Schirm.
+     Hinweis: 100vw zaehlt die senkrechte Rollleiste der Seite mit. Die
+     beiden Seitenabstaende koennen dadurch um bis zu eine halbe
+     Rollleistenbreite ungleich ausfallen. Die Seite wird davon nicht
+     breiter als der Schirm, solange --mass groesser ist als die halbe
+     Rollleiste -- bei 24 px gegen rund 8 px ist das erfuellt. */
+  margin-inline: min(0px, calc(50% - 50vw + var(--mass)));
+}
+
+/* Der Behaelter ist mit der Tastatur anrollbar (tabIndex im Bauteil) --
+   dann muss man auch sehen, dass er den Fokus hat. */
+.mb-rolle:focus-visible {
+  outline: 2px solid var(--akzent);
+  outline-offset: -2px;
+}
+
+/* Der Hinweis ueber dem Raster: dass hier etwas in sich rollt, sieht man
+   sonst erst, wenn man es zufaellig tut. */
+.mb-rollhinweis {
+  color: var(--fg-leise);
+  font-size: var(--text-s);
+  margin: 0 0 var(--abstand-2);
+}
+
+/* --- 2. Die Tabelle ------------------------------------------------------
+
+   globals.css deckelt jede Tabelle auf max-width: 100% und macht sie auf
+   dem Telefon zum eigenen Rollbehaelter (display: block). Beides ist hier
+   genau falsch: Der Deckel quetscht 16 Spalten in die Rahmenbreite -- so
+   entstanden "Ju..." statt "Jul" und "630,0" statt "630,00" --, und der
+   zweite Rollbehaelter ist der doppelte von oben. width: max-content heisst:
+   Die Tabelle wird so breit, wie ihr Inhalt es braucht, und der Behaelter
+   rollt. Abgeschnitten wird nichts mehr.                                   */
+
+table.mb-raster {
+  display: table;
+  overflow: visible;
+  width: max-content;
+  min-width: 100%;
+  max-width: none;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: var(--flaeche);
+  font-size: var(--text-s);
+  line-height: 1.35;
+
+  /* Hoehe der oberen Kopfzeile. Die Monatszeile klebt genau darunter --
+     sticky braucht dafuer ein Mass, kein Gefuehl. */
+  --mb-kopf-1: 2.125rem;
+}
+
+.mb-raster th,
+.mb-raster td {
+  padding: 0.4375rem 0.625rem;
+}
+
+/* --- 3. Klebender Kopf ---------------------------------------------------
+
+   globals.css laesst thead th an der Kopfzeile der Seite kleben
+   (top: --kopf-hoehe) und schaltet das in einem Rollbehaelter ab. Hier
+   klebt der Kopf am Behaelter selbst, also bei top: 0. Zwei Kopfzeilen,
+   zwei Stufen: die obere bei 0, die Monatszeile bei der Hoehe der oberen.
+
+   Die Reihenfolge der Ebenen ist wichtig, sonst schiebt sich beim Rollen die
+   Einheitenspalte ueber den Monatskopf -- genau die Ueberlappung, mit der
+   vorher die obere Zeilenbeschriftung halb verdeckt war. Also:
+     2  Einheitenspalte   (klebt links, rollt unter den Kopf)
+     3  Kopfzeilen        (kleben oben, liegen ueber der Spalte)
+     4  Ecke oben links   (klebt in beide Richtungen, liegt ueber allem)  */
+
+.mb-raster thead th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--flaeche-tief);
+  vertical-align: bottom;
+}
+
+/* Feste Hoehe nur fuer die Zellen der oberen Zeile. Die Einheiten-Ecke
+   spannt ueber beide Zeilen und darf nicht mitgemessen werden. */
+.mb-raster thead tr:first-child > th:not(.mb-einheit) {
+  height: var(--mb-kopf-1);
+  padding-block: 0;
+  vertical-align: middle;
+}
+
+.mb-raster thead tr + tr > th {
+  top: var(--mb-kopf-1);
+}
+
+/* --- 4. Klebende Einheitenspalte ---------------------------------------- */
+
+.mb-raster .mb-einheit {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  text-align: left;
+  min-width: 10rem;
+  max-width: 12rem;
+  background: var(--flaeche-tief);
+  border-right: 1px solid var(--linie-stark);
+  vertical-align: top;
+  /* Namen und Zusaetze duerfen umbrechen -- abgeschnitten wird nichts. */
+  white-space: normal;
+  overflow-wrap: anywhere;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+/* Die Ecke oben links klebt in beide Richtungen und muss ueber allem
+   liegen, was an ihr vorbeirollt. */
+.mb-raster thead .mb-einheit {
+  top: 0;
+  z-index: 4;
+}
+
+.mb-raster .mb-einheit a { color: var(--fg); }
+.mb-raster .mb-einheit a:hover {
+  color: var(--akzent);
+  text-decoration: underline;
+}
+
+/* --- 5. Kopfzeilen und Objektzeile -------------------------------------- */
+
+.mb-raster .mb-mitte { text-align: center; }
+
+.mb-raster .mb-monat {
+  min-width: 6.5rem;
+  text-align: right;
+}
+.mb-raster .mb-monat[data-jetzt="ja"] {
+  color: var(--akzent);
+  border-left: 2px solid var(--akzent);
+}
+
+.mb-unter {
+  display: block;
+  font-weight: 400;
+  font-size: var(--text-xs);
+  color: var(--fg-leise);
+}
+.mb-leise { color: var(--fg-leise); font-weight: 400; }
+
+.mb-raster .mb-gruppe > th {
+  text-align: left;
+  font-size: var(--text-m);
+  color: var(--fg);
+  background: var(--akzent-flaeche);
+  border-top: 1px solid var(--linie-stark);
+  border-bottom: 1px solid var(--linie-stark);
+  white-space: normal;
+}
+
+/* Die Objektzeile spannt ueber alle Spalten. Wuerde die Zelle kleben,
+   taete das nichts -- sie ist ja schon so breit wie die Tabelle. Statt
+   dessen klebt ihr Inhalt: Beim Rollen nach rechts bleibt der Objektname
+   stehen, statt links aus dem Bild zu laufen. */
+.mb-gruppe-inhalt {
+  position: sticky;
+  left: 0;
+  display: inline-block;
+  max-width: 100%;
+}
+
+/* --- 6. Zelle ------------------------------------------------------------ */
+
+.mb-raster .mb-zelle {
+  text-align: right;
+  vertical-align: top;
+  border-left: 1px solid var(--linie);
+}
+
+/* Der laufende Monat bekommt eine Kante statt eines Innenschattens --
+   der Innenschatten ist jetzt fuer die Zeile unter dem Zeiger reserviert. */
+.mb-raster .mb-zelle[data-jetzt="ja"] {
+  border-left: 2px solid var(--akzent);
+}
+
+.mb-teil {
+  display: block;
+  padding: 0.0625rem 0;
+}
+.mb-teil + .mb-teil {
+  border-top: 1px dashed var(--linie-stark);
+  margin-top: 0.1875rem;
+  padding-top: 0.1875rem;
+}
+.mb-teil:hover .mb-soll { text-decoration: underline; }
+
+.mb-soll {
+  display: block;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--fg);
+  white-space: nowrap;
+}
+.mb-stand,
+.mb-abw {
+  display: block;
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+.mb-rest {
+  display: block;
+  font-size: var(--text-xs);
+  color: var(--fg-leise);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.mb-stand[data-art="gut"]   { color: var(--gut); }
+.mb-stand[data-art="warn"]  { color: var(--warn); }
+.mb-stand[data-art="fehl"]  { color: var(--fehl); font-weight: 600; }
+.mb-stand[data-art="still"] { color: var(--fg-still); }
+
+/* Der Mietername stand vorher auf 6,5rem mit text-overflow: ellipsis --
+   bei zwei von drei Namen las man den Nachnamen nicht. Jetzt bricht er um:
+   zwei Zeilen sind besser als ein halber Name. */
+.mb-name {
+  display: block;
+  font-size: var(--text-xs);
+  color: var(--fg-leise);
+  font-weight: 400;
+  max-width: 11rem;
+  margin-left: auto;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.mb-frist { color: var(--fg-still); }
+
+/* --- 7. Flaechen je Zustand ---------------------------------------------
+
+   Immer zusaetzlich zum Zeichen und zum Wort, nie allein: wer Rot nicht von
+   Gruen unterscheidet, liest das Zeichen, und auf einem Schwarzweissausdruck
+   bleibt das Wort.
+
+   Die erste Regel setzt die Grundflaeche und schaltet damit die
+   Zebrastreifen aus globals.css ab. Die zaehlen hier falsch: Jeder tbody
+   beginnt mit der Objektzeile, dadurch wechselt der Streifen mitten im
+   Block und markiert nichts. Die Zeile findet man hier ueber die
+   Haarlinien und ueber den Ton unter dem Zeiger (Abschnitt 8).           */
+
+.mb-raster tbody tr > .mb-zelle            { background: var(--flaeche); }
+.mb-raster .mb-zelle[data-status="offen"]     { background: var(--fehl-flaeche); }
+.mb-raster .mb-zelle[data-status="teilweise"] { background: var(--warn-flaeche); }
+.mb-raster .mb-zelle[data-status="bezahlt"]   { background: var(--gut-flaeche); }
+.mb-raster .mb-zelle[data-grund="frei"] {
+  background: repeating-linear-gradient(
+    135deg,
+    var(--flaeche-ruhig) 0 6px,
+    var(--flaeche-tief) 6px 12px
+  );
+}
+
+/* --- 8. Die Zeile nicht verlieren ---------------------------------------
+
+   Bei 38 Zeilen ueber 12 Spalten ist das Wandern mit dem Auge der eigentliche
+   Fehler. Haarlinien zwischen den Zeilen kommen aus globals.css; hier kommt
+   der Ton unter dem Zeiger dazu -- als durchscheinender Innenschatten, damit
+   er UEBER der Zustandsflaeche liegt und sie nicht ersetzt. :focus-within
+   nimmt die Tastatur mit: Wer sich durch die Verweise einer Zeile tabbt,
+   sieht dieselbe Zeile markiert.                                          */
+
+/* Taktlinie: jede fuenfte Einheit. Die staerkere Linie gibt dem Auge beim
+   Wandern nach rechts einen Halt -- Zebrastreifen koennen das hier nicht
+   leisten, weil die Zustandsflaechen die Zeilen schon einfaerben. */
+.mb-raster tbody tr[data-takt="ja"] > * {
+  border-bottom: 1px solid var(--linie-stark);
+}
+
+.mb-raster tbody tr:not(.mb-gruppe):hover > *,
+.mb-raster tbody tr:not(.mb-gruppe):focus-within > * {
+  box-shadow: inset 0 0 0 100vmax
+    color-mix(in srgb, var(--akzent) 10%, transparent);
+}
+
+/* --- 9. Summen ----------------------------------------------------------- */
+
+.mb-raster .mb-zeilensumme,
+.mb-raster .mb-summenzelle {
+  background: var(--flaeche-ruhig);
+  border-left: 1px solid var(--linie-stark);
+  vertical-align: top;
+}
+.mb-raster .mb-summe > th,
+.mb-raster .mb-summe > td {
+  background: var(--flaeche-tief);
+  border-top: 1px solid var(--linie-stark);
+}
+.mb-abw[data-art="fehl"] { color: var(--fehl); font-weight: 600; }
+.mb-abw[data-art="warn"] { color: var(--warn); }
+.mb-abw[data-art="gut"]  { color: var(--fg-leise); }
+
+/* --- 9a. Die Aufteilung: Kalt, BK, o. A., Warm --------------------------
+
+   Sieben Summenzeilen unter jedem Objekt sind viel -- bei drei Haeusern 21
+   Zeilen, und darunter noch einmal sieben fuer das ganze Buch. Gleich
+   kraeftig gesetzt waeren sie so schwarz wie die Einheitenzeilen darueber,
+   und die Bloecke liessen sich nicht mehr auseinanderhalten.
+
+   Deshalb zwei Stufen:
+
+     Kalt / BK / o. A.   ruhige Gruppe -- hellere Flaeche, leiserer Ton,
+                         keine Trennlinien untereinander. Die drei gehoeren
+                         zusammen und sind Herleitung, nicht Ergebnis.
+     Warm                der Summenstrich darueber. Ab hier beginnt, was
+                         beim Mahnen zaehlt: Warm, Ist, Abweichung.
+
+   Die Zahlen bleiben auch in der ruhigen Gruppe in Ziffernbreite und in
+   voller Groesse. Kleiner gesetzt waere sie eine Fussnote -- und die
+   Betriebskostenvorauszahlung ist keine.                                 */
+
+.mb-raster .mb-summe[data-gruppe="aufteilung"] > th,
+.mb-raster .mb-summe[data-gruppe="aufteilung"] > td {
+  background: var(--flaeche-ruhig);
+  color: var(--fg-leise);
+  /* Keine Linie zwischen den drei Zeilen: sie sind ein Block. Die Linie
+     oben setzt nur die erste von ihnen gegen die Einheiten ab. */
+  border-top: 0;
+}
+.mb-raster .mb-summe[data-erste="ja"] > th,
+.mb-raster .mb-summe[data-erste="ja"] > td {
+  border-top: 1px solid var(--linie-stark);
+}
+
+/* Die Zellen, die ueber alle Summenzeilen reichen (Kalt/BK und Kaution),
+   gehoeren keiner der Stufen -- sie behalten den kraeftigen Ton. */
+.mb-raster .mb-summe[data-gruppe="aufteilung"] > td[rowspan] {
+  background: var(--flaeche-tief);
+  color: var(--fg);
+  border-top: 1px solid var(--linie-stark);
+}
+
+/* Der Summenstrich: Kalt + BK + o. A. = Warm. Doppelt gezogen, weil eine
+   einfache Linie hier nur eine weitere Zeilengrenze waere. */
+.mb-raster .mb-summe[data-gruppe="warm"] > th,
+.mb-raster .mb-summe[data-gruppe="warm"] > td {
+  border-top: 3px double var(--linie-stark);
+  font-weight: 600;
+}
+.mb-raster .mb-summe[data-gruppe="warm"] > td[rowspan] {
+  font-weight: 400;
+}
+
+/* Die dritte Stufe in der Zeilenbeschriftung: unter dem Namen der
+   Summenzeile steht, was sie bedeutet ("= Kalt + BK + o. A. = Soll").
+   Leiser als .mb-unter, damit der Name selbst noch der Name bleibt. */
+.mb-still { color: var(--fg-still); }
+
+/* --- 10. Fussnotenrufe und Fussnoten ------------------------------------
+
+   Das Sternchen hinter einer Abweichung und das Kuerzel "o. A." standen nur
+   im title-Attribut. Ein title ist auf dem Telefon nicht erreichbar und mit
+   der Tastatur auch nicht -- die Erklaerung war damit fuer einen Teil der
+   Nutzer gar nicht vorhanden. Die Rufe verweisen jetzt auf echte Fussnoten
+   unter dem Raster; der title bleibt als Zusatz, nicht als einzige Quelle. */
+
+.mb-ruf {
+  font-size: var(--text-xs);
+  color: var(--akzent);
+  text-decoration: none;
+  border-bottom: 1px dotted currentColor;
+  white-space: nowrap;
+}
+.mb-ruf:hover,
+.mb-ruf:focus-visible { border-bottom-style: solid; }
+
+/* Der stumme Ruf: steht in einer Zelle, die selbst schon ein Verweis ist --
+   ein Verweis im Verweis geht nicht. Das Zeichen traegt hier allein. */
+.mb-ruf-still {
+  font-size: var(--text-xs);
+  color: var(--fg-still);
+}
+
+.mb-fussnoten {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
+  gap: var(--abstand-2) var(--abstand-5);
+  margin: 0 0 var(--abstand-5);
+  font-size: var(--text-m);
+  color: var(--fg-leise);
+}
+.mb-fussnoten dt {
+  display: inline;
+  font-weight: 600;
+  color: var(--fg);
+}
+.mb-fussnoten dd {
+  display: inline;
+  margin: 0;
+}
+/* Angesprungene Fussnote kurz hervorheben, damit man sieht, wo man gelandet
+   ist -- ohne Bewegung, die sich nicht abschalten laesst. */
+.mb-fussnoten > div:target {
+  background: var(--akzent-flaeche);
+  box-shadow: 0 0 0 var(--abstand-1) var(--akzent-flaeche);
+}
+.mb-zeichen {
+  font-weight: 700;
+  color: var(--fg);
+}
+
+/* --- 11. Legende --------------------------------------------------------- */
+
+.mb-legende {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+  gap: var(--abstand-1) var(--abstand-5);
+  margin: 0;
+  font-size: var(--text-m);
+}
+/* Jede Zeile ist eine eigene kleine Begriffsliste -- die Zwischentitel sind
+   Absaetze und koennen deshalb nicht in einem <dl> stehen. */
+.mb-legende > dl {
+  margin: 0;
+}
+.mb-legende dt {
+  display: inline;
+  color: var(--fg);
+}
+.mb-legende dd {
+  display: inline;
+  margin: 0;
+  color: var(--fg-leise);
+}
+.mb-legende-titel {
+  grid-column: 1 / -1;
+  margin: var(--abstand-3) 0 0;
+  font-size: var(--text-s);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--fg-leise);
+}
+.mb-legende-titel:first-child { margin-top: 0; }
+
+/* Musterflaeche in der Legende: zeigt die Flaeche, die im Raster hinter
+   einem Zustand liegt -- sonst muss man sie erraten. */
+.mb-muster {
+  display: inline-block;
+  width: 1.75rem;
+  height: 0.875rem;
+  vertical-align: -0.125rem;
+  margin-right: var(--abstand-1);
+  border: 1px solid var(--linie-stark);
+}
+.mb-muster[data-flaeche="offen"]     { background: var(--fehl-flaeche); }
+.mb-muster[data-flaeche="teilweise"] { background: var(--warn-flaeche); }
+.mb-muster[data-flaeche="bezahlt"]   { background: var(--gut-flaeche); }
+.mb-muster[data-flaeche="frei"] {
+  background: repeating-linear-gradient(
+    135deg,
+    var(--flaeche-ruhig) 0 6px,
+    var(--flaeche-tief) 6px 12px
+  );
+}
+.mb-muster[data-flaeche="jetzt"] {
+  background: var(--flaeche);
+  border-left: 2px solid var(--akzent);
+}
+
+.mb-legende-fuss {
+  margin: var(--abstand-4) 0 0;
+  max-width: none;
+}
+
+/* --- 12. Zeitraumwahl und Seitenteile ----------------------------------- */
+
+.mb-zeitraum {
+  display: flex;
+  gap: var(--abstand-1);
+  flex-wrap: wrap;
+  align-items: baseline;
+  margin-bottom: var(--abstand-5);
+}
+.mb-zeitraum-schild { margin-right: var(--abstand-1); }
+
+/* Nebensatz unter einer Kennzahl: ohne Abstand und ohne Lesebreite, weil er
+   in einer schmalen Karte steht. */
+.mb-fuss {
+  margin: 0;
+  max-width: none;
+}
+
+/* Hinweisabsatz ueber der ganzen Breite: die 62ch Lesebreite aus globals.css
+   stimmt fuer Text, nicht fuer einen Hinweis, der zu einem breiten Raster
+   gehoert. Der Abstand nach unten bleibt. */
+p.hinweis.mb-voll {
+  max-width: none;
+}
+
+/* --- 13. Schmale Schirme (Telefon) -------------------------------------- */
+
+@media (max-width: 40rem) {
+  .mb-raster .mb-einheit { min-width: 8rem; max-width: 9.5rem; }
+  .mb-raster .mb-monat { min-width: 5.75rem; }
+  .mb-name { max-width: 8rem; }
+  .mb-rolle {
+    max-height: max(22rem, calc(100svh - var(--kopf-hoehe) - 6rem));
+  }
+}
+
+/* --- 14. Druck ----------------------------------------------------------
+
+   Auf Papier gibt es kein Rollen. Also alles ausklappen: nichts klebt,
+   nichts wird gedeckelt -- der Drucker bricht die Spalten dann selbst um. */
+
+@media print {
+  .mb-rolle {
+    max-height: none;
+    overflow: visible;
+    margin-inline: 0;
+    border: 0;
+  }
+  .mb-raster thead th,
+  .mb-raster .mb-einheit,
+  .mb-gruppe-inhalt { position: static; }
+  table.mb-raster { width: 100%; font-size: var(--text-xs); }
+  .mb-rollhinweis { display: none; }
+}

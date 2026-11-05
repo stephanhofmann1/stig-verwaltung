@@ -1,4 +1,9 @@
 import { query } from "./db";
+// Die Rundung auf eine lesbare Stufe gibt es genau einmal, in lib/diagramm.ts.
+// Der Verweis ist gegenseitig (dort wird `anteil` von hier geholt) und das ist
+// unbedenklich: Beide Seiten tauschen nur Funktionen aus, die erst beim Aufruf
+// gebraucht werden, nicht beim Laden des Moduls.
+import { lesbareStufe } from "./diagramm";
 import { monatsStatus, type StandZeile, type ZahlStatus } from "./mieter";
 import { dritterWerktag, type Rueckstand } from "./mahnstufen";
 import { mahnstand, hoechsteMonatsmiete } from "./rueckstaende";
@@ -712,10 +717,19 @@ export interface CockpitDaten {
   fristen: FristLage[];
   monat: { monat: string; geld: MonatsGeld };
   rueckstaende: RueckstandsLage;
-  /** Hat Stephan das Mahnwesen freigegeben? Ohne Freigabe geht nichts raus. */
+  /** Ist das Mahnwesen freigegeben? Ohne Freigabe geht nichts raus. */
   mahnwesenFreigegeben: boolean;
+  /** Was auf eine Freigabe wartet -- Entwuerfe und unbeantwortete Vorgaenge. */
+  freigaben: { entwuerfe: number; unbeantwortet: number };
   leerstand: LeerstandsLage;
   cashflow: CashflowBalken[];
+  /**
+   * Soll gegen Ist, zwoelf Monate. Ein Monat ohne Kontodaten ist darin eine
+   * Luecke und kein Ist von 0 -- siehe `sollIstReihe` weiter unten.
+   */
+  sollIst: SollIstPunkt[];
+  /** Woraus das gestellte Soll besteht: Kalt, Betriebskosten, Rest. */
+  mietstruktur: Mietstruktur;
   automatik: AutomatikPosten[];
   lagebericht: LageberichtLage;
   unzugeordnet: UnzugeordnetLage;
@@ -745,6 +759,38 @@ const LEER_RUECKSTAND: RueckstandsLage = {
 };
 
 /** Alles, was das Cockpit braucht -- in einem Durchgang, parallel gelesen. */
+/**
+ * Wie viel wartet auf eine Freigabe?
+ *
+ * Das ist die handlungsnaechste Zahl der Startseite: ein Entwurf, der
+ * liegen bleibt, ist eine Antwort, die niemand bekommt. Bisher stellte
+ * die Freigabeliste ihre Abfragen selbst -- die Zahl stand damit erst
+ * unten auf der Seite und nicht oben, wo man sie sucht.
+ *
+ * Gezaehlt wird in der Datenbank, nicht in der Komponente: Die Liste
+ * holt hoechstens 50 Vorgaenge, die Zahl muss alle meinen.
+ */
+async function ladeFreigabestand(): Promise<{
+  entwuerfe: number;
+  unbeantwortet: number;
+}> {
+  const [e, u] = await Promise.all([
+    query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM nachricht WHERE status = 'entwurf'`,
+    ),
+    query<{ n: number }>(
+      `SELECT count(*)::int AS n
+         FROM vorgang v
+        WHERE v.status = 'offen'
+          AND NOT EXISTS (
+            SELECT 1 FROM nachricht n
+             WHERE n.vorgang_id = v.id
+               AND n.status IN ('entwurf','gesendet'))`,
+    ),
+  ]);
+  return { entwuerfe: e[0]?.n ?? 0, unbeantwortet: u[0]?.n ?? 0 };
+}
+
 export async function ladeCockpit(heute = new Date()): Promise<CockpitDaten> {
   const [
     fristen,
@@ -753,8 +799,11 @@ export async function ladeCockpit(heute = new Date()): Promise<CockpitDaten> {
     frei,
     einheiten,
     cashflow,
+    sollIst,
+    mietstruktur,
     laeufe,
     unzugeordnet,
+    freigaben,
   ] = await Promise.all([
     behutsam("Fristen", () => ladeFristen(heute), [] as FristLage[]),
     behutsam("Laufender Monat", () => ladeMonat(heute), {
@@ -781,8 +830,11 @@ export async function ladeCockpit(heute = new Date()): Promise<CockpitDaten> {
       { stand: isoTag(heute), einheiten: [] },
     ),
     behutsam("Cashflow", () => ladeCashflow(heute), [] as CashflowBalken[]),
+    behutsam("Soll/Ist-Verlauf", () => ladeSollIst(heute), [] as SollIstPunkt[]),
+    behutsam("Mietstruktur", ladeMietstruktur, LEER_MIETSTRUKTUR),
     behutsam("Läufe", ladeLaeufe, [] as LaufZeile[]),
     behutsam("Zahlungseingänge", ladeUnzugeordnet, teileEingaenge([], 0)),
+    behutsam("Freigaben", ladeFreigabestand, { entwuerfe: 0, unbeantwortet: 0 }),
   ]);
 
   return {
@@ -793,9 +845,12 @@ export async function ladeCockpit(heute = new Date()): Promise<CockpitDaten> {
     mahnwesenFreigegeben: frei.wert !== null,
     leerstand: leerstandsLage(einheiten.wert.einheiten, heute),
     cashflow: cashflow.wert,
+    sollIst: sollIst.wert,
+    mietstruktur: mietstruktur.wert,
     automatik: automatikLage(laeufe.wert, ERWARTETE_LAEUFE, heute),
     lagebericht: lageberichtLage(laeufe.wert, heute),
     unzugeordnet: unzugeordnet.wert,
+    freigaben: freigaben.wert,
     fehler: [
       fristen.fehler,
       monat.fehler,
@@ -803,8 +858,608 @@ export async function ladeCockpit(heute = new Date()): Promise<CockpitDaten> {
       frei.fehler,
       einheiten.fehler,
       cashflow.fehler,
+      sollIst.fehler,
+      mietstruktur.fehler,
       laeufe.fehler,
       unzugeordnet.fehler,
+      freigaben.fehler,
     ].filter((f): f is string => f !== null),
   };
+}
+
+// ===========================================================================
+// 8. Soll gegen Ist, zwoelf Monate
+// ===========================================================================
+//
+// Die wichtigste bisher fehlende Grafik. Das Cockpit zeigte den laufenden
+// Monat und einen Cashflow aus Kontobuchungen -- aber nicht, AB WELCHEM
+// MONAT die Zahlungen hinter dem Soll zurueckblieben. Genau das ist die
+// Frage, die man einem Mietenbuch stellt.
+//
+// Und genau hier sitzt die Falle, die diese Datei von Anfang an umgeht:
+// **Ein Monat ohne Kontodaten ist kein Monat ohne Zahlung.**
+//
+// `objekt.zahlungsdaten_ab` (db/023) sagt je Objekt, ab wann Kontoumsaetze
+// vorliegen. Ist die Spalte leer, liegen fuer dieses Objekt gar keine vor.
+// Vor diesem Zeitpunkt kann die Miete einem Voreigentuemer zugeflossen sein
+// oder ueber ein Konto gelaufen sein, das die Verwaltung nicht sieht -- in
+// beiden Faellen steht in der Datenbank ein gestelltes Soll ohne Zahlung,
+// und das heisst nicht "unbezahlt", sondern "unbekannt". Der Abstand
+// zwischen Abrechnungsbeginn und Kontobeginn ist je Mandant und je Objekt
+// verschieden und steht nirgends im Quelltext.
+//
+// Die Bedingung dafuer ist nicht neu erfunden: Es ist woertlich dieselbe,
+// die `ladeMonat()` weiter oben in dieser Datei benutzt und die
+// `zahlungsstand()` in lib/mieter.ts sowie `ohneZahlungsdaten()` in
+// lib/mietenbuch.ts beschreiben --
+//
+//     zahlungsdaten_ab IS NULL
+//     OR monat < date_trunc('month', zahlungsdaten_ab)
+//     OR NOT EXISTS (SELECT 1 FROM buchung)
+//
+// -- nur dass sie hier nicht je Posten entscheidet, sondern das Soll eines
+// Monats in zwei Teile trennt: den vergleichbaren und den unbekannten.
+//
+// Was passiert, wenn man das weglaesst: Die Ist-Linie fiele fuer jeden Monat
+// vor dem Beginn der Kontodaten auf Null. Der Verlauf zeigte einen
+// Zahlungseinbruch ueber Monate oder Jahre, der nie stattgefunden hat -- und
+// am Ende dieser Kette steht ein Mahnschreiben an jemanden, der bezahlt hat.
+
+/** Eine Monatszeile, wie die Abfrage sie liefert -- schon aufgeteilt. */
+export interface SollIstZeile {
+  /** "YYYY-MM" oder ein ISO-Datum; es zaehlen die ersten sieben Zeichen. */
+  monat: string;
+  /** Gestelltes Soll des Monats, vollstaendig. */
+  soll: number;
+  /** Der Teil davon, fuer den keine Kontodaten vorliegen. */
+  soll_ohne_daten: number;
+  /** Zugeordnete Zahlungen -- nur auf den Teil MIT Kontodaten. */
+  ist: number;
+}
+
+/** Warum ueber einen Monat nichts gesagt werden kann. */
+export type LueckenGrund = "nichts_gestellt" | "ohne_kontodaten";
+
+export interface SollIstPunkt {
+  /** "YYYY-MM". */
+  monat: string;
+  /** Gestelltes Soll, vollstaendig -- auch der unbekannte Teil. */
+  soll: number;
+  /** Der Teil ohne Kontodaten. Steht in der Tabelle, nie in der Ist-Linie. */
+  sollOhneDaten: number;
+  /**
+   * Der Teil, der sich mit dem Konto vergleichen laesst. `null` heisst: gar
+   * keiner -- dann wird auch kein Soll gezeichnet, denn ein Soll ohne
+   * vergleichbares Ist liest sich als Rueckstand in voller Hoehe.
+   */
+  sollVergleichbar: number | null;
+  /**
+   * Zugeordnete Zahlungen auf den vergleichbaren Teil. `null` heisst: keine
+   * Aussage moeglich. **Nicht 0.** Der Unterschied ist der ganze Zweck
+   * dieser Datei.
+   */
+  ist: number | null;
+  /** sollVergleichbar - ist. `null`, wenn eine der beiden Zahlen fehlt. */
+  rest: number | null;
+  /** true = fuer diesen Monat laesst sich nichts sagen. */
+  luecke: boolean;
+  grund: LueckenGrund | null;
+  /**
+   * true = ein Teil des Monats hat Kontodaten, ein anderer nicht (zwei
+   * Objekte mit verschiedenem Beginn). Der Vergleich gilt dann nur fuer den
+   * Teil mit Daten, und die Karte muss das sagen.
+   */
+  teilweiseOhneDaten: boolean;
+}
+
+/**
+ * Die eine Entscheidung, auf die es ankommt: Darf ueber diesen Monat
+ * ueberhaupt etwas behauptet werden?
+ *
+ * Absichtlich eine eigene, winzige Funktion -- sie ist die Stelle, an der
+ * aus fehlenden Daten ein Rueckstand werden koennte, und sie hat einen
+ * eigenen Test.
+ */
+export function lueckenGrund(
+  soll: number,
+  sollOhneDaten: number,
+): LueckenGrund | null {
+  const s = Number(soll);
+  const ohne = Number(sollOhneDaten);
+  if (!Number.isFinite(s) || !(s > 0)) return "nichts_gestellt";
+  if (!Number.isFinite(ohne)) return "ohne_kontodaten";
+  if (!(runde(s - ohne) > 0)) return "ohne_kontodaten";
+  return null;
+}
+
+/**
+ * Macht aus den vorhandenen Monaten eine lueckenlose Reihe von Punkten.
+ *
+ * Dieselbe Mechanik wie `cashflowReihe` -- ein Monat, den die Abfrage nicht
+ * geliefert hat, fehlt sonst im Bild, und die Balken ruecken zusammen.
+ * Anders als dort wird hier aber nicht auf 0 aufgefuellt: Ein Monat ohne
+ * Sollstellungen bekommt `ist: null` und den Grund "nichts_gestellt".
+ */
+export function sollIstReihe(
+  zeilen: SollIstZeile[],
+  bis: Date,
+  monate = 12,
+): SollIstPunkt[] {
+  const nach = new Map(zeilen.map((z) => [z.monat.slice(0, 7), z]));
+  const aus: SollIstPunkt[] = [];
+
+  for (let i = monate - 1; i >= 0; i--) {
+    const d = plusMonate(
+      new Date(Date.UTC(bis.getUTCFullYear(), bis.getUTCMonth(), 1)),
+      -i,
+    );
+    const schluessel = monatsErster(d).slice(0, 7);
+    const z = nach.get(schluessel);
+
+    const sichere = (w: unknown) => {
+      const n = Number(w ?? 0);
+      return Number.isFinite(n) ? runde(n) : 0;
+    };
+    const soll = sichere(z?.soll);
+    const sollOhneDaten = Math.min(soll, Math.max(0, sichere(z?.soll_ohne_daten)));
+    const grund = lueckenGrund(soll, sollOhneDaten);
+
+    if (grund !== null) {
+      aus.push({
+        monat: schluessel,
+        soll,
+        sollOhneDaten,
+        sollVergleichbar: null,
+        ist: null,
+        rest: null,
+        luecke: true,
+        grund,
+        teilweiseOhneDaten: sollOhneDaten > 0 && soll > 0,
+      });
+      continue;
+    }
+
+    const vergleichbar = runde(soll - sollOhneDaten);
+    // Nicht gedeckelt: Ein Ist ueber dem Soll waere eine Ueberdeckung, und
+    // die gehoert gesehen. Haette man sie auf das Soll geklemmt, verschwaende
+    // eine doppelt zugeordnete Buchung lautlos aus dem Bild.
+    const ist = sichere(z?.ist);
+    aus.push({
+      monat: schluessel,
+      soll,
+      sollOhneDaten,
+      sollVergleichbar: vergleichbar,
+      ist,
+      rest: runde(vergleichbar - ist),
+      luecke: false,
+      grund: null,
+      teilweiseOhneDaten: sollOhneDaten > 0,
+    });
+  }
+
+  return aus;
+}
+
+export interface SollIstLage {
+  monate: number;
+  /** Monate, ueber die sich etwas sagen laesst. */
+  belastbar: number;
+  luecken: number;
+  summeVergleichbar: number;
+  summeIst: number;
+  /** Nur aus Monaten MIT Daten. Wird nie mit `summeOhneDaten` addiert. */
+  summeRest: number;
+  summeOhneDaten: number;
+  monateMitRest: number;
+  /**
+   * Der erste Monat der Reihe, in dem das Ist hinter dem Soll zurueckblieb.
+   * `null` = kein solcher Monat, oder keine Aussage moeglich. Das ist die
+   * Antwort auf "ab wann?" -- und sie steht nur da, wenn es Daten gibt.
+   */
+  abMonat: string | null;
+}
+
+/**
+ * Fasst die Reihe zusammen.
+ *
+ * Die Schwelle von einem Euro ist dieselbe wie in `monatsStatus()`: Unter
+ * einem Euro ist das Rundung aus anteiligen Monaten und kein Rueckstand.
+ */
+export function sollIstLage(reihe: SollIstPunkt[], schwelle = 1): SollIstLage {
+  let belastbar = 0;
+  let summeVergleichbar = 0;
+  let summeIst = 0;
+  let summeRest = 0;
+  let summeOhneDaten = 0;
+  let monateMitRest = 0;
+  let abMonat: string | null = null;
+
+  for (const p of reihe) {
+    summeOhneDaten += p.sollOhneDaten;
+    if (p.luecke || p.sollVergleichbar === null || p.ist === null) continue;
+    belastbar++;
+    summeVergleichbar += p.sollVergleichbar;
+    summeIst += p.ist;
+    const rest = p.rest ?? 0;
+    if (rest >= schwelle) {
+      summeRest += rest;
+      monateMitRest++;
+      if (abMonat === null) abMonat = p.monat;
+    }
+  }
+
+  return {
+    monate: reihe.length,
+    belastbar,
+    luecken: reihe.filter((p) => p.luecke).length,
+    summeVergleichbar: runde(summeVergleichbar),
+    summeIst: runde(summeIst),
+    summeRest: runde(summeRest),
+    summeOhneDaten: runde(summeOhneDaten),
+    monateMitRest,
+    abMonat,
+  };
+}
+
+/**
+ * Liest das Soll und das zugeordnete Ist der letzten zwoelf Monate.
+ *
+ * Die Bedingung fuer "ohne Kontodaten" steht hier woertlich so, wie sie
+ * `ladeMonat()` weiter oben und `zahlungsstand()` in lib/mieter.ts benutzen.
+ * Sie wird nicht nachgebaut, sondern uebernommen -- zwei Fassungen davon
+ * laufen auseinander, und dann mahnt die eine, was die andere entschuldigt.
+ */
+async function ladeSollIst(heute: Date): Promise<SollIstPunkt[]> {
+  const zeilen = await query<{
+    monat: string;
+    soll: number;
+    soll_ohne_daten: number;
+    ist: number;
+  }>(`
+    WITH posten AS (
+      SELECT to_char(s.monat, 'YYYY-MM')   AS monat,
+             s.betrag::float8              AS soll,
+             COALESCE(z.gezahlt, 0)::float8 AS gezahlt,
+             (o.zahlungsdaten_ab IS NULL
+              OR s.monat < date_trunc('month', o.zahlungsdaten_ab)::date
+              OR NOT EXISTS (SELECT 1 FROM buchung)) AS ohne_zahlungsdaten
+        FROM sollstellung s
+        JOIN mietverhaeltnis mv ON mv.id = s.mietverhaeltnis_id
+        JOIN einheit e ON e.id = mv.einheit_id
+        JOIN objekt  o ON o.id = e.objekt_id
+        LEFT JOIN (
+              SELECT zz.sollstellung_id, SUM(zz.betrag) AS gezahlt
+                FROM zuordnung zz
+               GROUP BY zz.sollstellung_id
+        ) z ON z.sollstellung_id = s.id
+       WHERE s.monat >= (date_trunc('month', CURRENT_DATE)
+                         - interval '11 months')::date
+         AND s.monat <= date_trunc('month', CURRENT_DATE)::date
+    )
+    SELECT monat,
+           SUM(soll)::float8 AS soll,
+           SUM(CASE WHEN ohne_zahlungsdaten THEN soll ELSE 0 END)::float8
+                             AS soll_ohne_daten,
+           SUM(CASE WHEN ohne_zahlungsdaten THEN 0 ELSE gezahlt END)::float8
+                             AS ist
+      FROM posten
+     GROUP BY monat
+     ORDER BY monat
+  `);
+
+  return sollIstReihe(
+    zeilen.map((z) => ({
+      monat: z.monat,
+      soll: Number(z.soll),
+      soll_ohne_daten: Number(z.soll_ohne_daten),
+      ist: Number(z.ist),
+    })),
+    heute,
+  );
+}
+
+// ===========================================================================
+// 9. Mietstruktur -- woraus das Soll besteht
+// ===========================================================================
+//
+// Eine Inklusivmiete -- ein Betrag, alles inbegriffen, ohne getrennte
+// Kaltmiete -- ist in WG- und moeblierten Bestaenden kein Sonderfall, sondern
+// haeufig die Mehrheit. Dieser Teil **darf nie in die Kaltmiete gerechnet
+// werden**: Sonst stuende auf der Karte eine Kaltmietensumme, die es nicht
+// gibt, und jede Rendite- und Nebenkostenrechnung, die darauf aufbaut, ist
+// falsch. Genau diese Annahme hat im Mieterbereich ein Jahr lang dazu
+// gefuehrt, dass Mieter mit Inklusivmiete "Kaltmiete —" sahen statt ihrer
+// Miete (lib/mieter.ts). Wie viele es sind, zaehlt die Funktion aus den
+// Daten; im Quelltext steht keine Zahl dazu.
+//
+// Er bekommt darum ein eigenes Segment: "ohne Aufteilung". Darin stehen drei
+// verschiedene Dinge, und die Karte benennt sie einzeln:
+//   - Inklusivmieten (keine getrennte Kaltmiete hinterlegt),
+//   - Moeblierungszuschlaege (im Soll, aber weder Kalt noch Betriebskosten),
+//   - anteilige Monate (Ein- oder Auszug mitten im Monat; dort ist jede
+//     Aufteilung erfunden -- dieselbe Regel wie in lib/mietenbuch.ts, wo
+//     `kaltmiete` nur bei einem vollen Monat durchgereicht wird).
+
+export interface MietstrukturZeile {
+  mietverhaeltnis_id: string;
+  /** "YYYY-MM". */
+  monat: string;
+  /** Betrag der Sollstellung -- gestellt ist gestellt. */
+  soll: number;
+  kaltmiete: number | null;
+  nebenkosten: number | null;
+  /** Summe laut Vertrag bzw. Anpassung. Weicht sie ab, ist es anteilig. */
+  vertragssumme: number | null;
+}
+
+export interface MietStufe {
+  bezeichnung: string;
+  von: number;
+  /** `null` = offene Spanne nach oben. */
+  bis: number | null;
+  anzahl: number;
+  summe: number;
+}
+
+export interface Mietstruktur {
+  /** Der Monat, aus dem die Zahlen stammen. `null` = keine Sollstellungen. */
+  monat: string | null;
+  anzahl: number;
+  soll: number;
+  kalt: number;
+  nebenkosten: number;
+  /** Soll minus Kalt minus Betriebskosten -- der Rest, exakt. */
+  ohneAufteilung: number;
+  anzahlAufgeteilt: number;
+  /** Ohne getrennte Kaltmiete im Vertrag. */
+  anzahlInklusiv: number;
+  /** Soll weicht von der Vertragssumme ab: anteiliger Monat. */
+  anzahlAnteilig: number;
+  /** Kalt + Betriebskosten waeren hoeher als das gestellte Soll. */
+  anzahlWidersprechend: number;
+  stufen: MietStufe[];
+}
+
+/**
+ * Verteilung der Mietverhaeltnisse nach Hoehe des gestellten Solls.
+ *
+ * Die Stufenbreite steht **nicht** im Quelltext, sondern kommt aus den
+ * Daten: `lesbareStufe()` rundet `max / zielStufen` auf 1, 2, 2,5 oder 5 mal
+ * eine Zehnerpotenz. Der Grund ist nicht Schoenheit, sondern dass diese
+ * Anwendung mehreren Verwaltern dient:
+ *
+ *   - Einzelzimmer um 400 EUR bekommen 100er-Stufen,
+ *   - Wohnungen um 1.200 EUR bekommen 200er-Stufen,
+ *   - ein Gewerbeobjekt von 80.000 EUR bekommt 20.000er-Stufen.
+ *
+ * Eine feste Leiter ("bis 600 -> 100er") ist auf einen Bestand geeicht. Sie
+ * faellt beim naechsten Kunden auf, und dort als unbrauchbares Diagramm:
+ * 80 Saeulen oder eine. Niemand aendert dafuer eine Zahl im Quelltext.
+ */
+export function stufenVerteilung(
+  betraege: number[],
+  zielStufen = 6,
+): MietStufe[] {
+  const sicher = betraege
+    .map((b) => Number(b))
+    .filter((b) => Number.isFinite(b) && b > 0);
+  if (sicher.length === 0) return [];
+
+  const max = sicher.reduce((m, b) => Math.max(m, b), 0);
+  const ziel = Math.max(1, Math.floor(zielStufen));
+  // Der zweite Versuch faengt den Fall ab, in dem max/ziel so klein wird,
+  // dass die Rundung 0 ergibt -- eine Breite von 0 waere eine Division
+  // durch Null in der Einordnung.
+  const breite = lesbareStufe(max / ziel) || lesbareStufe(max) || 1;
+  // Das Epsilon verhindert, dass aus 600/100 = 5,999999999 sieben Stufen
+  // werden, von denen die letzte leer bleibt.
+  const anzahlStufen = Math.max(1, Math.ceil(max / breite - 1e-9));
+
+  /** Ohne Intl, damit die Beschriftung nicht an der Laufzeitumgebung haengt. */
+  const g = (n: number) => String(runde(n)).replace(".", ",");
+
+  const stufen: MietStufe[] = [];
+  for (let i = 0; i < anzahlStufen; i++) {
+    const von = runde(i * breite);
+    const bis = runde((i + 1) * breite);
+    stufen.push({
+      bezeichnung: i === 0 ? `bis ${g(bis)} €` : `${g(von)}–${g(bis)} €`,
+      von,
+      bis,
+      anzahl: 0,
+      summe: 0,
+    });
+  }
+
+  for (const b of sicher) {
+    // Der Hoechstwert liegt genau auf einer Stufengrenze und faellt sonst in
+    // eine Stufe, die es nicht gibt.
+    const i = Math.min(anzahlStufen - 1, Math.floor(b / breite));
+    stufen[i].anzahl++;
+    stufen[i].summe = runde(stufen[i].summe + b);
+  }
+
+  return stufen;
+}
+
+/**
+ * Teilt das gestellte Soll in Kaltmiete, Betriebskosten und den Rest.
+ *
+ * Aufgeteilt wird nur, wenn beides zutrifft:
+ *   1. im Vertrag steht eine getrennte Kaltmiete, und
+ *   2. das gestellte Soll entspricht der Vertragssumme auf den Cent.
+ *
+ * Punkt 2 ist die Regel aus lib/mietenbuch.ts: Bei einem anteiligen Betrag
+ * waere jede Aufteilung erfunden -- aus einem halben Monat wuerde sonst eine
+ * ganze Kaltmiete.
+ *
+ * `ohneAufteilung` wird als Rest gerechnet und nicht aufsummiert. Damit
+ * ergeben die drei Segmente **immer genau** das Soll, auf den Cent. Rechnete
+ * man es als Summe der Einzelposten, fehlte bei einem Rundungsfehler ein
+ * Betrag im Bild, und niemand wuesste, welcher.
+ */
+export function mietstruktur(zeilen: MietstrukturZeile[]): Mietstruktur {
+  let soll = 0;
+  let kalt = 0;
+  let nebenkosten = 0;
+  let anzahlAufgeteilt = 0;
+  let anzahlInklusiv = 0;
+  let anzahlAnteilig = 0;
+  let anzahlWidersprechend = 0;
+
+  const zahl = (w: number | null): number | null => {
+    if (w === null || w === undefined) return null;
+    const n = Number(w);
+    return Number.isFinite(n) ? n : null;
+  };
+
+  for (const z of zeilen) {
+    const s = zahl(z.soll) ?? 0;
+    if (!(s > 0)) continue;
+    soll += s;
+
+    const k = zahl(z.kaltmiete);
+    const n = zahl(z.nebenkosten) ?? 0;
+    const vertrag = zahl(z.vertragssumme);
+
+    if (k === null) {
+      // Inklusivmiete: ein Betrag, alles drin. Keine Kaltmiete zu erfinden
+      // ist hier die ganze Aufgabe.
+      anzahlInklusiv++;
+      continue;
+    }
+    if (vertrag === null || Math.abs(runde(s - vertrag)) >= 0.01) {
+      anzahlAnteilig++;
+      continue;
+    }
+    if (runde(k + n) > runde(s) + 0.005) {
+      // Widerspruch in den Stammdaten. Nicht aufteilen und nicht klemmen:
+      // geklemmt saehe die Karte richtig aus, und der Fehler bliebe.
+      anzahlWidersprechend++;
+      continue;
+    }
+    kalt += k;
+    nebenkosten += n;
+    anzahlAufgeteilt++;
+  }
+
+  const sollRund = runde(soll);
+  const kaltRund = runde(kalt);
+  const nkRund = runde(nebenkosten);
+
+  return {
+    monat: zeilen[0]?.monat.slice(0, 7) ?? null,
+    anzahl: zeilen.filter((z) => (Number(z.soll) || 0) > 0).length,
+    soll: sollRund,
+    kalt: kaltRund,
+    nebenkosten: nkRund,
+    ohneAufteilung: runde(sollRund - kaltRund - nkRund),
+    anzahlAufgeteilt,
+    anzahlInklusiv,
+    anzahlAnteilig,
+    anzahlWidersprechend,
+    stufen: stufenVerteilung(zeilen.map((z) => Number(z.soll))),
+  };
+}
+
+export const LEER_MIETSTRUKTUR: Mietstruktur = {
+  monat: null,
+  anzahl: 0,
+  soll: 0,
+  kalt: 0,
+  nebenkosten: 0,
+  ohneAufteilung: 0,
+  anzahlAufgeteilt: 0,
+  anzahlInklusiv: 0,
+  anzahlAnteilig: 0,
+  anzahlWidersprechend: 0,
+  stufen: [],
+};
+
+/**
+ * Liest die Posten des zuletzt gestellten Monats.
+ *
+ * Nicht `CURRENT_DATE`, sondern der jüngste Monat MIT Sollstellungen: Am
+ * Ersten eines Monats hat der Nachtlauf noch nichts erzeugt, und eine Karte,
+ * die an diesem Tag leer ist, haelt man fuer kaputt. Welcher Monat es war,
+ * steht auf der Karte.
+ *
+ * Die Mietposten kommen aus derselben Reihenfolge wie in lib/rueckstaende.ts
+ * (`monatsmieten`) und db/022 (`miete_am`): juengste Anpassung mit
+ * `gilt_ab <= Monatsanfang`, sonst die Werte am Mietverhaeltnis. Gegen den
+ * Monatsersten verglichen und nicht gegen heute -- sonst bekaeme jeder Monat
+ * den heutigen Betrag.
+ *
+ * `to_jsonb(mv) ->> ...` fuer `gesamtmiete` und `moeblierungszuschlag`: Beide
+ * Spalten kommen erst aus db/017, und dieselbe Vorsicht steht schon in
+ * lib/rueckstaende.ts.
+ */
+async function ladeMietstruktur(): Promise<Mietstruktur> {
+  const zeilen = await query<{
+    mietverhaeltnis_id: string;
+    monat: string;
+    soll: number;
+    kaltmiete: number | null;
+    nebenkosten: number | null;
+    vertragssumme: number | null;
+  }>(`
+    WITH ziel AS (
+      SELECT MAX(monat) AS monat
+        FROM sollstellung
+       WHERE monat <= date_trunc('month', CURRENT_DATE)::date
+    )
+    SELECT s.mietverhaeltnis_id,
+           to_char(s.monat, 'YYYY-MM') AS monat,
+           s.betrag::float8            AS soll,
+           v.kaltmiete::float8         AS kaltmiete,
+           v.nebenkosten::float8       AS nebenkosten,
+           v.vertragssumme::float8     AS vertragssumme
+      FROM sollstellung s
+      JOIN ziel ON ziel.monat = s.monat
+      JOIN mietverhaeltnis mv ON mv.id = s.mietverhaeltnis_id
+      CROSS JOIN LATERAL (
+        SELECT p.kaltmiete,
+               p.nebenkosten,
+               COALESCE(
+                 NULLIF(p.gesamtmiete, 0),
+                 COALESCE(p.kaltmiete, 0)
+                   + COALESCE(p.nebenkosten, 0)
+                   + COALESCE(p.moeblierung, 0)
+               ) AS vertragssumme
+          FROM (
+            (
+              SELECT a.kaltmiete, a.nebenkosten,
+                     a.moeblierungszuschlag AS moeblierung, a.gesamtmiete
+                FROM mietanpassung a
+               WHERE a.mietverhaeltnis_id = mv.id
+                 AND a.gilt_ab <= s.monat
+               ORDER BY a.gilt_ab DESC
+               LIMIT 1
+            )
+            UNION ALL
+            (
+              SELECT mv.kaltmiete, mv.nebenkosten,
+                     (to_jsonb(mv) ->> 'moeblierungszuschlag')::numeric,
+                     (to_jsonb(mv) ->> 'gesamtmiete')::numeric
+               WHERE NOT EXISTS (
+                     SELECT 1 FROM mietanpassung a2
+                      WHERE a2.mietverhaeltnis_id = mv.id
+                        AND a2.gilt_ab <= s.monat)
+            )
+          ) p
+      ) v
+     WHERE s.betrag > 0
+     ORDER BY s.betrag DESC
+  `);
+
+  return mietstruktur(
+    zeilen.map((z) => ({
+      mietverhaeltnis_id: z.mietverhaeltnis_id,
+      monat: z.monat,
+      soll: Number(z.soll),
+      kaltmiete: z.kaltmiete === null ? null : Number(z.kaltmiete),
+      nebenkosten: z.nebenkosten === null ? null : Number(z.nebenkosten),
+      vertragssumme: z.vertragssumme === null ? null : Number(z.vertragssumme),
+    })),
+  );
 }

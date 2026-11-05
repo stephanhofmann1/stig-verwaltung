@@ -80,15 +80,13 @@ const euro = (w: string | number) =>
     Number(w),
   );
 
-const feld: React.CSSProperties = {
-  font: "inherit",
-  fontSize: "0.9375rem",
-  padding: "0.4rem",
-  border: "1px solid var(--linie)",
-  background: "var(--papier)",
-  color: "var(--tinte)",
-  width: "100%",
-};
+/*
+ * Das Stilobjekt `feld` ist ersatzlos weg. Es setzte die Altmarke fuer den
+ * SEITENhintergrund als Feldfarbe und ueberschrieb den kraeftigen Feldrand
+ * mit der Haarlinie: graue Felder mit kaum sichtbarem Rand.
+ * Abschnitt 12 von globals.css gestaltet die Felder vollstaendig, .feld
+ * gibt ihnen die ganze Spaltenbreite.
+ */
 
 const HERKUNFT: Record<"text" | "modell", string> = {
   text: "aus dem Beleg gelesen",
@@ -187,7 +185,7 @@ export function BelegUpload({
           multiple
           accept="application/pdf,image/*,.pdf,.jpg,.jpeg,.png,.heic,.tif,.tiff,.webp"
           onChange={(e) => zuruecksetzen(Array.from(e.target.files ?? []))}
-          style={{ display: "block", marginBottom: "0.5rem" }}
+          className="feld"
         />
         <span className="hinweis">
           Rechnungen als PDF oder Quittungen als Foto, mehrere auf einmal, je
@@ -214,12 +212,16 @@ export function BelegUpload({
       )}
 
       {vorschau && (
-        <div style={{ marginTop: "1rem" }}>
-          <h3 style={{ marginBottom: "0.25rem" }}>Gelesen, noch nicht gespeichert</h3>
-          <p className="hinweis" style={{ marginTop: 0 }}>
+        <div className="abschnitt">
+          <h3>Gelesen, noch nicht gespeichert</h3>
+          {/* Hier stand der Name der Umgebungsvariablen ANTHROPIC_API_KEY.
+              Das ist eine Betriebsangabe und keine Auskunft fuer den
+              Vermieter -- die Aussage ("das Sprachmodell ist nicht
+              angeschlossen, es gilt nur das Regelwerk") bleibt. */}
+          <p className="hinweis">
             {vorschau.modell_aktiv
               ? "Regelwerk, danach das Sprachmodell für die offen gebliebenen Felder."
-              : "Regelwerk ohne Sprachmodell (kein ANTHROPIC_API_KEY hinterlegt)."}{" "}
+              : "Nur das Regelwerk — das Sprachmodell ist nicht angeschlossen."}{" "}
             Bitte jedes Feld ansehen, bevor du übernimmst — anschließend steht
             es in der Buchhaltung.
           </p>
@@ -280,21 +282,14 @@ export function BelegUpload({
                   </p>
                 )}
 
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fit, minmax(12rem, 1fr))",
-                    gap: "0.75rem",
-                    marginBottom: "0.75rem",
-                  }}
-                >
+                <div className="feldraster">
                   <label>
                     Aussteller
                     <input
                       value={e.aussteller}
                       onChange={(x) => aendere(i, "aussteller", x.target.value)}
                       placeholder="z. B. OBI"
-                      style={feld}
+                      className="feld"
                     />
                     {marke("aussteller")}
                   </label>
@@ -304,8 +299,7 @@ export function BelegUpload({
                       value={e.belegnummer}
                       onChange={(x) => aendere(i, "belegnummer", x.target.value)}
                       placeholder="z. B. Bestellnummer"
-                      className="ziffern"
-                      style={feld}
+                      className="ziffern feld"
                     />
                     {marke("belegnummer")}
                   </label>
@@ -315,8 +309,7 @@ export function BelegUpload({
                       type="date"
                       value={e.belegdatum}
                       onChange={(x) => aendere(i, "belegdatum", x.target.value)}
-                      className="ziffern"
-                      style={feld}
+                      className="ziffern feld"
                     />
                     {marke("belegdatum")}
                   </label>
@@ -327,8 +320,7 @@ export function BelegUpload({
                       onChange={(x) => aendere(i, "betrag_brutto", x.target.value)}
                       inputMode="decimal"
                       placeholder="0,00"
-                      className="ziffern"
-                      style={feld}
+                      className="ziffern feld"
                     />
                     {marke("betrag_brutto")}
                   </label>
@@ -337,7 +329,7 @@ export function BelegUpload({
                     <select
                       value={e.objekt_id}
                       onChange={(x) => aendere(i, "objekt_id", x.target.value)}
-                      style={feld}
+                      className="feld"
                     >
                       <option value="">— noch offen —</option>
                       {objekte.map((o) => (
@@ -364,7 +356,7 @@ export function BelegUpload({
                           : "",
                         );
                       }}
-                      style={feld}
+                      className="feld"
                     >
                       <option value="">— noch offen —</option>
                       {kostenarten.map((k) => (
@@ -379,7 +371,7 @@ export function BelegUpload({
                     <select
                       value={e.umlagefaehig}
                       onChange={(x) => aendere(i, "umlagefaehig", x.target.value)}
-                      style={feld}
+                      className="feld"
                     >
                       <option value="">— ungeklärt —</option>
                       <option value="ja">ja</option>
@@ -420,7 +412,7 @@ export function BelegUpload({
                 )}
 
                 {d.textprobe && (
-                  <p className="hinweis" style={{ overflowWrap: "anywhere" }}>
+                  <p className="hinweis">
                     Gelesen: {d.textprobe}…
                   </p>
                 )}
@@ -428,7 +420,7 @@ export function BelegUpload({
             );
           })}
 
-          <p style={{ marginTop: "1rem" }}>
+          <p className="knopfreihe">
             <button onClick={() => schicke(false)} disabled={stand !== "bereit"}>
               {stand === "schreibt" ? "übernimmt …" : "Übernehmen"}
             </button>{" "}
@@ -440,7 +432,7 @@ export function BelegUpload({
       )}
 
       {ergebnis && (
-        <div style={{ marginTop: "1rem" }}>
+        <div className="abschnitt">
           {ergebnis.gespeichert.length === 0 ? (
             <p>Nichts gespeichert — siehe die Hinweise unten.</p>
           ) : (

@@ -225,6 +225,9 @@ export default async function Einheitenseite({
       <div className="akte-kopf">
         <span className="aktenzeichen ziffern">{kopf.etage ?? "—"}</span>
         <div>
+          {/* Die einzige h1 der Seite. Die Abschnitte darunter tragen h2 --
+              sieben h1 hintereinander sind fuer einen Screenreader sieben
+              Dokumente statt einer Einheit mit sieben Abschnitten. */}
           <h1>{kopf.bezeichnung}</h1>
           <div className="akte-meta">
             <span>
@@ -245,7 +248,14 @@ export default async function Einheitenseite({
                 </Link>
               </span>
             ) : kopf.belegung_gepflegt ? (
-              <span className="marker">frei</span>
+              // "frei" allein hiess hier etwas anderes als auf dem
+              // Cockpit. Ob die Einheit auch angeboten wird, steht in der
+              // Vermarktung -- und damit jetzt auch im Wort.
+              <span className="marker">
+                {kopf.vermarktung === "anbieten"
+                  ? "frei und angeboten"
+                  : "frei, wird nicht angeboten"}
+              </span>
             ) : (
               <span className="marker" data-art="heikel">
                 Belegung nicht gepflegt
@@ -256,40 +266,35 @@ export default async function Einheitenseite({
       </div>
 
       {/* --- Stammdaten --- */}
-      <div className="titelzeile" style={{ marginTop: "1.5rem" }}>
-        <h1>Stammdaten</h1>
+      <div className="titelzeile">
+        <h2>Stammdaten</h2>
       </div>
-      <dl
-        style={{
-          display: "grid",
-          gridTemplateColumns: "auto 1fr",
-          gap: "0.4rem 1.5rem",
-          margin: 0,
-        }}
-      >
+      {/* Stand als Inline-Raster mit eigenen Abstaenden; .datenblatt ist
+          dasselbe Raster, nur einmal definiert. */}
+      <dl className="datenblatt">
         <dt className="hinweis">Anschrift</dt>
-        <dd style={{ margin: 0 }}>
+        <dd>
           {kopf.strasse}, {kopf.plz} {kopf.ort}
         </dd>
 
         <dt className="hinweis">Etage</dt>
-        <dd style={{ margin: 0 }}>{kopf.etage ?? "—"}</dd>
+        <dd>{kopf.etage ?? "—"}</dd>
 
         <dt className="hinweis">Art</dt>
-        <dd style={{ margin: 0 }}>{ART_TEXT[kopf.art] ?? kopf.art}</dd>
+        <dd>{ART_TEXT[kopf.art] ?? kopf.art}</dd>
 
         <dt className="hinweis">Fläche</dt>
-        <dd style={{ margin: 0 }} className="ziffern">
+        <dd className="ziffern">
           {kopf.flaeche_qm ? `${Number(kopf.flaeche_qm)} m²` : "nicht erfasst"}
         </dd>
 
         <dt className="hinweis">Schlüssel</dt>
-        <dd style={{ margin: 0 }} className="ziffern">
+        <dd className="ziffern">
           {kopf.schluessel ?? "keiner vergeben"}
         </dd>
 
         <dt className="hinweis">Angebotsmiete</dt>
-        <dd style={{ margin: 0 }}>
+        <dd>
           {angebot.summe > 0 ? (
             <span className="ziffern">
               {euro(angebot.summe)}
@@ -304,7 +309,7 @@ export default async function Einheitenseite({
         </dd>
 
         <dt className="hinweis">Vermarktung</dt>
-        <dd style={{ margin: 0 }}>
+        <dd>
           {VERMARKTUNG_TEXT[kopf.vermarktung] ?? kopf.vermarktung}
           {kopf.verfuegbar_ab && ` · frei ab ${tag(kopf.verfuegbar_ab)}`}
           {kopf.vermarktungshinweis && (
@@ -315,7 +320,7 @@ export default async function Einheitenseite({
         {kopf.notizen && (
           <>
             <dt className="hinweis">Notizen</dt>
-            <dd style={{ margin: 0 }}>{kopf.notizen}</dd>
+            <dd>{kopf.notizen}</dd>
           </>
         )}
       </dl>
@@ -323,8 +328,8 @@ export default async function Einheitenseite({
       {/* --- Aktueller Mietpreis --- */}
       {jetzt && (
         <>
-          <div className="titelzeile" style={{ marginTop: "2rem" }}>
-            <h1>Mietpreis heute</h1>
+          <div className="titelzeile">
+            <h2>Mietpreis heute</h2>
             <span className="zaehler ziffern">{euro(jetzt.miete.summe)}</span>
           </div>
           <p className="hinweis">
@@ -347,7 +352,9 @@ export default async function Einheitenseite({
             </p>
           )}
           <div className="knopfreihe">
-            <Link href={`/mietverhaeltnis/${laufend!.id}`} className="rueckmeldung">
+            {/* Ein Weg, also .verweis. Als .rueckmeldung war das graues
+                Kleingedrucktes und wurde nicht als Link gelesen. */}
+            <Link href={`/mietverhaeltnis/${laufend!.id}`} className="verweis">
               Mietverhältnis ansehen
             </Link>
           </div>
@@ -355,8 +362,8 @@ export default async function Einheitenseite({
       )}
 
       {/* --- Geschichte --- */}
-      <div className="titelzeile" style={{ marginTop: "2rem" }}>
-        <h1>Mietverhältnisse</h1>
+      <div className="titelzeile">
+        <h2>Mietverhältnisse</h2>
         <span className="zaehler ziffern">{verlauf.length}</span>
       </div>
       {verlauf.length === 0 ? (
@@ -383,11 +390,18 @@ export default async function Einheitenseite({
             });
             const aktiv = m.id === laufend?.id;
             return (
-              <div className="posten" key={m.id} data-heikel={m.gekuendigt_am ? "ja" : undefined}>
+              // Genau ein Ziel, also traegt die ganze Zeile den Weg --
+              // auf dem Telefon ist das eine Flaeche statt eines Wortes.
+              // Vorher leuchtete sie beim Ueberfahren auf, ohne ein Ziel
+              // zu haben; geklickt werden konnte nur der Name.
+              <Link
+                href={`/mietverhaeltnis/${m.id}`}
+                className="posten"
+                key={m.id}
+                data-heikel={m.gekuendigt_am ? "ja" : undefined}
+              >
                 <span className="nummer">{m.beginn.slice(0, 4)}</span>
-                <span className="betreff">
-                  <Link href={`/mietverhaeltnis/${m.id}`}>{m.mieter}</Link>
-                </span>
+                <span className="betreff">{m.mieter}</span>
                 <span className="zeit ziffern">
                   {zuletzt.summe > 0 ? euro(zuletzt.summe) : "—"}
                 </span>
@@ -414,7 +428,7 @@ export default async function Einheitenseite({
                     </span>
                   )}
                 </span>
-              </div>
+              </Link>
             );
           })}
         </div>
@@ -423,30 +437,31 @@ export default async function Einheitenseite({
       {/* --- Zimmer dieser WG --- */}
       {kinder.length > 0 && (
         <>
-          <div className="titelzeile" style={{ marginTop: "2rem" }}>
-            <h1>Zimmer</h1>
+          <div className="titelzeile">
+            <h2>Zimmer</h2>
             <span className="zaehler ziffern">{kinder.length}</span>
           </div>
           <div className="register">
+            {/* Ein Zimmer hat genau ein Ziel -- die ganze Zeile ist der
+                Link. Ein Link im Link ist kein gueltiges HTML, die
+                Bezeichnung ist deshalb kein eigener Link mehr. */}
             {kinder.map((z) => (
-              <div className="posten" key={z.id}>
+              <Link href={`/einheit/${z.id}`} className="posten" key={z.id}>
                 <span className="nummer">·</span>
-                <span className="betreff">
-                  <Link href={`/einheit/${z.id}`}>{z.bezeichnung}</Link>
-                </span>
+                <span className="betreff">{z.bezeichnung}</span>
                 <span className="zeit" />
                 <span className="unterzeile">
                   <span>{z.mieter ?? "kein eigenes Mietverhältnis"}</span>
                 </span>
-              </div>
+              </Link>
             ))}
           </div>
         </>
       )}
 
       {/* --- Grundriss --- */}
-      <div className="titelzeile" style={{ marginTop: "2.5rem" }}>
-        <h1>Grundriss</h1>
+      <div className="titelzeile">
+        <h2>Grundriss</h2>
         <span className="zaehler ziffern">{grundrisse.length}</span>
       </div>
       <Bildergalerie
@@ -456,7 +471,7 @@ export default async function Einheitenseite({
         leerText="Kein Grundriss als Bild hinterlegt."
       />
       {grundrisse.some((d) => !istBild(d.mime_typ)) && (
-        <div style={{ marginTop: "0.75rem" }}>
+        <div className="abschnitt">
           <DokumentListe
             dokumente={grundrisse.filter((d) => !istBild(d.mime_typ))}
             loeschbar={darfSchreiben}
@@ -469,15 +484,15 @@ export default async function Einheitenseite({
       )}
 
       {/* --- Bilder --- */}
-      <div className="titelzeile" style={{ marginTop: "2rem" }}>
-        <h1>Bilder</h1>
+      <div className="titelzeile">
+        <h2>Bilder</h2>
         <span className="zaehler ziffern">{fotos.length}</span>
       </div>
       <Bildergalerie bilder={fotos} loeschbar={darfSchreiben} />
 
       {/* --- Weitere Dokumente --- */}
-      <div className="titelzeile" style={{ marginTop: "2rem" }}>
-        <h1>Weitere Dokumente</h1>
+      <div className="titelzeile">
+        <h2>Weitere Dokumente</h2>
         <span className="zaehler ziffern">{akten.length}</span>
       </div>
       <DokumentListe dokumente={akten} loeschbar={darfSchreiben} />
@@ -490,9 +505,12 @@ export default async function Einheitenseite({
         />
       )}
 
-      <div className="knopfreihe" style={{ marginTop: "2rem" }}>
-        <Link href={`/objekt/${kopf.objekt_id}`} className="rueckmeldung">
-          Zurück zum Objekt
+      <div className="knopfreihe abschnitt">
+        <Link href={`/objekt/${kopf.objekt_id}`} className="verweis">
+          Zurück zu {kopf.objekt}
+        </Link>
+        <Link href="/objekte" className="verweis">
+          Alle Objekte
         </Link>
       </div>
     </>

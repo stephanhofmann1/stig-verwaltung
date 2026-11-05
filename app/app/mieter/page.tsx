@@ -93,46 +93,29 @@ export default async function Mieterbereich() {
   const miete = mietAnzeige(daten);
 
   return (
+    // Schmale Spalte innerhalb des Rahmens. Fuer genau diesen Fall fehlt im
+    // Stylesheet eine Klasse (etwa .schmal) -- bis es sie gibt, bleibt die
+    // Breite als einziger Inline-Stil dieser Seite stehen.
     <div style={{ maxWidth: "40rem", margin: "2rem auto 0" }}>
-      <h1
-        style={{
-          fontSize: "1.5rem",
-          fontWeight: 700,
-          letterSpacing: "-0.02em",
-          margin: "0 0 0.25rem",
-        }}
-      >
-        Hallo {daten.anzeigename}
-      </h1>
-      <p className="hinweis" style={{ marginBottom: "2rem" }}>
+      <h1>Hallo {daten.anzeigename}</h1>
+      <p className="hinweis">
         {daten.objekt} · {daten.einheit}
         {daten.etage ? ` · ${daten.etage}` : ""}
       </p>
 
-      <section style={{ marginBottom: "2.5rem" }}>
-        <h2 style={{ fontSize: "1rem", fontWeight: 600, margin: "0 0 0.75rem" }}>
-          Ihr Mietverhältnis
-        </h2>
-        <dl
-          style={{
-            display: "grid",
-            gridTemplateColumns: "auto 1fr",
-            gap: "0.4rem 1.5rem",
-            margin: 0,
-          }}
-        >
+      <section className="abschnitt">
+        <h2>Ihr Mietverhältnis</h2>
+        <dl className="datenblatt">
           <dt className="hinweis">Anschrift</dt>
-          <dd style={{ margin: 0 }}>
+          <dd>
             {daten.strasse}, {daten.plz} {daten.ort}
           </dd>
           <dt className="hinweis">Seit</dt>
-          <dd style={{ margin: 0 }}>
-            {new Date(daten.beginn).toLocaleDateString("de-DE")}
-          </dd>
+          <dd>{new Date(daten.beginn).toLocaleDateString("de-DE")}</dd>
           {miete.inklusiv ? (
             <>
               <dt className="hinweis">Miete</dt>
-              <dd style={{ margin: 0 }}>
+              <dd>
                 {euro(String(miete.summe))}
                 <span className="hinweis"> · alles inklusive</span>
               </dd>
@@ -142,80 +125,75 @@ export default async function Mieterbereich() {
               {miete.posten.map((p) => (
                 <Fragment key={p.bezeichnung}>
                   <dt className="hinweis">{p.bezeichnung}</dt>
-                  <dd style={{ margin: 0 }}>{euro(String(p.betrag))}</dd>
+                  <dd>{euro(String(p.betrag))}</dd>
                 </Fragment>
               ))}
               {miete.posten.length > 1 && (
                 <>
                   <dt className="hinweis">Zusammen</dt>
-                  <dd style={{ margin: 0, fontWeight: 600 }}>
-                    {euro(miete.summe === null ? null : String(miete.summe))}
+                  <dd>
+                    <strong>
+                      {euro(miete.summe === null ? null : String(miete.summe))}
+                    </strong>
                   </dd>
                 </>
               )}
             </>
           )}
         </dl>
-        <p className="hinweis" style={{ marginTop: "0.9rem" }}>
+        <p className="hinweis">
           Fällig bis zum dritten Werktag des Monats.
         </p>
       </section>
 
       {stand.length > 0 && (
-        <section style={{ marginBottom: "2.5rem" }}>
-          <h2 style={{ fontSize: "1rem", fontWeight: 600, margin: "0 0 0.75rem" }}>
-            Ihre Mietzahlungen
-          </h2>
-          <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-            {stand.map((m) => (
-              <li
-                key={m.monat}
-                style={{
-                  padding: "0.55rem 0",
-                  borderTop: "1px solid var(--linie, #e5e5e5)",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  gap: "1rem",
-                }}
-              >
-                <span>{monatName(m.monat)}</span>
-                <span
-                  className={m.status === "offen" ? undefined : "hinweis"}
-                  style={{ textAlign: "right" }}
-                >
-                  {TEXT[m.status]}
-                  {m.status === "bezahlt" && m.gezahlt_am
-                    ? ` am ${new Date(m.gezahlt_am).toLocaleDateString("de-DE")}`
-                    : ""}
-                  {m.status === "teilweise"
-                    ? ` (${euro(String(m.gezahlt))} von ${euro(String(m.soll))})`
-                    : ""}
-                </span>
-              </li>
-            ))}
-          </ul>
-          <p className="hinweis" style={{ marginTop: "0.6rem" }}>
+        <section className="abschnitt">
+          <h2>Ihre Mietzahlungen</h2>
+          {/* Monat und Stand sind zwei Spalten derselben Zeile. Als Tabelle
+              bringt das Stylesheet Haarlinien, Zebrastreifen und fluchtende
+              Ziffern mit -- vorher stand beides als Inline-Stil im Markup.
+              Der Stand bleibt linksbündig: .betrag wäre richtig für eine
+              Zahl, setzt aber white-space: nowrap, und "teilweise
+              eingegangen (120,00 € von 580,00 €)" passt dann auf kein
+              Telefon. */}
+          <table>
+            <tbody>
+              {stand.map((m) => (
+                <tr key={m.monat}>
+                  <td>{monatName(m.monat)}</td>
+                  <td className={m.status === "offen" ? undefined : "hinweis"}>
+                    {TEXT[m.status]}
+                    {m.status === "bezahlt" && m.gezahlt_am
+                      ? ` am ${new Date(m.gezahlt_am).toLocaleDateString("de-DE")}`
+                      : ""}
+                    {m.status === "teilweise"
+                      ? ` (${euro(String(m.gezahlt))} von ${euro(String(m.soll))})`
+                      : ""}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="hinweis">
             „Noch nicht abgeglichen" heißt, dass uns für diesen Monat noch
             keine Kontoauszüge vorliegen — nicht, dass etwas offen ist.
           </p>
         </section>
       )}
 
-      <section style={{ marginBottom: "2.5rem" }}>
-        <h2 style={{ fontSize: "1rem", fontWeight: 600, margin: "0 0 0.75rem" }}>
-          Ihre Unterlagen
-        </h2>
-        <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-          <li style={{ padding: "0.35rem 0" }}>
+      <section className="abschnitt">
+        <h2>Ihre Unterlagen</h2>
+        <ul>
+          <li>
             <a href="/mieter/dokument/mietvertrag">Mietvertrag (PDF)</a>
           </li>
-          <li style={{ padding: "0.35rem 0" }}>
+          <li>
             <a href="/mieter/dokument/wohnungsgeberbestaetigung">
               Wohnungsgeberbestätigung (PDF)
             </a>
           </li>
         </ul>
-        <p className="hinweis" style={{ marginTop: "0.6rem" }}>
+        <p className="hinweis">
           Die Wohnungsgeberbestätigung brauchen Sie für die Anmeldung beim
           Einwohnermeldeamt. Lässt sich ein Dokument nicht öffnen, fehlt in
           Ihren Daten noch eine Angabe — melden Sie sich dann bei uns.
@@ -223,66 +201,51 @@ export default async function Mieterbereich() {
       </section>
 
       {dokumente.length > 0 && (
-        <section style={{ marginBottom: "2.5rem" }}>
-          <h2 style={{ fontSize: "1rem", fontWeight: 600, margin: "0 0 0.75rem" }}>
-            Zu Ihrer Wohnung
-          </h2>
-          <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-            {dokumente.map((d) => (
-              <li
-                key={d.id}
-                style={{
-                  padding: "0.6rem 0",
-                  borderTop: "1px solid var(--linie, #e5e5e5)",
-                }}
-              >
-                <a href={`/api/dokumente/${d.id}`} target="_blank" rel="noreferrer">
-                  {d.bezeichnung ?? d.dateiname}
-                </a>
-                <span className="hinweis"> · {ARTEN_TEXT[d.art] ?? d.art}</span>
-              </li>
-            ))}
-          </ul>
+        <section className="abschnitt">
+          <h2>Zu Ihrer Wohnung</h2>
+          <table>
+            <tbody>
+              {dokumente.map((d) => (
+                <tr key={d.id}>
+                  <td>
+                    <a href={`/api/dokumente/${d.id}`} target="_blank" rel="noreferrer">
+                      {d.bezeichnung ?? d.dateiname}
+                    </a>
+                  </td>
+                  <td className="hinweis">{ARTEN_TEXT[d.art] ?? d.art}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </section>
       )}
 
-      <section style={{ marginBottom: "2.5rem" }}>
-        <h2 style={{ fontSize: "1rem", fontWeight: 600, margin: "0 0 0.75rem" }}>
-          Etwas melden
-        </h2>
+      <section className="abschnitt">
+        <h2>Etwas melden</h2>
         <MieterMeldung />
       </section>
 
-      <section>
-        <h2 style={{ fontSize: "1rem", fontWeight: 600, margin: "0 0 0.75rem" }}>
-          Ihre Meldungen
-        </h2>
+      <section className="abschnitt">
+        <h2>Ihre Meldungen</h2>
         {faelle.length === 0 ? (
           <p className="hinweis">Noch nichts offen.</p>
         ) : (
-          <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-            {faelle.map((f) => (
-              <li
-                key={f.referenz}
-                style={{
-                  padding: "0.6rem 0",
-                  borderTop: "1px solid var(--linie, #e5e5e5)",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  gap: "1rem",
-                }}
-              >
-                <span>{f.betreff}</span>
-                <span className="hinweis" style={{ whiteSpace: "nowrap" }}>
-                  {f.status === "erledigt"
-                    ? "erledigt"
-                    : f.status === "wartet"
-                      ? "Antwort unterwegs"
-                      : "offen"}
-                </span>
-              </li>
-            ))}
-          </ul>
+          <table>
+            <tbody>
+              {faelle.map((f) => (
+                <tr key={f.referenz}>
+                  <td>{f.betreff}</td>
+                  <td className="zeit">
+                    {f.status === "erledigt"
+                      ? "erledigt"
+                      : f.status === "wartet"
+                        ? "Antwort unterwegs"
+                        : "offen"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         )}
       </section>
     </div>

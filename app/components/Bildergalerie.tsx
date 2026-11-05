@@ -49,17 +49,35 @@ export function Bildergalerie({
   const einzelnGross = gross && bilder.length === 1;
   const grossesBild = gezeigt ?? (einzelnGross ? bilder[0] : null);
 
+  /*
+   * Was hier noch an Stil im Markup steht und warum:
+   *
+   * Fuer eine Bildergalerie gibt es in globals.css keine Klasse, und die
+   * zugesagten passen nicht. .karten waere das naechste Raster, legt aber
+   * jede Spalte auf mindestens 13 rem fest -- damit faellt der Unterschied
+   * zwischen dem Streifen kleiner Vorschauen (8 rem) und der grossen
+   * Ansicht eines Grundrisses (14 rem) weg, und genau der ist hier der
+   * Zweck. Der Vorschauknopf braucht ausserdem padding: 0 (sonst sitzt das
+   * Bild in einem Knopfrahmen) und eine Randfarbe, die das ausgewaehlte
+   * Bild zeigt -- data-art kennt nur "still" und "gefahr".
+   *
+   * Es fehlen also drei Klassen: ein Bilderstreifen mit zwei Groessen, ein
+   * Bildknopf mit Auswahlzustand und das grosse Bild samt figure. Solange
+   * die nicht da sind, bleibt der Stil hier stehen -- aber mit den
+   * aktuellen Marken statt der Altnamen (--stempel/--papier-tief), damit
+   * der Dunkelmodus stimmt.
+   */
   return (
     <div>
       {!einzelnGross && (
         <div
           style={{
             display: "grid",
-            gap: "0.5rem",
+            gap: "var(--abstand-2)",
             gridTemplateColumns: gross
               ? "repeat(auto-fill, minmax(14rem, 1fr))"
               : "repeat(auto-fill, minmax(8rem, 1fr))",
-            marginBottom: grossesBild ? "1rem" : 0,
+            marginBottom: grossesBild ? "var(--abstand-4)" : 0,
           }}
         >
           {bilder.map((b) => (
@@ -74,7 +92,7 @@ export function Bildergalerie({
                 overflow: "hidden",
                 lineHeight: 0,
                 borderColor:
-                  offen === b.id ? "var(--stempel)" : "var(--linie)",
+                  offen === b.id ? "var(--akzent)" : "var(--linie)",
               }}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -105,13 +123,12 @@ export function Bildergalerie({
               width: "100%",
               height: "auto",
               border: "1px solid var(--linie)",
-              background: "var(--papier-tief)",
+              background: "var(--flaeche-tief)",
             }}
           />
-          <figcaption
-            className="unterzeile"
-            style={{ marginTop: "0.5rem", display: "flex", flexWrap: "wrap", gap: "0.75rem" }}
-          >
+          {/* .unterzeile ist schon Flex mit Umbruch, Abstand und
+              Oberrand -- der Inline-Stil hat das Wort fuer Wort wiederholt. */}
+          <figcaption className="unterzeile">
             <span>{titel(grossesBild)}</span>
             <span>{groesse(grossesBild.groesse_bytes)}</span>
             {grossesBild.mieter_sichtbar && (
@@ -122,7 +139,7 @@ export function Bildergalerie({
             </a>
             <a href={dokumentUrl(grossesBild.id, true)}>herunterladen</a>
             {loeschbar && (
-              <DokumentLoeschen id={grossesBild.id} was={titel(grossesBild)} still />
+              <DokumentLoeschen id={grossesBild.id} was={titel(grossesBild)} />
             )}
           </figcaption>
         </figure>

@@ -22,9 +22,9 @@ const tag = (iso: string | null) =>
  *
  * Das ist die Abdeckungsgrenze des Mahnwesens, und sie ist der
  * unscheinbarste gefährliche Wert im ganzen System: Steht sie zu früh,
- * sehen Monate ohne Kontodaten wie Rückstände aus. Bei Welserstraße 10
- * wären das acht Monate zu je acht Mietverhältnissen — rund 32.000 Euro
- * Rückstand, die es nie gab.
+ * sehen Monate ohne Kontodaten wie Rückstände aus. Bei einem übernommenen
+ * Haus mit acht Mietverhältnissen und acht Monaten vor dem Kontobeginn sind
+ * das rund 32.000 Euro Rückstand, die es nie gab.
  *
  * Darum gehört sie auf den ersten Buchungstag, der wirklich in der
  * Datenbank liegt, und nicht auf das Eröffnungsdatum des Kontos. Genau
@@ -86,15 +86,20 @@ export function KontodatenBeginn({ objekte }: { objekte: ObjektZeile[] }) {
                     Leer — hier wird nie gemahnt.
                   </div>
                 )}
+                {/* Die Marke statt eines festen Rotwerts: eine Farbe im
+                    Markup kippt im Dunkelmodus nicht mit und war dort auf
+                    dunklem Grund kaum noch zu lesen. */}
                 {zuFrueh && (
-                  <div style={{ color: "#b3261e" }}>
+                  <div className="rueckmeldung" data-art="fehler">
                     Zu früh: Für die Zeit bis zur ersten Buchung gibt es keine
                     Kontodaten. Diese Monate erscheinen als Rückstand, obwohl
                     sie nur nicht abgeglichen sind.
                   </div>
                 )}
                 {passt && (
-                  <div style={{ color: "#1b6b3a" }}>Passt zur ersten Buchung.</div>
+                  <div className="rueckmeldung" data-art="gut">
+                    Passt zur ersten Buchung.
+                  </div>
                 )}
               </td>
               <td>
@@ -125,7 +130,9 @@ export function KontodatenBeginn({ objekte }: { objekte: ObjektZeile[] }) {
                   Leeren
                 </button>
                 {fehler[o.id] && (
-                  <div style={{ color: "#b3261e" }}>{fehler[o.id]}</div>
+                  <div className="rueckmeldung" data-art="fehler">
+                    {fehler[o.id]}
+                  </div>
                 )}
               </td>
             </tr>

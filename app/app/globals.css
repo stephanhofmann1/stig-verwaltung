@@ -1,4 +1,15 @@
-@import "@fontsource-variable/archivo";
+@import "@fontsource-variable/instrument-sans";
+@import "@fontsource/instrument-serif";
+@import "@fontsource/instrument-serif/400-italic.css";
+/* Das Mietenbuch-Raster. Lag bis zum 03.11.2026 als 137 Zeilen
+   Zeichenkette in MietenbuchRaster.tsx und wurde bei jedem Rendern ins
+   Dokument geschoben -- die groesste und dichteste Tabelle der Anwendung
+   stand damit ausserhalb des Gestaltungssystems, und jede Ueberarbeitung
+   hier liess sie unveraendert.
+   @import muss am Dateianfang stehen: raster.css kommt also VOR diesen
+   Regeln, bei gleicher Spezifitaet gewinnt globals.css. Die Regeln dort
+   sind deshalb bewusst eine Stufe spezifischer. */
+@import "./raster.css";
 
 /* ===========================================================================
    STIG Verwaltung — Gestaltungssystem
@@ -20,33 +31,66 @@
 :root {
   color-scheme: light dark;
 
+  /* --- Farbe: Papier, Tinte, ein Akzent ------------------------------
+     Umgestellt am 05.11.2026 auf die Tonlage der Produktseite
+     (Artefakt "Hauswerk"). Vorher stand hier ein kühles Registerblau
+     auf blaugrauem Grund -- die Standardtonlage jeder Verwaltungs-
+     software, und genau das war die Rückmeldung: "wirkt kryptisch und
+     computergeneriert".
+
+     Drei Entscheidungen, die den Unterschied machen:
+
+     1. Der Grund ist Papier (#F4F2EE), nicht Blaugrau. Warm, und er
+        nimmt der Oberfläche das Behördenhafte. Die Flächen darüber
+        sind nur eine Spur heller, nicht reinweiß -- sonst entsteht
+        wieder der Karteneffekt, den wir nicht wollen.
+
+     2. Es gibt EINEN Akzent, Bronze. Vorher trug Blau die Links, die
+        Navigation, aktive Zustände und Hinweiskästen zugleich; wenn
+        alles hervorgehoben ist, ist nichts hervorgehoben. Bronze steht
+        jetzt nur noch dort, wo etwas auf eine Entscheidung wartet.
+
+     3. Die Statusfarben bleiben, werden aber entsättigt. Rot und Grün
+        in Signalstärke gehören in eine Ampel, nicht in eine Akte, die
+        jemand den ganzen Tag ansieht. Die Kontrastwerte sind
+        nachgerechnet und stehen an den Werten. */
+
   /* Flächen, von hinten nach vorn */
-  --grund:         #F6F7F9;   /* Seitenhintergrund */
-  --flaeche:       #FFFFFF;   /* Karte, Tabelle, Feld */
-  --flaeche-ruhig: #FAFBFC;   /* Zebrastreifen */
-  --flaeche-tief:  #EFF2F5;   /* Überfahren, Tabellenkopf */
+  --grund:         #F4F2EE;   /* Papier -- Seitenhintergrund */
+  --flaeche:       #FBFAF8;   /* Karte, Tabelle, Feld */
+  --flaeche-ruhig: #F0EEE9;   /* Zebrastreifen */
+  --flaeche-tief:  #EAE7E1;   /* Überfahren, Tabellenkopf */
 
   /* Schrift */
-  --fg:            #15181C;   /* Haupttext */
-  --fg-leise:      #5C6672;   /* Zweite Ebene, Beschriftungen */
-  --fg-still:      #8B949F;   /* Dritte Ebene, Platzhalter */
+  --fg:            #0C0D0E;   /* Tinte (16,8:1 auf Papier) */
+  --fg-leise:      #55575A;   /* Zweite Ebene (7,4:1) */
+  --fg-still:      #6B6D70;   /* Dritte Ebene, Platzhalter (5,4:1) */
 
-  /* Linien */
-  --linie:         #E3E7EB;   /* Haarlinie */
-  --linie-stark:   #CAD1D9;   /* Trennung mit Gewicht */
+  /* Linien. Als Alphawerte, damit dieselbe Haarlinie auf Papier, auf
+     der Karte und auf dem Zebrastreifen gleich schwer wirkt -- ein
+     fester Grauwert tut das nicht. */
+  --linie:         rgba(12, 13, 14, 0.13);
+  --linie-stark:   rgba(12, 13, 14, 0.26);
+  /* Feldränder brauchen 3:1 nach WCAG 1.4.11 -- ein Alphawert, der so
+     weit trägt, wäre als Trennlinie zu schwer. Deshalb ein eigener Ton. */
+  --feldrand:      #8A8C8F;   /* Rand von Eingabefeldern (3,2:1) */
 
-  /* Akzent */
-  --akzent:         #1F4FA8;
-  --akzent-flaeche: #EBF0FA;
+  /* Akzent: Bronze. Sparsam, und nie dekorativ -- er heißt immer
+     "hier wartet etwas auf Sie". */
+  --akzent:         #7A5B2E;  /* 6,2:1 auf Papier */
+  --akzent-flaeche: #F1EADC;
 
-  /* Status. Die hellen Werte sind genau die Inline-Farben, die in den
-     Seiten stehen — dadurch bleibt der alte Code farbgleich. */
-  --gut:            #1b6b3a;
-  --gut-flaeche:    #E8F2EC;
-  --warn:           #8a6d00;
-  --warn-flaeche:   #FBF4E2;
-  --fehl:           #b3261e;
-  --fehl-flaeche:   #FBEAE8;
+  /* Status. Die Inline-Farben in den Seiten werden in Abschnitt 3 auf
+     diese Marken gezogen -- das Markup folgt also mit, auch wenn die
+     Werte hier nicht mehr zeichengleich sind. */
+  --gut:            #2F5D3F;   /* gedämpftes Moos statt Signalgrün */
+  --gut-flaeche:    #E9EFE9;
+  --warn:           #7A5B2E;   /* identisch mit dem Akzent: Bronze heißt warten */
+  --warn-flaeche:   #F1EADC;
+  /* Rot bleibt, aber als Backstein, nicht als Alarm. Es steht in dieser
+     Oberfläche an genau zwei Stellen: Rückstand und gesperrter Vorgang. */
+  --fehl:           #8F342C;   /* 6,1:1 auf Papier */
+  --fehl-flaeche:   #F4E8E5;
 
   /* Formularfelder */
   --feld-flaeche:   #FFFFFF;
@@ -66,28 +110,94 @@
   --kopf-hoehe:    3.25rem;
 
   /* Radien */
-  --radius-s:    5px;
-  --radius-m:    9px;
-  --radius-l:   14px;
+  /* Radiengesetz: Datenflächen sind eckig, Bedienelemente leicht
+     gerundet, Statuspillen rund. --radius-m trugen table, .karte,
+     .register, .entwurf, .tabelle-rolle, .meldung, .leer und pre --
+     sieben verschiedene Dinge im selben Gehäuse. Ein Gehäuse, das
+     alles umschließt, unterscheidet nichts. */
+  --radius-s:    4px;
+  --radius-m:    0;
+  --radius-l:    0;
   --radius-rund: 999px;
 
-  /* Schattierungen — sparsam, nie als Dekor */
-  --schatten-1: 0 1px 2px rgba(15, 20, 28, 0.05);
-  --schatten-2: 0 2px 4px rgba(15, 20, 28, 0.06),
-                0 8px 20px rgba(15, 20, 28, 0.05);
+  /* Schattierungen — keine. Nichts hier liegt über etwas anderem:
+     eine Tabelle ist kein Kaertchen, sie ist eine Seite im Buch. */
+  --schatten-1: none;
+  --schatten-2: none;
 
-  /* Schriftgrößen */
-  --text-xs:  0.75rem;
-  --text-s:   0.8125rem;
-  --text-m:   0.875rem;
-  --text-n:   0.9375rem;   /* Normalmaß der Anwendung */
-  --text-b:   1rem;
-  --text-l:   1.125rem;
-  --text-xl:  1.375rem;
-  --text-2xl: 1.75rem;
+  /* --- Schrift: acht Stufen, jede mit einer Aufgabe -------------------
+     Die alte Skala hatte vier Stufen zwischen 12 und 15 px, zwei davon
+     1 px auseinander. Eine Skala, die niemand unterscheiden kann, wird
+     umgangen -- sechsmal stand fontSize:"1rem" von Hand im Markup.      */
+  --t-mikro:     0.6875rem;  /* 11  Zellen-Unterzeile, Legende, Rasterjahr */
+  --t-klein:     0.8125rem;  /* 13  Tabellenkörper, Meta, Beschriftung    */
+  --t-grund:     0.9375rem;  /* 15  Normalmaß der Oberfläche              */
+  --t-lese:      1rem;       /* 16  Brieftext, Entwurf                    */
+  --t-abschnitt: 1.1875rem;  /* 19  Abschnittskopf                        */
+  /* Am 05.11.2026 angehoben. Vorher lagen Seitentitel (22) und
+     Abschnittskopf (17) fuenf Pixel auseinander -- zu wenig, um eine
+     Rangfolge zu bilden, und der Grund, warum jede Seite gleich
+     aussah. Jetzt traegt der Titel die Seite. */
+  --t-seite:     2rem;       /* 32  Seitentitel                           */
+  --t-zahl:      2.25rem;    /* 36  Kennzahl                              */
+  --t-zahl-xl:   3.5rem;     /* 56  einzelne Leitzahl, Aktenzeichen       */
 
-  --schrift: "Archivo Variable", ui-sans-serif, system-ui,
+  --zh-klein: 1.45;
+  --zh-grund: 1.55;
+  --zh-lese:  1.65;
+  --zh-kopf:  1.25;
+  --zh-zahl:  1.05;
+
+  /* Vier Gewichte, mehr gibt es nicht. 800 und 900 wirken in einem
+     Zahlenwerk wie Geschrei. */
+  --g-text:  400;
+  --g-zahl:  500;
+  --g-kopf:  600;
+  --g-titel: 700;
+
+  /* Breitenachse. Archivo hatte eine, Instrument Sans hat keine -- die
+     Marken bleiben auf 100 stehen, damit die fuenf Regeln, die sie
+     benutzen, wirkungslos durchlaufen statt zu brechen. Die engere
+     Stimme fuer Koepfe und Navigation macht jetzt die Laufweite
+     (--lw-kopf), nicht die Breitenachse. Entfernt werden die Regeln
+     beim naechsten Durchgang durch die betroffenen Abschnitte; sie
+     jetzt blind per Suchen-und-Ersetzen anzufassen waere die Art
+     Aenderung, die man nicht nachpruefen kann. */
+  --b-eng:    100;
+  --b-normal: 100;
+
+  /* Laufweite. Instrument Sans traegt deutlich engere Titel als Archivo
+     -- das ist der halbe Unterschied zwischen "Verwaltungssoftware" und
+     "gestaltet". Je groesser der Grad, desto enger. */
+  --lw-titel: -0.038em;   /* Seitentitel, Kennzahlen */
+  --lw-kopf:  -0.022em;   /* Abschnittskoepfe, Navigation */
+  --lw-text:  -0.008em;   /* Flieschtext */
+  --lw-weit:   0.2em;     /* Versalien-Etiketten */
+  --lw-null:  0;
+
+  /* Zellendichte. 38 Einheiten x 12 Monate muessen auf einen Bildschirm --
+     Dichte ist hier Anforderung, nicht Kompromiss. */
+  --zelle:      0.4375rem 0.6875rem;
+  --zelle-weit: 0.6875rem 0.875rem;
+
+  /* Altnamen zeigen auf die neue Skala, damit keine Seite bricht. */
+  --text-xs:  var(--t-mikro);
+  --text-s:   var(--t-klein);
+  --text-m:   var(--t-klein);
+  --text-n:   var(--t-grund);
+  --text-b:   var(--t-grund);
+  --text-l:   var(--t-abschnitt);
+  --text-xl:  var(--t-seite);
+  --text-2xl: var(--t-zahl);
+
+  /* Instrument Sans trägt die Oberfläche, Instrument Serif setzt den
+     einen kursiven Akzent -- dieselbe Paarung wie auf der Produktseite.
+     Beide liegen über @fontsource im Paket, nicht auf einem fremden
+     CDN: Ein Schriftabruf von Google auf jeder Seite verriete bei
+     Mieterdaten, wer wann welche Akte öffnet. */
+  --schrift: "Instrument Sans Variable", ui-sans-serif, system-ui,
              -apple-system, "Segoe UI", sans-serif;
+  --schrift-betont: "Instrument Serif", Georgia, "Times New Roman", serif;
 
   /* --- Altnamen -------------------------------------------------------
      Diese Marken stehen in Inline-Stilen fremder Dateien. Sie bleiben,
@@ -97,35 +207,39 @@
   --tinte:        var(--fg);
   --tinte-leise:  var(--fg-leise);
   --stempel:      var(--akzent);
-  --stempel-hell: var(--akzent-flaeche);
-  --alarm:        var(--fehl);
-  --alarm-hell:   var(--fehl-flaeche);
-  --gruen:        var(--gut);
 
   /* --- Dunkle Werte, einmal benannt ------------------------------------
      Zugewiesen werden sie unten in zwei Blöcken (Systemvorgabe und
-     data-theme). Nur hier ändern. */
-  --dk-grund:         #0E1116;
-  --dk-flaeche:       #171B21;
-  --dk-flaeche-ruhig: #14181E;
-  --dk-flaeche-tief:  #1E242C;
-  --dk-fg:            #E7EBF0;
-  --dk-fg-leise:      #9BA5B1;
-  --dk-fg-still:      #6D7784;
-  --dk-linie:         #272E37;
-  --dk-linie-stark:   #3A434F;
-  --dk-akzent:          #85A9F2;
-  --dk-akzent-flaeche:  #17243B;
-  --dk-gut:             #5FC98A;
-  --dk-gut-flaeche:     #11251B;
-  --dk-warn:            #DFB54A;
-  --dk-warn-flaeche:    #2A2212;
-  --dk-fehl:            #F28B82;
-  --dk-fehl-flaeche:    #2E1716;
-  --dk-feld-flaeche:    #11151A;
-  --dk-schatten-1: 0 1px 2px rgba(0, 0, 0, 0.5);
-  --dk-schatten-2: 0 2px 4px rgba(0, 0, 0, 0.45),
-                   0 8px 20px rgba(0, 0, 0, 0.4);
+     data-theme). Nur hier ändern.
+
+     Am 05.11.2026 mitgezogen. Die hellen Werte auf Papier umzustellen
+     und das Dunkle blaugrau zu lassen, hiesse zwei Anwendungen zu
+     haben -- und die dunkle waere die alte. Dieselbe Tonlage wie auf
+     der Produktseite: Tiefschwarz statt Marineblau, warmes Weiss statt
+     kuehlem, und ein helleres Bronze, weil der dunkle Ton auf
+     Tiefschwarz nicht mehr traegt. */
+  --dk-grund:         #0C0D0E;
+  --dk-flaeche:       #17181A;
+  --dk-flaeche-ruhig: #121314;
+  --dk-flaeche-tief:  #212325;
+  --dk-fg:            #EDEBE7;
+  --dk-fg-leise:      #A8AAAC;
+  --dk-fg-still:      #8C8E91;   /* 5,6:1 auf --dk-grund */
+  --dk-linie:         rgba(237, 235, 231, 0.14);
+  --dk-linie-stark:   rgba(237, 235, 231, 0.28);
+  /* Bronze, aufgehellt: #7A5B2E erreicht auf #0C0D0E nur 2,4:1. */
+  --dk-akzent:          #C79A5D;  /* 7,9:1 */
+  --dk-akzent-flaeche:  #241C10;
+  --dk-gut:             #86B894;
+  --dk-gut-flaeche:     #14201A;
+  --dk-warn:            #C79A5D;
+  --dk-warn-flaeche:    #241C10;
+  --dk-fehl:            #D99189;
+  --dk-fehl-flaeche:    #251614;
+  --dk-feld-flaeche:    #121314;
+  --dk-feldrand:        #6F7174;   /* 3,4:1 auf --dk-feld-flaeche */
+  --dk-schatten-1: none;
+  --dk-schatten-2: none;
 }
 
 /* --- 2. Marken (dunkel) --------------------------------------------------
@@ -152,6 +266,7 @@
     --fehl: var(--dk-fehl);
     --fehl-flaeche: var(--dk-fehl-flaeche);
     --feld-flaeche: var(--dk-feld-flaeche);
+    --feldrand: var(--dk-feldrand);
     --schatten-1: var(--dk-schatten-1);
     --schatten-2: var(--dk-schatten-2);
   }
@@ -176,51 +291,26 @@
   --fehl: var(--dk-fehl);
   --fehl-flaeche: var(--dk-fehl-flaeche);
   --feld-flaeche: var(--dk-feld-flaeche);
+  --feldrand: var(--dk-feldrand);
   --schatten-1: var(--dk-schatten-1);
   --schatten-2: var(--dk-schatten-2);
 }
 
-/* --- 3. Brücke zu den Inline-Farben -------------------------------------
-   In den Seiten stehen Statusfarben als festes Hex im style-Attribut.
-   Diese Regeln biegen genau diese Werte auf die Marken um. Im Hellmodus
-   ist das wirkungslos (die Marke hat denselben Wert), im Dunkelmodus
-   werden die sonst unlesbar dunklen Farben aufgehellt.
+/* --- 3. (entfallen) ------------------------------------------------------
+   Hier stand eine Brücke: Selektoren der Form [style*="#1b6b3a"] mit
+   !important, die Statusfarben aus den style-Attributen der Seiten auf
+   die Marken umbogen. Sie war nötig, solange 38 feste Hexwerte im
+   Markup standen -- im Dunkelmodus wären sie sonst unlesbar geblieben.
 
-   :not([style*="background"]) lässt Kästen in Ruhe, die eine eigene
-   Hintergrundfarbe mitbringen — die werden unten einzeln behandelt.
+   Eine Brücke ersetzt eine Entscheidung. Sie greift still nicht mehr,
+   sobald jemand eine Farbe anders schreibt, und sie macht aus einem
+   Tippfehler kein Problem, sondern einen unsichtbaren Fehler.
 
-   Neuer Code soll die Marken benutzen, nicht das Hex. */
-
-[style*="#1b6b3a"]:not([style*="background"]) { color: var(--gut) !important; }
-
-[style*="#8a6d00"]:not([style*="background"]),
-[style*="#8a5a00"]:not([style*="background"]) { color: var(--warn) !important; }
-
-[style*="#b3261e"]:not([style*="background"]),
-[style*="#b00"]:not([style*="background"]) { color: var(--fehl) !important; }
-
-[style*="#5b5b66"]:not([style*="background"]),
-[style*="#6b6b6b"]:not([style*="background"]) { color: var(--fg-leise) !important; }
-
-[style*="#1a4f8a"]:not([style*="background"]) { color: var(--akzent) !important; }
-
-/* Der Warnkasten der Bankseite (helles Creme mit braunem Rand). */
-[style*="#fdf8ef"] {
-  background: var(--warn-flaeche) !important;
-  border-color: var(--warn) !important;
-  color: var(--fg) !important;
-}
-
-/* Der Protokollblock der Altdatenübernahme. */
-[style*="#fafafa"] {
-  background: var(--flaeche-ruhig) !important;
-  border-color: var(--linie) !important;
-}
-
-/* Eingabefelder mit fest eingetragenem Weiß. */
-input[style*="#fff"],
-select[style*="#fff"],
-textarea[style*="#fff"] { background: var(--feld-flaeche) !important; }
+   Am 03.11.2026 sind die letzten Inline-Farben aus dem Markup
+   verschwunden (nachgezählt: 0 in app/ und components/). Damit ist die
+   Brücke ersatzlos entfallen -- mit ihr elf der dreizehn !important.
+   Übrig bleiben die zwei berechtigten: prefers-reduced-motion und
+   der Druckblock.                                                      */
 
 /* --- 4. Grundlagen ------------------------------------------------------- */
 
@@ -241,9 +331,12 @@ body {
   background: var(--grund);   /* ausdrücklich, nicht geerbt */
   color: var(--fg);
   font-family: var(--schrift);
-  font-size: var(--text-b);
-  line-height: 1.5;
+  font-size: var(--t-grund);
+  line-height: var(--zh-grund);
+  font-weight: var(--g-text);
+  font-variation-settings: "wdth" var(--b-normal);
   font-synthesis-weight: none;
+  letter-spacing: var(--lw-text);
   overflow-wrap: break-word;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -295,19 +388,46 @@ hr {
   margin: var(--abstand-6) 0;
 }
 
-/* Überschriften. In dieser Anwendung ist h1 auch eine Abschnittszeile —
-   darum eine ruhige Größe statt des Browservorschlags. */
+/* Überschriften. Vorher lagen alle vier auf Gewicht 700 und fast
+   derselben Größe -- das Auge fand keinen Einstieg. Jetzt trägt jede
+   Ebene eine eigene Aufgabe: Seitentitel, Abschnitt, Untergliederung,
+   Beschriftung. */
 h1, h2, h3, h4 {
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  line-height: 1.25;
   color: var(--fg);
   text-wrap: balance;
 }
-h1 { font-size: var(--text-xl); margin: var(--abstand-6) 0 var(--abstand-3); }
-h2 { font-size: var(--text-l); margin: var(--abstand-6) 0 var(--abstand-3); letter-spacing: -0.015em; }
-h3 { font-size: var(--text-b); margin: var(--abstand-5) 0 var(--abstand-2); letter-spacing: -0.01em; }
-h4 { font-size: var(--text-n); margin: var(--abstand-4) 0 var(--abstand-2); letter-spacing: 0; }
+h1 {
+  font-size: var(--t-seite);
+  /* 1.1 statt 1.25: Bei 32 px wirkt die weite Zeile des alten Grades
+     auseinandergefallen. Grosse Schrift braucht engere Zeilen. */
+  line-height: 1.1;
+  /* 600 statt 700. Instrument Sans traegt bei dieser Groesse von selbst;
+     700 wirkt daneben laut. */
+  font-weight: var(--g-kopf);
+  letter-spacing: var(--lw-titel);
+  margin: var(--abstand-6) 0 var(--abstand-3);
+}
+h2 {
+  font-size: var(--t-abschnitt);
+  line-height: var(--zh-kopf);
+  font-weight: var(--g-kopf);
+  letter-spacing: var(--lw-kopf);
+  margin: var(--abstand-6) 0 var(--abstand-3);
+}
+h3 {
+  font-size: var(--t-grund);
+  line-height: var(--zh-kopf);
+  font-weight: var(--g-kopf);
+  margin: var(--abstand-5) 0 var(--abstand-2);
+}
+/* Vierte Ebene ist eine Beschriftung, kein Titel -- deshalb leiser. */
+h4 {
+  font-size: var(--t-klein);
+  line-height: var(--zh-kopf);
+  font-weight: var(--g-kopf);
+  color: var(--fg-leise);
+  margin: var(--abstand-4) 0 var(--abstand-2);
+}
 h1:first-child, h2:first-child, h3:first-child { margin-top: var(--abstand-5); }
 
 p { margin: 0 0 var(--abstand-4); }
@@ -359,6 +479,21 @@ details[open] > summary::before { transform: rotate(90deg); }
   max-width: var(--rahmen-breite);
   margin: 0 auto;
   padding: var(--abstand-2) var(--mass) 6rem;
+
+  /* Sicherer Bereich an den Seiten.
+
+     Der viewport-Export setzt viewportFit: "cover" -- ohne das liefert
+     env(safe-area-inset-*) auf dem iPhone durchgehend 0, und die
+     Fussleiste laege ueber dem Streifen, in dem die Wischgeste wohnt.
+     cover hat eine Kehrseite: Der Inhalt reicht damit auch seitlich bis
+     an den Rand, quer gehalten also unter die Kamera-Aussparung. Dort
+     verschwindet dann die erste Spalte des Mietenbuchs -- und quer ist
+     genau die Haltung, in der man eine breite Tabelle liest.
+
+     max() statt Addition: Auf jedem Geraet ohne Aussparung ist der Wert
+     0, und dann soll der gewohnte Seitenabstand gelten, nicht null. */
+  padding-left: max(var(--mass), env(safe-area-inset-left, 0px));
+  padding-right: max(var(--mass), env(safe-area-inset-right, 0px));
 }
 
 .kopf {
@@ -376,7 +511,10 @@ details[open] > summary::before { transform: rotate(90deg); }
   max-width: var(--rahmen-breite);
   margin: 0 auto;
   min-height: var(--kopf-hoehe);
-  padding: 0 var(--mass);
+  /* Derselbe Grund wie am .rahmen: Quer darf die Wortmarke nicht unter
+     die Aussparung laufen und der Abmeldeknopf nicht hinter den Rand. */
+  padding: 0 max(var(--mass), env(safe-area-inset-right, 0px))
+           0 max(var(--mass), env(safe-area-inset-left, 0px));
   display: flex;
   align-items: center;
   gap: var(--abstand-5);
@@ -395,36 +533,201 @@ details[open] > summary::before { transform: rotate(90deg); }
    Darum rollt die Navigation waagerecht — die Seite selbst bleibt fest.
    Sie füllt die Kopfhöhe, damit der Unterstrich des aktiven Punktes
    genau auf der Haarlinie des Kopfes liegt (daher margin-bottom: -1px). */
+/* Navigation in Gruppen.
+   Vorher: zehn gleichwertige Textlinks nebeneinander in einem waagerecht
+   rollenden Behaelter mit ausgeblendeter Rollleiste. Auf dem Telefon
+   waren damit sechs von zehn Punkten unsichtbar -- ohne jeden Hinweis,
+   dass dort noch etwas ist. Jetzt bricht die Reihe um, statt wegzurollen. */
 .navi {
   display: flex;
-  align-self: stretch;
-  align-items: stretch;
-  gap: var(--abstand-4);
-  font-size: var(--text-n);
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--abstand-3) var(--abstand-5);
+  font-size: var(--t-klein);
   flex: 1 1 auto;
   min-width: 0;
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-  padding: 0;
-  margin-bottom: -1px;
 }
-.navi::-webkit-scrollbar { display: none; }
+
+.navi-gruppe {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  align-items: flex-start;
+  padding-right: var(--abstand-5);
+  border-right: 1px solid var(--linie);
+}
+.navi-gruppe:last-child { border-right: 0; padding-right: 0; }
+
+/* Die Gruppenueberschrift ordnet, sie fuehrt nicht -- deshalb leise,
+   eng und kein Link. */
+.navi-titel {
+  font-size: var(--t-mikro);
+  font-weight: var(--g-kopf);
+  font-variation-settings: "wdth" var(--b-eng);
+  color: var(--fg-still);
+  letter-spacing: 0.01em;
+}
+.navi-punkte {
+  display: flex;
+  align-items: center;
+  gap: var(--abstand-3);
+}
 
 .navi a {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   color: var(--fg-leise);
   white-space: nowrap;
-  border-bottom: 2px solid transparent;
-  transition: color 120ms ease, border-color 120ms ease;
+  text-decoration: none;
+  border-radius: var(--radius-s);
+  padding: 0.125rem 0.25rem;
+  margin-inline: -0.25rem;
+  transition: color 120ms ease, background 120ms ease;
 }
-.navi a:hover { color: var(--fg); }
+.navi a:hover { color: var(--fg); background: var(--flaeche-tief); }
+/* Der aktive Punkt lag frueher als Unterstrich auf der Haarlinie des
+   Kopfes. Mit Gruppen in Spalten geht das nicht mehr -- die Markierung
+   gehoert an den Link selbst. */
 .navi a[data-aktiv="ja"] {
-  color: var(--fg);
-  font-weight: 600;
-  border-bottom-color: var(--akzent);
+  color: var(--akzent);
+  font-weight: var(--g-kopf);
+  background: var(--akzent-flaeche);
+}
+
+/* Abmelden steht neben der Navigation, nicht darin: Lag es im
+   ueberlaufenden Behaelter, war es auf dem Telefon nicht erreichbar. */
+.abmelden { flex: none; margin-inline-start: auto; }
+
+.navi-schalter { display: none; }
+
+/* --- 5b. Die Schiene: Navigation an der linken Kante --------------------
+   Umgebaut am 05.11.2026, aus demselben Anlass wie die Farben.
+
+   Vorher lagen dreizehn Punkte in vier Gruppen quer über die Kopfzeile.
+   Das hatte zwei Fehler, und der zweite ist der schlimmere:
+
+   1. Es passte nicht. Mit der neuen, breiter laufenden Schrift brach
+      die vierte Gruppe in eine zweite Zeile -- die Kopfzeile wurde
+      doppelt so hoch wie geplant, und das sah nach Versehen aus.
+
+   2. Quer gelesen sind dreizehn Punkte eine Liste, die man jedes Mal
+      von vorn durchgeht. Senkrecht sind es vier kurze Listen, die man
+      nach dem zweiten Tag nicht mehr liest, sondern trifft -- die
+      Stelle, an der ein Punkt steht, bleibt gleich, und die Hand merkt
+      sie sich. Genau das meint "intuitiv": nicht hübscher, sondern an
+      derselben Stelle.
+
+   Dass die Schiene so aussieht wie das Mockup auf der Produktseite, ist
+   kein Zufall. Dort ist sie die Zusage; hier muss sie eingelöst werden.
+
+   Der ganze Umbau steht in CSS. Das Markup bleibt, wie es ist -- es
+   stand schon in Gruppen, es stand nur waagerecht. Unterhalb von 1100px
+   bleibt alles beim Alten: Kopfzeile, Menüknopf, Fußleiste. Eine
+   Schiene auf dem Telefon wäre ein Vorhang über der halben Seite. */
+
+@media (min-width: 1100px) {
+  :root { --schiene: 15.5rem; }
+
+  .kopf {
+    position: fixed;
+    inset: 0 auto 0 0;
+    width: var(--schiene);
+    z-index: 30;
+    background: var(--grund);
+    backdrop-filter: none;
+    border-bottom: 0;
+    border-right: 1px solid var(--linie);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .kopf-innen {
+    max-width: none;
+    margin: 0;
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--abstand-5);
+    padding: var(--abstand-5) var(--abstand-5)
+             max(var(--abstand-5), env(safe-area-inset-bottom, 0px))
+             max(var(--abstand-5), env(safe-area-inset-left, 0px));
+  }
+
+  .marke {
+    font-size: var(--t-abschnitt);
+    letter-spacing: var(--lw-titel);
+  }
+
+  .navi {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    gap: var(--abstand-5);
+    font-size: var(--t-grund);
+  }
+
+  .navi-gruppe {
+    gap: 0.0625rem;
+    align-items: stretch;
+    padding-right: 0;
+    border-right: 0;
+  }
+
+  /* Der innere Behälter steht quer -- er ist der eigentliche Grund,
+     warum die Punkte in der Schiene sonst aus dem Bild laufen. */
+  .navi-punkte {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+  }
+
+  /* Versalien mit weiter Laufweite: Das Etikett ordnet, es konkurriert
+     nicht mit den Punkten darunter. Dieselbe Behandlung wie auf der
+     Produktseite. */
+  .navi-titel {
+    font-size: var(--t-mikro);
+    text-transform: uppercase;
+    letter-spacing: var(--lw-weit);
+    color: var(--fg-still);
+    padding: 0 0 var(--abstand-2);
+  }
+
+  /* Die ganze Zeile ist der Weg, nicht das Wort darin. Ein Ziel, das
+     nur so breit ist wie sein Text, zwingt zum Zielen. */
+  .navi a {
+    display: flex;
+    border-radius: 0;
+    padding: 0.4375rem var(--abstand-3);
+    margin-inline: calc(var(--abstand-3) * -1);
+    /* Platz für die Marke des aktiven Punktes, damit beim Wechsel
+       nichts springt. */
+    box-shadow: inset 2px 0 0 transparent;
+  }
+  .navi a:hover { background: var(--flaeche-tief); }
+
+  /* Der aktive Punkt: Tinte statt Akzentfarbe, dazu ein bronzener
+     Strich an der Kante. Vorher lag der Punkt in einer blauen Fläche --
+     das sah aus wie ein Hinweis, nicht wie ein Standort. */
+  .navi a[data-aktiv="ja"] {
+    color: var(--fg);
+    font-weight: var(--g-kopf);
+    background: transparent;
+    box-shadow: inset 2px 0 0 var(--akzent);
+  }
+
+  /* Abmelden an den Fuß der Schiene. Erreichbar, aber nicht im Weg. */
+  .abmelden {
+    margin-inline-start: 0;
+    margin-top: auto;
+    align-self: flex-start;
+  }
+
+  /* Der Inhalt rückt neben die Schiene. */
+  .rahmen {
+    margin-left: var(--schiene);
+    max-width: calc(var(--rahmen-breite) + 8rem);
+  }
 }
 
 /* --- 6. Seitentitel und Hinweise ---------------------------------------- */
@@ -462,13 +765,19 @@ p.hinweis {
 
 /* --- 7. Register (Liste aus Posten) ------------------------------------- */
 
+/* Das Register ist eine Seite im Buch, kein Kasten auf dem Tisch.
+   Darum kein Rahmen ringsum und keine eigene Fläche -- nur eine
+   Haarlinie oben und unten, und die Zeilen liegen auf dem Papier.
+   Der Kasten war der Hauptgrund, warum die Listen wie ein
+   Verwaltungsformular wirkten: Er zog eine Grenze um Inhalt, der
+   keine braucht. */
 .register {
-  border: 1px solid var(--linie);
-  border-radius: var(--radius-m);
-  background: var(--flaeche);
-  box-shadow: var(--schatten-1);
-  overflow: hidden;
-  margin-bottom: var(--abstand-5);
+  border: 0;
+  border-top: 1px solid var(--linie);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  margin-bottom: var(--abstand-6);
 }
 
 .posten {
@@ -476,14 +785,20 @@ p.hinweis {
   grid-template-columns: 3.5rem minmax(0, 1fr) auto;
   gap: 0 var(--abstand-4);
   align-items: baseline;
-  padding: var(--abstand-3) var(--abstand-4);
+  /* Mehr Luft als vorher. Eine Zeile, die man treffen soll, braucht
+     Höhe -- und eine Liste, die man überfliegt, braucht Abstand
+     zwischen den Zeilen mehr als Rahmen um sie herum. */
+  padding: var(--abstand-4) var(--abstand-4) var(--abstand-4) var(--abstand-3);
   border-bottom: 1px solid var(--linie);
-  border-left: 3px solid transparent;
-  transition: background 100ms ease;
+  /* 2px statt 3px, und als inset-Schatten statt als Rand: So springt
+     die Zeile nicht um drei Pixel, wenn aus "ruhig" "heikel" wird. */
+  border-left: 0;
+  box-shadow: inset 2px 0 0 transparent;
+  transition: background 120ms ease, box-shadow 120ms ease;
 }
-.register > .posten:last-child { border-bottom: 0; }
-.posten:hover { background: var(--flaeche-tief); }
-.posten[data-heikel="ja"] { border-left-color: var(--fehl); }
+.register > .posten:last-child { border-bottom: 1px solid var(--linie); }
+.posten:hover { background: var(--flaeche); box-shadow: inset 2px 0 0 var(--linie-stark); }
+.posten[data-heikel="ja"] { box-shadow: inset 2px 0 0 var(--fehl); }
 
 .nummer {
   color: var(--fg-still);
@@ -694,47 +1009,55 @@ td.betrag { font-weight: 500; }
 
 /* --- 10. Schilder und Statuspunkte -------------------------------------- */
 
+/* Am 05.11.2026 von Pillen auf Versalien umgestellt.
+
+   Eine gerahmte, gefüllte, runde Pille ist ein Abzeichen: Sie ruft
+   "sieh her", und zwar jede einzeln. In einer Liste mit sechs Zeilen,
+   von denen vier eine tragen, rufen alle gleichzeitig -- und die Liste
+   zerfällt in bunte Punkte statt in eine Rangfolge. Dieselbe Angabe als
+   kleines Versalienwort ohne Rahmen und ohne Fläche liest sich im
+   Vorbeigehen und drängt sich nicht vor den Betreff.
+
+   Die Farbe trägt die Bedeutung allein, und sie tut es sparsam: Bronze
+   heißt "wartet auf Sie", Backstein heißt "gesperrt oder im Rückstand",
+   alles andere bleibt grau. Weil Farbe allein nie genügt, steht das Wort
+   selbst daneben -- "heikel", "Entwurf wartet" -- und nicht nur ein
+   Punkt. */
 .marker,
 .schild {
   display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
-  font-size: var(--text-xs);
-  font-weight: 600;
+  gap: 0.3125rem;
+  font-size: var(--t-mikro);
+  font-weight: var(--g-kopf);
   line-height: 1.4;
-  padding: 0.125rem 0.4375rem;
-  border: 1px solid var(--linie);
-  border-radius: var(--radius-rund);
-  color: var(--fg-leise);
-  background: var(--flaeche);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  color: var(--fg-still);
+  background: transparent;
   white-space: nowrap;
 }
 .marker[data-art="heikel"],
 .marker[data-art="fehl"],
 .schild[data-art="fehl"] {
-  border-color: color-mix(in srgb, var(--fehl) 45%, transparent);
   color: var(--fehl);
-  background: var(--fehl-flaeche);
 }
 .marker[data-art="agent"],
 .marker[data-art="info"],
 .schild[data-art="info"] {
-  border-color: color-mix(in srgb, var(--akzent) 45%, transparent);
   color: var(--akzent);
-  background: var(--akzent-flaeche);
 }
 .marker[data-art="whatsapp"],
 .marker[data-art="gut"],
 .schild[data-art="gut"] {
-  border-color: color-mix(in srgb, var(--gut) 45%, transparent);
   color: var(--gut);
-  background: var(--gut-flaeche);
 }
 .marker[data-art="warn"],
 .schild[data-art="warn"] {
-  border-color: color-mix(in srgb, var(--warn) 45%, transparent);
   color: var(--warn);
-  background: var(--warn-flaeche);
 }
 
 /* Statuspunkt: ein Punkt vor dem Text, kein Wort. */
@@ -794,11 +1117,6 @@ button[data-art="still"]:hover {
 }
 
 /* Aktion, die etwas unwiederbringlich tut. */
-button[data-art="gefahr"] {
-  background: var(--fehl);
-  border-color: var(--fehl);
-  color: #fff;
-}
 button[data-art="gefahr"]:hover { background: color-mix(in srgb, var(--fehl) 85%, #000); }
 
 button:disabled,
@@ -830,7 +1148,7 @@ input, select, textarea {
   font-weight: 400;
   color: var(--fg);
   background: var(--feld-flaeche);
-  border: 1px solid var(--linie-stark);
+  border: 1px solid var(--feldrand);
   border-radius: var(--radius-s);
   padding: 0.4375rem 0.625rem;
   max-width: 100%;
@@ -982,6 +1300,932 @@ input[type="file"] {
   margin: 0;
 }
 
+/* --- 14b. Wege, stille Zeilen und wiederkehrende Bauteile ----------------
+   Diese Regeln ersetzen Inline-Stile, die bisher in den Seiten standen.
+   Eine Farbe im Markup entzieht sich dem Dunkelmodus und jeder späteren
+   Änderung — genau dafür standen in Abschnitt 3 die Flucht-Selektoren,
+   die auf Inline-Werte zielen. Sie fallen weg, sobald die Seiten hier
+   angekommen sind. */
+
+/* Ein Weg, kein Zustand.
+   Verweise trugen bisher die Klasse .marker — dieselbe Pille wie
+   "kritisch" oder "heikel". Wer einen Weg wie ein Urteil aussehen lässt,
+   bringt dem Nutzer bei, Urteile zu übersehen. */
+.verweis {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--abstand-1);
+  padding: 0.1875rem 0.5rem;
+  border: 1px solid var(--akzent);
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--akzent);
+  font-size: var(--text-s);
+  font-weight: 600;
+  line-height: 1.4;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.verweis:hover { background: var(--akzent-flaeche); }
+.verweis:focus-visible {
+  outline: 2px solid var(--akzent);
+  outline-offset: 2px;
+}
+
+/* Steht ein Verweis in einer Knopfreihe, ist er ein Bedienelement und
+   braucht am Telefon dasselbe Tippziel wie ein Knopf daneben. */
+@media (max-width: 40rem) {
+  .knopfreihe .verweis {
+    min-height: 2.75rem;
+    padding-inline: var(--abstand-4);
+  }
+}
+
+/* Eine Zeile ohne Ziel darf nicht aufleuchten.
+   .posten:hover verspricht Klickbarkeit; 18 von 20 Vorkommen waren divs
+   ohne Ziel. Die Oberfläche hat an 18 Stellen etwas versprochen, das sie
+   nicht halten konnte. */
+.posten[data-still="ja"]:hover {
+  background: transparent;
+  cursor: default;
+}
+
+/* Rückmeldung mit Urteil.
+   Es gab nur den Fehlerfall, deshalb standen Erfolgs- und Warnsätze als
+   Inline-Farbe im Markup — und waren im Dunkelmodus unlesbar. */
+.rueckmeldung[data-art="gut"]    { color: var(--gut); }
+.rueckmeldung[data-art="warn"]   { color: var(--warn); }
+.rueckmeldung[data-art="fehler"] { color: var(--fehl); }
+
+/* Datenblatt: Begriff links, Wert rechts.
+   Stand viermal wortgleich als Inline-Grid in den Detailseiten. */
+.datenblatt {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--abstand-1) var(--abstand-5);
+  margin: 0;
+}
+.datenblatt dt { color: var(--fg-leise); }
+.datenblatt dd { margin: 0; }
+
+/* Formularraster.
+   Stand fünfmal inline — mit fünf verschiedenen Mindestbreiten für
+   dieselbe Sache. */
+.feldraster {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: var(--abstand-3);
+  align-items: end;
+}
+
+/* Protokollblock eines Import- oder Prüfdurchlaufs. */
+.protokoll {
+  max-height: 22rem;
+  overflow: auto;
+  background: var(--flaeche-ruhig);
+  border: 1px solid var(--linie);
+  border-radius: var(--radius-m);
+  padding: var(--abstand-3);
+  font-size: var(--text-s);
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+/* Abschnittskopf.
+   h1 wurde bisher als Trennlinie benutzt — acht davon auf einer Seite
+   sind für einen Screenreader acht Dokumente. */
+.abschnitt { margin-top: var(--abstand-7); }
+.abschnitt:first-child { margin-top: 0; }
+
+
+/* --- 14c. Hierarchie, Zahlensatz und das Erkennungszeichen --------------
+   Bis hierhin war die Oberfläche eine Fläche: Überschrift, Beschriftung,
+   Wert und Fließtext lagen fast auf derselben Größe, und das Auge fand
+   keinen Einstieg. Dieser Abschnitt gibt den drei Dingen Gewicht, auf die
+   es ankommt — Zahl, Urteil, Weg. */
+
+/* Köpfe und Navigation in der engeren Stimme derselben Familie. Keine
+   Versalien: "SOLL" in Großbuchstaben liest sich langsamer als "Soll"
+   und gewinnt nichts. */
+th,
+.navi a,
+.kennzahl-schild,
+.mb-monat {
+  font-variation-settings: "wdth" var(--b-eng);
+  text-transform: none;
+}
+
+/* --- Zahlensatz ---------------------------------------------------------
+   Der Teil, der über Vertrauen entscheidet. Eine Spalte, die beim Wechsel
+   von Plus zu Minus springt, lässt den Leser zweimal hinsehen. */
+.betrag,
+td.betrag,
+th.betrag,
+.ziffern,
+.kennzahl-wert,
+.aktenzeichen,
+.nummer {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+  font-variant-ligatures: none;
+}
+td.betrag,
+th.betrag {
+  text-align: right;
+  white-space: nowrap;
+  font-weight: var(--g-zahl);
+}
+
+/* Die Kennzahl ist die einzige Stelle, an der eine Zahl laut sein darf. */
+.kennzahl-wert {
+  font-size: var(--t-zahl);
+  line-height: var(--zh-zahl);
+  font-weight: var(--g-titel);
+  letter-spacing: var(--lw-titel);
+}
+.kennzahl-schild {
+  font-size: var(--t-klein);
+  font-weight: var(--g-kopf);
+  color: var(--fg-leise);
+}
+
+/* --- Kennzahlenband -----------------------------------------------------
+   Vier Zahlen einer Aussage sind ein Objekt, keine vier schwebenden
+   Kärtchen. Haarlinien statt Lücken, ein Rahmen außen herum. */
+.karten {
+  gap: 0;
+  border: 1px solid var(--linie);
+  background: var(--flaeche);
+}
+.karten > .karte {
+  border: 0;
+  border-left: 1px solid var(--linie);
+  border-radius: 0;
+  margin: 0;
+  box-shadow: none;
+  padding: var(--abstand-4);
+}
+.karten > .karte:first-child { border-left: 0; }
+
+/* --- Die Randspalte — das Erkennungszeichen -----------------------------
+   Jede Zeile, an der Geld oder eine Frist hängt, trägt links eine Zahl in
+   Tabellenziffern und eine 3 px breite Kante, deren Farbe das Urteil ist:
+   der Haken, den ein Buchhalter an den Rand macht. Die Zahl links ist
+   immer eine Angabe — Resttage, Monat, Laufnummer —, nie eine
+   Ordnungsnummer, die nichts bedeutet. */
+.posten > .nummer,
+.randspalte > .nummer {
+  font-size: var(--t-klein);
+  font-weight: var(--g-zahl);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--fg-still);
+}
+.posten[data-urteil="fehl"]     { box-shadow: inset 2px 0 0 var(--fehl); }
+.posten[data-urteil="warn"]     { box-shadow: inset 2px 0 0 var(--warn); }
+.posten[data-urteil="gut"]      { box-shadow: inset 2px 0 0 var(--gut); }
+.posten[data-urteil="handlung"] { border-left-color: var(--akzent); }
+.posten[data-urteil="fehl"] > .nummer { color: var(--fehl); font-weight: var(--g-kopf); }
+.posten[data-urteil="warn"] > .nummer { color: var(--warn); }
+
+/* --- Verdichtete Fristenzeile -------------------------------------------
+   Eine Frist war ein Block aus Titel, Schild, Betrag und zwei Absätzen.
+   Drei davon passten nicht auf einen Bildschirm. Jetzt eine Zeile, die
+   man überfliegt; die Begründung steht eingeklappt darunter. */
+.zeile-frist {
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr) auto auto;
+  gap: 0 var(--abstand-4);
+  align-items: baseline;
+  padding: var(--zelle-weit);
+  border-bottom: 1px solid var(--linie);
+  border-left: 3px solid transparent;
+}
+.zeile-frist:last-child { border-bottom: 0; }
+.zeile-frist[data-urteil="fehl"] { border-left-color: var(--fehl); }
+.zeile-frist[data-urteil="warn"] { border-left-color: var(--warn); }
+.zeile-frist .rest {
+  font-size: var(--t-klein);
+  font-weight: var(--g-kopf);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--fg-leise);
+}
+.zeile-frist[data-urteil="fehl"] .rest { color: var(--fehl); }
+.zeile-frist .titel { font-weight: var(--g-kopf); }
+.zeile-frist .datum { font-size: var(--t-klein); color: var(--fg-leise); white-space: nowrap; }
+
+/* --- Eingeklappte Erklärung ---------------------------------------------
+   Die langen Erklärtexte sind der Grund, weshalb man dieser Anwendung
+   glaubt — sie sagen, warum eine Zahl so ist. Aber sie gehören nicht vor
+   die Zahl, sondern dahinter. */
+.erklaerung {
+  margin-top: var(--abstand-2);
+  font-size: var(--t-klein);
+  line-height: var(--zh-klein);
+  color: var(--fg-leise);
+}
+.erklaerung > summary {
+  cursor: pointer;
+  color: var(--akzent);
+  font-weight: var(--g-kopf);
+  list-style: none;
+}
+.erklaerung > summary::-webkit-details-marker { display: none; }
+.erklaerung > summary::before {
+  content: "▸";
+  display: inline-block;
+  width: 1em;
+  transition: transform 120ms ease;
+}
+.erklaerung[open] > summary::before { transform: rotate(90deg); }
+.erklaerung > :not(summary) { margin-top: var(--abstand-2); }
+
+/* Hier stand bis zum 05.11.2026 eine ZWEITE Festlegung von
+   .navi-gruppe -- tausend Zeilen hinter der ersten (Abschnitt 5) und
+   mit anderen Werten: align-items:center statt flex-start, gap 0,75rem
+   statt 0,125rem. Weil sie später steht, gewann sie bei gleicher
+   Spezifität, und die erste Festlegung war bis auf flex-direction tot.
+   Aufgefallen ist es erst, als die Schiene gebaut wurde: Deren
+   Zurücksetzung von border-right lief ins Leere, und neben jeder
+   Gruppe stand weiter ein senkrechter Strich.
+
+   Die Regel steht jetzt nur noch in Abschnitt 5. Wer hier etwas zur
+   Navigation ergänzen will: dorthin. */
+.navi-schalter {
+  display: none;
+  background: transparent;
+  border: 1px solid var(--linie-stark);
+  border-radius: var(--radius-s);
+  padding: 0.25rem 0.5rem;
+  color: var(--fg);
+  font-size: var(--t-klein);
+  font-weight: var(--g-kopf);
+}
+
+@media (max-width: 40rem) {
+  /* Im Band wird aus Nebeneinander ein Untereinander — dann trennt die
+     Haarlinie oben statt links. */
+  .karten > .karte { border-left: 0; border-top: 1px solid var(--linie); }
+  .karten > .karte:first-child { border-top: 0; }
+
+  .zeile-frist { grid-template-columns: 3.5rem minmax(0, 1fr); }
+  .zeile-frist .datum { grid-column: 2; }
+
+  .navi-schalter { display: inline-flex; }
+  .navi-gruppe { border-right: 0; padding-right: 0; }
+
+  /* Unter 40rem ist die Navigation ein Feld unter der Kopfzeile, kein
+     weggerollter Streifen. .kopf ist sticky und damit positioniert. */
+  .navi[data-offen="nein"] { display: none; }
+  .navi[data-offen="ja"] {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    flex-direction: column;
+    gap: var(--abstand-4);
+    background: var(--grund);
+    border-bottom: 1px solid var(--linie);
+    padding: var(--abstand-4) var(--mass);
+    overflow-y: auto;
+    max-height: calc(100dvh - var(--kopf-hoehe));
+    z-index: 20;
+  }
+  .navi[data-offen="ja"] .navi-punkte { flex-direction: column; align-items: flex-start; gap: 0; }
+  .navi[data-offen="ja"] a { min-height: 2.75rem; width: 100%; }
+}
+
+
+/* --- 14d. Was beim Aufraeumen gefehlt hat ------------------------------
+   Diese fuenf Regeln stammen aus einem Befund: Es waren die Stellen, an
+   denen ein Inline-Stil nicht ersetzt werden konnte, weil es nichts gab,
+   wogegen man ihn haette tauschen koennen. */
+
+/* Ein h2 in der Titelzeile bringt sonst seinen eigenen Oberrand mit und
+   schiebt die Zeile auseinander. Gestylt war nur h1. */
+.titelzeile h2 {
+  font-size: var(--t-abschnitt);
+  margin: 0;
+}
+
+/* Der graue Nebensatz erbte das Gewicht 600 vom Betreff darueber --
+   leise sieht anders aus. */
+.hinweis { font-weight: var(--g-text); }
+
+/* p.hinweis setzt margin als Kurzschreibweise und damit auch den
+   Oberrand auf 0. Ohne diese Zeile laesst sich ein Hinweisabsatz nicht
+   als Abschnittsbeginn verwenden. */
+p.hinweis.abschnitt { margin-top: var(--abstand-7); }
+
+/* Eine Rueckmeldung, die weder gut noch schlecht ist, sondern nur sagt,
+   was passieren wuerde -- die Probelauf-Zeilen des Altdatenimports. */
+.rueckmeldung[data-art="info"] { color: var(--akzent); }
+
+/* Ein Formular, das so breit wird wie der Rahmen, liest sich nicht.
+   Vier Seiten hielten ihre Breite deshalb per Inline-Stil fest. */
+.schmal { max-width: 32rem; }
+
+/* --- 14e. Kennwerke — eine Zahl, die eine Aussage über Geld macht -------
+   Der Unterschied zur Kennzahl in Abschnitt 9 ist nicht die Größe, sondern
+   die dritte Zeile. Eine Kennzahl im Cockpit zählt etwas ("4 warten auf
+   Freigabe"). Ein Kennwerk behauptet eine wirtschaftliche Größe — eine
+   Netto-Mietrendite, einen Vervielfältiger, einen Cashflow —, und die ist
+   immer nur so gut wie ihre Eingangsgrößen.
+
+   Darum hat jedes Kennwerk Platz für eine Begründungszeile, und die ist
+   nicht Zierde: Eine Rendite, die ohne Kaufpreis gerechnet wurde, ist
+   keine Rendite, sondern eine Zahl. Steht kein Wert zur Verfügung, zeigt
+   das Kennwerk einen Gedankenstrich und sagt in der dritten Zeile, was
+   fehlt — nie eine Null. Eine Null, die "unbekannt" meint, ist die
+   gefährlichste Anzeige dieser Anwendung. */
+.kennwerk {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+}
+.kennwerk-schild {
+  font-size: var(--t-klein);
+  font-weight: var(--g-kopf);
+  color: var(--fg-leise);
+  font-variation-settings: "wdth" var(--b-eng);
+}
+.kennwerk-wert {
+  font-size: var(--t-zahl);
+  line-height: var(--zh-zahl);
+  font-weight: var(--g-titel);
+  letter-spacing: var(--lw-titel);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+/* Die Einheit gehört zur Zahl, drängt sich aber nicht neben sie: halbes
+   Gewicht, zwei Drittel Größe, kein eigener Zeilenumbruch. */
+.kennwerk-wert small,
+.kennwerk-einheit {
+  font-size: 0.6em;
+  font-weight: var(--g-zahl);
+  letter-spacing: var(--lw-null);
+  margin-left: 0.15em;
+  color: var(--fg-leise);
+  white-space: nowrap;
+}
+.kennwerk-wert[data-art="gut"]  { color: var(--gut); }
+.kennwerk-wert[data-art="warn"] { color: var(--warn); }
+.kennwerk-wert[data-art="fehl"] { color: var(--fehl); }
+
+/* Die Begründung. --fg-leise und nicht --fg-still: Dieser Satz trägt die
+   Information, ob man der Zahl darüber glauben darf. Dritte Ebene wäre die
+   falsche Ebene. */
+.kennwerk-grund {
+  font-size: var(--t-klein);
+  line-height: var(--zh-klein);
+  color: var(--fg-leise);
+  text-wrap: pretty;
+}
+
+/* Kein Wert vorhanden: Der Gedankenstrich tritt zurück, damit das Auge
+   nicht eine Zahl zu lesen versucht, die nicht da ist. Der Grund daneben
+   bleibt in voller Lesbarkeit. */
+.kennwerk[data-leer="ja"] .kennwerk-wert { color: var(--fg-still); }
+.kennwerk[data-leer="ja"] .kennwerk-grund { color: var(--fg-leise); }
+
+/* Woraus gerechnet wurde. Steht unter der Begründung, in der dritten
+   Ebene, weil es die Nachprüfung betrifft und nicht die Aussage. */
+.kennwerk-grundlage {
+  font-size: var(--t-mikro);
+  line-height: var(--zh-klein);
+  color: var(--fg-still);
+}
+
+/* --- 14f. Filterleiste --------------------------------------------------
+   Ein Ausschnitt muss aussehen wie ein Ausschnitt. Das Mietenbuch hat bei
+   drei Häusern über fünfzig Zeilen, und wer nach einer Einheit filtert,
+   sieht danach Summen, die nur noch für die sichtbaren Zeilen gelten.
+   Deshalb steht die Leiste über dem Raster und nicht daneben, und was
+   gesetzt ist, steht als abziehbare Marke darin — nicht nur als gefüllte
+   Auswahlliste, die man überliest. */
+.filterleiste {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--abstand-3);
+  background: var(--flaeche);
+  border: 1px solid var(--linie);
+  border-radius: var(--radius-m);
+  padding: var(--abstand-3);
+  margin-bottom: var(--abstand-4);
+}
+.filterleiste-feld {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1875rem;
+  min-width: 0;
+}
+.filterleiste-feld > label,
+.filterleiste-feld > span:first-child {
+  font-size: var(--t-mikro);
+  font-weight: var(--g-kopf);
+  color: var(--fg-leise);
+  font-variation-settings: "wdth" var(--b-eng);
+}
+.filterleiste-feld select,
+.filterleiste-feld input {
+  min-width: 9rem;
+}
+/* Das Freitextfeld darf den Platz nehmen, der übrig ist. */
+.filterleiste-feld[data-breit="ja"] { flex: 1 1 14rem; }
+.filterleiste-feld[data-breit="ja"] input { width: 100%; }
+
+/* Was der Filter weglässt — eine Marke, deren Weg sie wieder entfernt.
+   Bewusst nicht .marker aus Abschnitt 10: Das ist eine Pille für ein
+   Urteil ("kritisch", "heikel"). Ein Filter ist kein Urteil. */
+.filter-marke {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--abstand-1);
+  padding: 0.1875rem 0.5rem;
+  border: 1px solid var(--akzent);
+  border-radius: var(--radius-rund);
+  background: var(--akzent-flaeche);
+  color: var(--akzent);
+  font-size: var(--t-klein);
+  font-weight: var(--g-kopf);
+  line-height: 1.4;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.filter-marke::after {
+  content: "×";
+  font-size: 1.1em;
+  line-height: 1;
+  opacity: 0.75;
+}
+.filter-marke:hover { background: var(--flaeche-tief); }
+.filter-marke:focus-visible { outline: 2px solid var(--akzent); outline-offset: 2px; }
+
+.filter-zurueck {
+  font-size: var(--t-klein);
+  font-weight: var(--g-kopf);
+  color: var(--akzent);
+  text-decoration: none;
+  margin-left: auto;
+  align-self: center;
+}
+.filter-zurueck:hover { text-decoration: underline; }
+
+/* --- 14g. Diagramme ----------------------------------------------------
+   Reines SVG, keine Diagrammbibliothek. Die Maße stehen im Markup, weil
+   sie Daten sind; die Farbe kommt von hier, weil sie Gestaltung ist.
+
+   Das Verfahren: Die Hülle setzt `color`, die Formen zeichnen in
+   `currentColor` und staffeln sich über die Deckkraft. Damit stimmt jedes
+   Diagramm im Dunkelmodus von selbst — ein `fill="#1D3FA0"` im Markup
+   täte das nicht, und niemand prüft ein Diagramm bei Nacht nach. */
+.diagramm {
+  color: var(--akzent);
+  margin: var(--abstand-3) 0;
+}
+.diagramm-flaeche {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+/* Gitter und Nulllinie: sichtbar genug, um Höhen zu vergleichen, blass
+   genug, um nicht mit einer Reihe verwechselt zu werden. */
+.diagramm-gitter {
+  stroke: var(--linie-stark);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+  fill: none;
+}
+.diagramm-achse {
+  fill: var(--fg-still);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+  font-variation-settings: "wdth" var(--b-eng);
+}
+
+/* Die Reihen. Benannt statt eingefärbt: Wer "soll" schreibt, muss nicht
+   wissen, welches Blau gerade gilt. Die Namen decken beide Schreibweisen
+   ab, die in den Bauteilen vorkommen (data-reihe und data-art). */
+.diagramm [data-reihe="soll"],
+.diagramm [data-art="soll"]       { color: var(--fg-leise); }
+.diagramm [data-reihe="ist"],
+.diagramm [data-art="ist"]        { color: var(--akzent); }
+.diagramm [data-reihe="kalt"],
+.diagramm [data-art="kalt"]       { color: var(--akzent); }
+.diagramm [data-reihe="bk"],
+.diagramm [data-art="bk"]         { color: var(--fg-leise); }
+.diagramm [data-reihe="offen"],
+.diagramm [data-art="offen"]      { color: var(--fehl); }
+.diagramm [data-reihe="gut"],
+.diagramm [data-art="gut"]        { color: var(--gut); }
+.diagramm [data-reihe="warn"],
+.diagramm [data-art="warn"]       { color: var(--warn); }
+.diagramm [data-reihe="fehl"],
+.diagramm [data-art="fehl"]       { color: var(--fehl); }
+.diagramm [data-reihe="still"],
+.diagramm [data-art="still"]      { color: var(--fg-still); }
+.diagramm [data-reihe="akzent"],
+.diagramm [data-art="akzent"]     { color: var(--akzent); }
+
+/* Eine Lücke ist keine Null. Ein Monat ohne Kontodaten wird schraffiert
+   statt auf Null gezeichnet — eine Linie, die auf Null fällt, weil Daten
+   fehlen, ist in dieser Anwendung der teuerste Fehler: Aus ihr entsteht
+   eine Mahnung an jemanden, der bezahlt hat. */
+.diagramm [data-luecke="ja"] {
+  color: var(--fg-still);
+  stroke-dasharray: 3 3;
+}
+
+/* Das Lückenband über einer Spalte ohne Aussage.
+
+   Blasses Grau allein trägt die Aussage nicht: Es sieht aus wie ein sehr
+   kleiner Wert, und genau diese Verwechslung soll das Band verhindern.
+   Eine Schraffur ist kein Wert — sie wird als „hier steht nichts"
+   gelesen und bleibt es auch auf einem Schwarzweißausdruck und für ein
+   Auge, das den Grauwert nicht vom Hintergrund trennt.
+
+   Das Muster wird einmal definiert und über fill="url(#luecken-muster)"
+   verwendet; wo das Bauteil stattdessen eine Fläche zeichnet, greift die
+   Deckkraft darunter. */
+.diagramm-luecke {
+  fill: var(--fg-still);
+  fill-opacity: 0.1;
+}
+.diagramm-luecke-strich {
+  stroke: var(--fg-still);
+  stroke-opacity: 0.45;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.diagramm-legende {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--abstand-2) var(--abstand-4);
+  margin-top: var(--abstand-2);
+  font-size: var(--t-klein);
+  color: var(--fg-leise);
+  /* Die Legende ist als <ul>/<li> ausgezeichnet -- richtig so, es ist
+     eine Aufzaehlung, und eine Vorlesesoftware nennt dann ihre Laenge.
+     Sichtbare Aufzaehlungspunkte neben den Farbtupfern waeren aber zwei
+     Marken je Eintrag. Also Semantik behalten, Punkte weg. */
+  list-style: none;
+  padding-left: 0;
+  margin-bottom: 0;
+}
+.diagramm-marke {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--abstand-2);
+  white-space: nowrap;
+}
+/* Der Farbtupfer nimmt die Farbe der Reihe, die er benennt — dieselbe
+   Regel wie im Diagramm, deshalb dieselben Selektoren oben. */
+.diagramm-marke::before {
+  content: "";
+  width: 0.75rem;
+  height: 0.75rem;
+  flex: 0 0 auto;
+  background: currentColor;
+  border: 1px solid currentColor;
+}
+.diagramm-marke[data-form="umriss"]::before { background: transparent; }
+.diagramm-marke[data-form="linie"]::before {
+  height: 0;
+  border: 0;
+  border-top: 2px solid currentColor;
+  width: 1rem;
+}
+.diagramm-marke[data-form="luecke"]::before {
+  height: 0;
+  background: none;
+  border: 0;
+  border-top: 2px dashed currentColor;
+  width: 1rem;
+}
+/* Die Beschriftung selbst bleibt Text und nimmt nicht die Reihenfarbe an:
+   Ein blaues Wort neben einem blauen Tupfer liest sich schlechter als ein
+   schwarzes. */
+.diagramm-marke > span { color: var(--fg-leise); }
+
+.diagramm-leer {
+  border: 1px dashed var(--linie-stark);
+  padding: var(--abstand-4);
+  color: var(--fg-leise);
+  font-size: var(--t-klein);
+  text-align: center;
+}
+
+/* Sparkline: ein Verlauf in Zeilenhöhe, ohne Achsen. Steht neben einer
+   Kennzahl und sagt nur eines — geht es hinauf oder hinab. */
+.sparkline {
+  display: inline-block;
+  width: 4.5rem;
+  height: 1.125rem;
+  vertical-align: middle;
+  color: var(--fg-leise);
+  overflow: visible;
+}
+
+/* Streifen: ein waagerechter Anteilsbalken. Die Teile grenzen mit einer
+   Haarlinie aneinander statt mit einer Lücke -- es ist ein Ganzes, das
+   geteilt wird, keine Reihe von Kästchen. */
+.streifen {
+  display: flex;
+  width: 100%;
+  height: 1.5rem;
+  border: 1px solid var(--linie-stark);
+  background: var(--flaeche-ruhig);
+  overflow: hidden;
+}
+.streifen-teil {
+  background: currentColor;
+  border-right: 1px solid var(--flaeche);
+  min-width: 1px;
+}
+.streifen-teil:last-child { border-right: 0; }
+.streifen-teil[data-form="umriss"] {
+  background: repeating-linear-gradient(
+    135deg,
+    currentColor 0 2px,
+    transparent 2px 5px
+  );
+}
+
+/* Ring: eine Quote als Kreis mit der Zahl in der Mitte. */
+.ring {
+  display: block;
+  width: 100%;
+  max-width: 8rem;
+  height: auto;
+  margin: 0 auto;
+  color: var(--akzent);
+}
+.ring-bahn  { stroke: var(--linie-stark); fill: none; }
+.ring-anteil { stroke: currentColor; fill: none; stroke-linecap: butt; }
+.ring-zahl {
+  fill: var(--fg);
+  font-size: 15px;
+  font-weight: var(--g-titel);
+  font-variant-numeric: tabular-nums;
+  text-anchor: middle;
+}
+.ring-schild {
+  fill: var(--fg-leise);
+  font-size: 8px;
+  text-anchor: middle;
+}
+
+/* --- 14h. Fußnavigation (Telefon) --------------------------------------
+   Auf dem Telefon ist das eingeklappte Menü am oberen Rand zwei
+   Berührungen je Seitenwechsel, und beide am oberen Bildschirmrand — dort,
+   wo der Daumen nicht hinkommt. Die Fußleiste ist eine Berührung, in
+   Daumenreichweite.
+
+   Auf breiten Geräten gibt es sie nicht: Dort steht die Navigation im
+   Kopf, und zwei Navigationen gleichzeitig wären zwei Antworten auf die
+   Frage, wo man ist. Voreingestellt also aus; Abschnitt 15 schaltet sie
+   ein. */
+.navi-boden { display: none; }
+
+.navi-boden-punkt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.125rem;
+  /* 44 px ist Apples Richtwert für eine Zielfläche. Unterschritten heißt:
+     daneben getippt, und auf dieser Oberfläche liegt neben "Mietenbuch"
+     das Mahnwesen. */
+  min-height: 2.75rem;
+  padding: var(--abstand-2) 0.25rem;
+  color: var(--fg-leise);
+  text-decoration: none;
+  font-size: var(--t-mikro);
+  font-weight: var(--g-kopf);
+  line-height: 1.1;
+  text-align: center;
+}
+.navi-boden-zeichen {
+  width: 1.375rem;
+  height: 1.375rem;
+  display: block;
+  flex: 0 0 auto;
+}
+.navi-boden-wort {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Wo man ist, steht nicht nur in der Farbe: Eine Kante oben am aktiven
+   Punkt bleibt auch auf einem Schwarzweißschirm und für ein Auge sichtbar,
+   das Blau von Grau nicht unterscheidet. */
+.navi-boden-punkt[aria-current="page"] {
+  color: var(--akzent);
+  box-shadow: inset 0 2px 0 0 var(--akzent);
+  background: var(--akzent-flaeche);
+}
+.navi-boden-punkt:focus-visible {
+  outline: 2px solid var(--akzent);
+  outline-offset: -2px;
+}
+
+/* --- 14i. Was das Postfach gebraucht hat -----------------------------
+   Fuenf Regeln aus einem Befund: Es waren die Stellen, an denen ein
+   Bauteil sich mit einem Inline-Stil beholfen haette, weil es nichts
+   gab, wogegen man ihn tauschen konnte. */
+
+/* Abschnittskopf eine Stufe kleiner.
+   "Sperre fuer die Automatik" und "Hier nicht antworten" sind Ueber-
+   schriften INNERHALB einer Akte, nicht neben ihr. Bisher loeste das
+   ein style={{fontSize:"1rem"}} im Markup -- und jede Ueberschrift, die
+   das vergass, sprang eine Stufe hoch. */
+.titelzeile[data-rang="klein"] {
+  margin-top: var(--abstand-6);
+}
+.titelzeile[data-rang="klein"] h2,
+.titelzeile[data-rang="klein"] h3 {
+  font-size: var(--t-lese);
+  font-weight: var(--g-kopf);
+  margin: 0;
+}
+
+/* Ein Textausschnitt im Fliesstext -- die Fundstelle, an der ein
+   Stichwort getroffen hat, oder ein Stueck des alten Entwurfs.
+
+   Bisher behalf sich das mit .protokoll. Das ist ein Block mit 22rem
+   Hoechsthoehe und eigenem Rollbalken; in einer Tabellenzelle oder
+   einer Rasterzelle ist das viel zu schwer. Hier reicht eine ruhige
+   Flaeche mit Zitatkante. */
+.zitat {
+  display: block;
+  background: var(--flaeche-ruhig);
+  border-left: 2px solid var(--linie-stark);
+  padding: var(--abstand-2) var(--abstand-3);
+  font-size: var(--t-klein);
+  line-height: var(--zh-klein);
+  color: var(--fg-leise);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+/* Ein Ausschnitt mit hervorgehobener Fundstelle. <mark> faerbt sonst
+   grellgelb und bringt eine Farbe mit, die dem Dunkelmodus entgeht. */
+.zitat mark {
+  background: var(--akzent-flaeche);
+  color: var(--akzent);
+  font-weight: var(--g-kopf);
+  padding: 0 0.15em;
+}
+
+/* Knoepfe in einer Registerzeile.
+   .posten ist als Verweiszeile gebaut -- ein Knopf darin saesse sonst
+   auf der Grundlinie des Flies-textes und klebte am Rand. */
+.posten-aktionen {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--abstand-2);
+  align-items: center;
+  margin-top: var(--abstand-2);
+}
+
+/* Eine Aufzaehlung in der Wertspalte eines Datenblatts -- etwa die
+   Weisungen, die auf einen Entwurf gewirkt haben. Sie ist eine Liste
+   (die Reihenfolge ist die Reihenfolge im Prompt und damit Information),
+   aber sie braucht keine Punkte und keinen Einzug. */
+.datenblatt dd > ul,
+.datenblatt dd > ol {
+  list-style: none;
+  margin: 0;
+  padding-left: 0;
+}
+.datenblatt dd > ul > li,
+.datenblatt dd > ol > li {
+  margin-top: var(--abstand-1);
+}
+.datenblatt dd > ul > li:first-child,
+.datenblatt dd > ol > li:first-child {
+  margin-top: 0;
+}
+
+/* Ein mehrzeiliges Feld im Formularraster. .feld war auf block/100%
+   beschraenkt und hat textarea nicht wie input und select geformt --
+   das Anweisungsfeld am Entwurf ist aber genau so eines. */
+.feld textarea,
+.feldraster textarea {
+  width: 100%;
+  min-height: 4.5rem;
+  resize: vertical;
+}
+
+/* --- 14j. Anhänge ------------------------------------------------------
+   An einem Entwurf und an jeder Nachricht in der Akte. Die Gestaltung
+   hat eine einzige Aufgabe, und es ist nicht die Liste: Sie muss die
+   Paketgröße sichtbar machen, bevor jemand auf "Senden" klickt.
+
+   Denn die Grenze liegt nicht bei uns, sondern beim empfangenden
+   Server, und er meldet sich erst, wenn die Mail schon hinaus ist --
+   in einem anderen Postfach, nicht in diesem Portal (Begründung in
+   lib/anhaenge.ts). Alles, was danach kommt, ist zu spät. Deshalb
+   steht die Größe oben rechts in der Zeile und nicht unter der Liste,
+   und deshalb wechselt sie bei 80 Prozent die Farbe, statt erst beim
+   Überschreiten zu erscheinen: Eine Warnung, die nur im Fehlerfall da
+   ist, kommt für den, der gerade das sechste Bild anhängt, zu spät. */
+
+.anhaenge {
+  margin-top: var(--abstand-4);
+  padding-top: var(--abstand-3);
+  border-top: 1px solid var(--linie);
+}
+
+.anhaenge-kopf {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--abstand-3);
+  margin: 0 0 var(--abstand-2);
+  font-size: var(--t-klein);
+  color: var(--fg-leise);
+}
+
+/* Tabellenziffern: Die Zahl ändert sich bei jedem Hochladen, und
+   springende Ziffernbreiten lassen die ganze Zeile zucken. */
+.anhaenge-mass {
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-still);
+}
+.anhaenge-mass[data-eng="ja"] {
+  color: var(--warn);
+  font-weight: var(--g-kopf);
+}
+
+.anhaenge-liste {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--linie);
+}
+.anhaenge-liste:empty {
+  display: none;
+}
+.anhaenge-liste li {
+  display: flex;
+  align-items: center;
+  gap: var(--abstand-3);
+  background: var(--flaeche-ruhig);
+  padding: var(--abstand-2) var(--abstand-3);
+}
+.anhaenge-liste a {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.anhaenge-groesse {
+  flex: 0 0 auto;
+  font-size: var(--t-klein);
+  color: var(--fg-still);
+  font-variant-numeric: tabular-nums;
+}
+/* Der Entfernen-Knopf darf die Zeile nicht dominieren -- er steht an
+   jeder Zeile, und das Normale ist, dass niemand ihn drückt. */
+.anhaenge-liste button {
+  flex: 0 0 auto;
+  font-size: var(--t-klein);
+  padding: var(--abstand-1) var(--abstand-2);
+  min-height: 2rem;
+}
+
+.anhaenge-warnung {
+  margin: var(--abstand-2) 0 0;
+  padding: var(--abstand-2) var(--abstand-3);
+  background: var(--warn-flaeche);
+  color: var(--warn);
+  font-size: var(--t-klein);
+  border-radius: var(--radius-s);
+}
+
+.anhaenge-feld {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--abstand-2);
+  margin-top: var(--abstand-3);
+  font-size: var(--t-klein);
+  color: var(--fg-leise);
+}
+.anhaenge-feld input[type="file"] {
+  font-size: var(--t-klein);
+  max-width: 100%;
+}
+
 /* --- 15. Schmale Schirme (Telefon) --------------------------------------
    Prüfmaß 390 px: 16 px Seitenabstand, kein waagerechtes Rollen der Seite. */
 
@@ -1032,6 +2276,67 @@ input[type="file"] {
     min-height: 2.75rem;
   }
   button { padding: 0.5rem 1rem; }
+
+  /* --- Die Fußleiste wird sichtbar --------------------------------------
+     Fest am unteren Rand, in Daumenreichweite. padding-bottom aus
+     env(safe-area-inset-bottom): Auf einem iPhone ohne Knopf liegt unter
+     dem Bildschirmrand noch der Streifen für die Wischgeste, und ein Ziel
+     darunter ist nicht treffbar. Der Wert ist auf allen anderen Geräten 0,
+     die Zeile kostet dort also nichts. */
+  .navi-boden {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+    position: fixed;
+    inset: auto 0 0 0;
+    z-index: 30;
+    background: var(--flaeche);
+    border-top: 1px solid var(--linie-stark);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+  }
+  .navi-boden-punkt + .navi-boden-punkt {
+    border-left: 1px solid var(--linie);
+  }
+
+  /* Platz für die Leiste, damit sie nicht die letzte Zeile der Seite
+     verdeckt. Genau das ist der Fehler, den eine feste Leiste macht, wenn
+     niemand daran denkt -- und die letzte Zeile ist hier oft eine
+     Summenzeile. 3.25rem Leiste plus der sichere Bereich. */
+  body {
+    padding-bottom: calc(3.25rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Im Stehen ist eine Kennzahl je Zeile zu wenig und drei zu viel.
+
+     Dabei wechselt das Kennzahlenband das Verfahren für seine Haarlinien:
+     Auf breiten Geräten steht es in einer Reihe, und eine Kante links an
+     jeder Karte außer der ersten genügt. Sobald es umbricht, ist das
+     falsch -- die erste Karte der zweiten Zeile hätte dann keine Kante
+     nach oben, die zweite der ersten Zeile aber eine, und das Raster sähe
+     schief aus. Eine Lücke von 1 px auf der Linienfarbe ist in jeder
+     Anordnung richtig, weil sie nicht an den Karten hängt, sondern
+     zwischen ihnen liegt. */
+  .karten {
+    grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+    gap: 1px;
+    background: var(--linie);
+  }
+  .karten > .karte { border: 0; }
+
+  /* Die Filterleiste wird eine Spalte: Drei Felder nebeneinander sind auf
+     390 px je 110 px breit, und darin steht kein Einheitsname. */
+  .filterleiste { flex-direction: column; align-items: stretch; }
+  .filterleiste-feld select,
+  .filterleiste-feld input { min-width: 0; width: 100%; }
+  .filter-zurueck { margin-left: 0; align-self: flex-start; }
+
+  /* Ein Diagramm darf auf dem Telefon flacher sein, aber nicht enger --
+     overflow: visible lässt die Achsenbeschriftung sonst in den Rand
+     laufen. */
+  .diagramm-flaeche { overflow: hidden; }
+  .sparkline { width: 3.5rem; }
 }
 
 /* Sehr schmal: der zweite Teil der Wortmarke weicht der Navigation. */
@@ -1042,7 +2347,11 @@ input[type="file"] {
 /* --- 16. Druck ----------------------------------------------------------- */
 
 @media print {
-  .kopf, .navi { display: none !important; }
+  /* Die Fußleiste ist eine Bedienung, kein Inhalt. Mit ihr weicht
+     auch der Platz, den sie am Bildschirm freihält -- sonst bleibt
+     unten auf jedem Blatt ein leerer Streifen. */
+  .kopf, .navi, .navi-boden, .filterleiste { display: none !important; }
+  body { padding-bottom: 0; }
   body { background: #fff; color: #000; }
   .rahmen { max-width: none; padding: 0; }
   table, .karte, .register, .entwurf, .leer { box-shadow: none; }

@@ -1,3 +1,4 @@
+import { query } from "@/lib/db";
 import { mahnstand } from "@/lib/rueckstaende";
 import { mahnbereitschaft } from "@/lib/mahnfreigabe";
 import { angemeldeteSitzung } from "@/lib/anmeldung";
@@ -31,11 +32,15 @@ export const dynamic = "force-dynamic";
  *
  * Die wichtigste Zahl steht nicht in der Forderung: Beträge aus Monaten,
  * für die es keine Kontoauszüge gibt. Die zählen absichtlich nicht als
- * Rückstand. Für Ludwigshafen wird ab Januar 2024 abgerechnet, das Konto
- * gibt es aber erst ab Dezember 2024 -- würde man beides addieren, hätte
- * jeder langjährige Mieter dort elf Monatsmieten Rückstand und damit einen
- * Kündigungsgrund nach § 543 Abs. 2 Nr. 3 BGB. Für die Augartenstraße gibt
- * es gar kein Konto, dort wird deshalb überhaupt nicht gemahnt.
+ * Rückstand. Ein übernommenes Haus wird oft ab einem Monat abgerechnet, für
+ * den es noch kein eigenes Konto gab -- würde man beides addieren, hätte
+ * jeder langjährige Mieter dort rund ein Jahr Rückstand und damit einen
+ * Kündigungsgrund nach § 543 Abs. 2 Nr. 3 BGB. Wo es überhaupt kein Konto
+ * gibt, wird deshalb überhaupt nicht gemahnt.
+ *
+ * Welches Objekt das jeweils ist und ab wann seine Kontodaten reichen, sagt
+ * `objekt.zahlungsdaten_ab`. Der Name steht nicht im Quelltext: Die Seite
+ * soll auch dem nächsten Vermieter seinen eigenen Bestand zeigen.
  */
 
 const euro = (w: number) =>
@@ -50,6 +55,30 @@ const tagDe = (iso: string) =>
     day: "2-digit", month: "2-digit", year: "numeric",
     hour: "2-digit", minute: "2-digit",
   }).format(new Date(iso));
+
+const datumDe = (iso: string) =>
+  new Intl.DateTimeFormat("de-DE", {
+    day: "2-digit", month: "2-digit", year: "numeric",
+  }).format(new Date(iso.slice(0, 10) + "T12:00:00Z"));
+
+/** Ein Objekt und die Reichweite seiner Kontodaten. */
+interface Deckung {
+  name: string;
+  zahlungsdaten_ab: string | null;
+}
+
+/**
+ * Ab wann die Kontodaten je Objekt reichen -- in Worten.
+ *
+ * Die Grenze entscheidet darüber, welche Monate überhaupt gemahnt werden
+ * dürfen. Sie hier zu nennen ist der Unterschied zwischen "irgendwo fehlen
+ * Auszüge" und "in diesem Haus fehlen sie bis zu diesem Tag" -- nur das
+ * zweite sagt, wo nachzusehen ist.
+ */
+const deckungssatz = (d: Deckung) =>
+  d.zahlungsdaten_ab === null
+    ? `${d.name}: kein eigenes Konto, hier wird nicht gemahnt`
+    : `${d.name}: Kontodaten ab ${datumDe(d.zahlungsdaten_ab)}`;
 
 const BESCHRIFTUNG: Record<Stufe, string> = {
   mahnung: "Mahnung fällig",
@@ -87,12 +116,21 @@ export default async function Mahnwesen() {
   const sitzung = await angemeldeteSitzung();
   const rolle = sitzung?.rolle ?? null;
 
-  const [stand, bereitschaft, alleEntscheidungen, verlauf] = await Promise.all([
-    mahnstand(heute),
-    mahnbereitschaft(),
-    leseEntscheidungen(),
-    entscheidungsVerlauf(25),
-  ]);
+  const [stand, bereitschaft, alleEntscheidungen, verlauf, deckung] =
+    await Promise.all([
+      mahnstand(heute),
+      mahnbereitschaft(),
+      leseEntscheidungen(),
+      entscheidungsVerlauf(25),
+      // Nur für den erläuternden Satz weiter unten. Scheitert die Abfrage,
+      // fehlt eine Aufzählung -- die Rückstände selbst stehen trotzdem da,
+      // und die sind der Grund, warum jemand diese Seite aufmacht.
+      query<Deckung>(
+        `SELECT name, zahlungsdaten_ab::text
+           FROM objekt
+          ORDER BY name`,
+      ).catch(() => [] as Deckung[]),
+    ]);
 
   const letzte = letzteEntscheidungen(alleEntscheidungen);
   const aufteilung = teileAuf(stand, letzte, heute);
@@ -110,7 +148,7 @@ export default async function Mahnwesen() {
   return (
     <main>
       <div className="titelzeile">
-        <h1>Mahnwesen</h1>
+        <h1>Rückstände</h1>
         <span className="zaehler">
           {stand.length === 0
             ? "keine Rückstände"
@@ -271,11 +309,19 @@ export default async function Mahnwesen() {
           Bei {ungeklaert.length} Mietverhältnissen stehen Beträge aus Monaten
           offen, für die keine Kontoumsätze vorliegen — zusammen{" "}
           {euro(ungeklaert.reduce((s, r) => s + r.offen_ohne_daten, 0))}. Diese
-          Monate sind nicht unbezahlt, sondern unbekannt: Für die Welserstraße
-          beginnt das Konto am 01.12.2024, für die Augartenstraße gibt es
-          keins. Sie zählen deshalb nicht in die Forderung und lösen keine
-          Mahnung aus. Zu klären ist das über die Mietaufstellungen des
-          Voreigentümers, nicht über ein Schreiben an den Mieter.
+          Monate sind nicht unbezahlt, sondern unbekannt. Sie zählen deshalb
+          nicht in die Forderung und lösen keine Mahnung aus. Zu klären ist das
+          über die Mietaufstellungen des Voreigentümers, nicht über ein
+          Schreiben an den Mieter.
+          {deckung.length > 0 && (
+            // .erklaerung traegt den Abstand zum Absatz darueber; .hinweis
+            // bleibt daneben stehen, damit der Satz grau bleibt, falls die
+            // Klasse im Stylesheet noch nicht angekommen ist.
+            <div className="hinweis erklaerung">
+              So weit reichen die Kontodaten:{" "}
+              {deckung.map(deckungssatz).join(" · ")}
+            </div>
+          )}
         </div>
       )}
 

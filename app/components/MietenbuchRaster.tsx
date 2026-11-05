@@ -19,6 +19,12 @@ import type {
  *
  * Gerechnet wird hier nichts. Jede Zahl und jeder Zustand kommt fertig aus
  * lib/mietenbuch.ts, und der Zahlungsstand dort aus lib/mieter.ts.
+ *
+ * Die Gestaltung steht in app/raster.css und wird von globals.css
+ * eingebunden. Sie lag früher als Zeichenkette am Ende dieser Datei und
+ * wurde bei jedem Rendern über ein <style>-Tag eingefügt -- damit lief
+ * jede Überarbeitung des Stylesheets an der dichtesten Tabelle der
+ * Anwendung vorbei, ohne dass es jemandem auffiel.
  */
 
 const EURO = new Intl.NumberFormat("de-DE", {
@@ -122,6 +128,93 @@ export const LEER: Record<LeerGrund, Kennzeichen> = {
 
 // ---------------------------------------------------------------------------
 
+/**
+ * Ein Fußnotenruf: das Zeichen im Raster, das auf die Erklärung darunter
+ * verweist.
+ *
+ * Warum ein Verweis und nicht nur ein title: Ein title erscheint erst beim
+ * Überfahren mit der Maus. Auf dem Telefon gibt es kein Überfahren, und mit
+ * der Tastatur kommt niemand daran. Die Erklärung war damit für einen Teil
+ * der Nutzer gar nicht vorhanden. Der title bleibt zusätzlich stehen -- er
+ * nennt die konkreten Beträge, die Fußnote nur die Regel.
+ */
+function Ruf({
+  ziel,
+  zeichen,
+  was,
+}: {
+  /** Die Fußnote, auf die der Ruf zeigt (ohne #). */
+  ziel: string;
+  zeichen: string;
+  /** Was die Fußnote erklärt -- für Vorleseprogramme. */
+  was: string;
+}) {
+  return (
+    <a className="mb-ruf" href={`#${ziel}`} aria-label={`Fußnote: ${was}`}>
+      {zeichen}
+    </a>
+  );
+}
+
+/**
+ * Die Fußnoten unter dem Raster.
+ *
+ * Vier Zeichen im Raster bedeuten etwas, das man nicht sehen kann: das
+ * Sternchen hinter einer Abweichung, das Kreuz hinter einem Sollbetrag, das
+ * Kürzel "o. A." und der Gedankenstrich. Alle vier standen vorher
+ * ausschließlich im title-Attribut.
+ */
+function Fussnoten() {
+  return (
+    <dl className="mb-fussnoten">
+      <div id="mb-fn-stern">
+        <dt>
+          <span className="mb-zeichen">*</span> nicht gegengerechnet
+        </dt>{" "}
+        <dd>
+          — in dieser Summe steht Soll, das bewusst aus der Abweichung bleibt:
+          Monate ohne Kontoumsätze und noch nicht fällige Monate. Verglichen
+          werden nur fällige Monate mit Kontodaten.
+        </dd>
+      </div>
+      <div id="mb-fn-vertrag">
+        <dt>
+          <span className="mb-zeichen">†</span> nicht gestellt
+        </dt>{" "}
+        <dd>
+          — für diesen Monat liegt keine Sollstellung vor. Der Betrag kommt aus
+          dem Vertrag oder einer Mietanpassung, ist also erwartet und nicht
+          berechnet.
+        </dd>
+      </div>
+      <div id="mb-fn-oa">
+        <dt>
+          <span className="mb-zeichen">o. A.</span> ohne Aufteilung
+        </dt>{" "}
+        <dd>
+          — Soll, das sich nicht in Kaltmiete und Betriebskosten trennen lässt:
+          Inklusivmieten, Möblierungszuschläge und anteilige Monate. Steht je
+          Monat als eigene Summenzeile unter jedem Haus, weil{" "}
+          <strong>Warm = Kalt + BK + o. A.</strong> ist. Was hier steht, ist
+          keine Kaltmiete — als Kaltmiete gelesen begründet es eine
+          Mieterhöhung über einen Betrag, den niemand vereinbart hat.
+        </dd>
+      </div>
+      <div id="mb-fn-strich">
+        <dt>
+          <span className="mb-zeichen">—</span> kein Betrag
+        </dt>{" "}
+        <dd>
+          — keine Miete hinterlegt oder kein Mietverhältnis. Hier wird nichts
+          behauptet und nichts geschätzt.
+        </dd>
+      </div>
+    </dl>
+  );
+}
+
+// ---------------------------------------------------------------------------
+
 function AbschnittInhalt({
   a,
   einheit,
@@ -157,6 +250,12 @@ function AbschnittInhalt({
     >
       <span className="mb-soll ziffern">
         {a.miete_unbekannt ? "—" : zahl(a.soll)}
+        {/* Die Zelle ist selbst ein Verweis -- ein Verweis im Verweis ist
+            nicht erlaubt. Das Zeichen steht hier deshalb stumm; erklärt wird
+            es in den Fußnoten unter dem Raster. */}
+        {a.quelle !== "sollstellung" && !a.miete_unbekannt && (
+          <span className="mb-ruf-still"> †</span>
+        )}
       </span>
       <span className="mb-stand" data-art={k.art}>
         <span aria-hidden="true">{k.zeichen}</span> {k.kurz}
@@ -223,7 +322,12 @@ function Abweichung({ s }: { s: Summe }) {
     <span className="mb-abw" data-art={art} title={titel}>
       {s.abweichung > 0 ? "+" : ""}
       {zahl(s.abweichung)}
-      {nicht >= 1 && <span aria-hidden="true"> *</span>}
+      {nicht >= 1 && (
+        <>
+          {" "}
+          <Ruf ziel="mb-fn-stern" zeichen="*" was="nicht gegengerechnet" />
+        </>
+      )}
     </span>
   );
 }
@@ -235,7 +339,48 @@ function quote(s: Summe): string {
   })} %`;
 }
 
-/** Die vier Summenzeilen unter einem Objekt oder unter dem ganzen Buch. */
+/**
+ * Die sieben Summenzeilen unter einem Objekt oder unter dem ganzen Buch.
+ *
+ * Vorher waren es vier (Soll, Ist, Abweichung, Leerstand), und die
+ * Aufteilung in Kalt und Betriebskosten stand genau einmal für den ganzen
+ * Zeitraum in der Seitenspalte. Der Eigentümer liest sie aber je Monat --
+ * eine Betriebskostenvorauszahlung ist eine Monatsgröße.
+ *
+ * Die Reihenfolge ist die Rechnung, von oben nach unten:
+ *
+ *     Kalt
+ *   + BK
+ *   + o. A.      Soll ohne vereinbarte Aufteilung
+ *   ----------
+ *   = Warm       dieselbe Zahl, die anderswo "Soll" heisst
+ *     Ist
+ *     Abweichung
+ *     Leerstand
+ *
+ * Zwei Entscheidungen, die man hinterfragen wird:
+ *
+ * 1. "o. A." bekommt eine **eigene Zeile** und steht nicht als Nebenzeile an
+ *    der Warmzeile. Rund zwei Drittel der WG-Zimmer sind als Inklusivmiete
+ *    vermietet ("alles inklusive, keine Nebenkosten") und haben gar keine
+ *    getrennte Kaltmiete; dazu kommen Möblierungszuschläge und anteilige
+ *    Monate bei Ein- und Auszug. Dieser Rest ist in der Welserstraße und in
+ *    der Westanlage die *größte* der drei Größen. Als Nebenzeile an einer
+ *    anderen Zahl liesse er sich als Abzug lesen; als eigene Zeile ist er
+ *    ein Summand, und Kalt + BK + o. A. = Warm steht sichtbar untereinander.
+ *    Er bleibt auch dann stehen, wenn er null ist: Eine Tabelle, deren
+ *    Zeilenzahl je Objekt wechselt, vergleicht man nicht mehr Zeile für
+ *    Zeile.
+ *
+ * 2. Kalt, BK und o. A. bilden eine optisch **ruhigere** Gruppe
+ *    (data-gruppe="aufteilung" in app/raster.css, hellere Fläche, leiserer
+ *    Ton, keine Trennlinien untereinander), und die Warmzeile trägt darunter
+ *    den Summenstrich. Sieben gleich kräftige Zeilen unter jedem Objekt
+ *    wären bei drei Häusern 21 Zeilen in derselben Schwärze wie die
+ *    Einheiten darüber -- man würde die Blöcke nicht mehr auseinanderhalten.
+ *    Die Zahlen, auf die es beim Mahnen ankommt (Warm, Ist, Abweichung),
+ *    bleiben in der kräftigen Stufe.
+ */
 function SummenZeilen({
   titel,
   spalten,
@@ -247,20 +392,74 @@ function SummenZeilen({
   gesamt: Summe;
   kaution: number | null;
 }) {
+  const betrag = (n: number) => <span className="ziffern">{zahl(n)}</span>;
+
   const zeilen: Array<{
+    /** Schlüssel und Beschriftung der Zeile. */
     name: string;
+    /** Was in der Zeilenbeschriftung steht -- sonst `name`. */
+    schild?: React.ReactNode;
+    /** Zweite, noch leisere Zeile unter der Beschriftung. */
+    zusatz?: string;
+    /** Die ruhigere Gruppe der Aufteilung, oder die Summenzeile darunter. */
+    gruppe?: "aufteilung" | "warm";
+    titel?: string;
     wert: (s: Summe) => React.ReactNode;
     gesamtWert: React.ReactNode;
   }> = [
     {
-      name: "Soll",
-      wert: (s) => <span className="ziffern">{zahl(s.soll)}</span>,
-      gesamtWert: <span className="ziffern">{zahl(gesamt.soll)}</span>,
+      name: "Kalt",
+      zusatz: "soweit vereinbart",
+      gruppe: "aufteilung",
+      titel:
+        "Kaltmiete je Monat — nur aus Verträgen, die Kalt und Betriebskosten " +
+        "getrennt ausweisen. Eine Inklusivmiete steht nicht hier, sondern " +
+        "unter o. A.",
+      wert: (s) => betrag(s.kaltmiete),
+      gesamtWert: betrag(gesamt.kaltmiete),
+    },
+    {
+      name: "BK",
+      zusatz: "Betriebskosten",
+      gruppe: "aufteilung",
+      titel:
+        "Betriebskostenvorauszahlung je Monat, soweit der Vertrag sie " +
+        "getrennt ausweist.",
+      wert: (s) => betrag(s.nebenkosten),
+      gesamtWert: betrag(gesamt.nebenkosten),
+    },
+    {
+      name: "o. A.",
+      // Ein echter Verweis statt nur eines title: einmal je Block, mit der
+      // Tastatur erreichbar. In den Zellen selbst wäre er ein Verweis im
+      // Verweis.
+      schild: <Ruf ziel="mb-fn-oa" zeichen="o. A." was="ohne Aufteilung" />,
+      zusatz: "ohne Aufteilung",
+      gruppe: "aufteilung",
+      titel:
+        "Soll, das sich nicht in Kaltmiete und Betriebskosten trennen lässt: " +
+        "Inklusivmieten, Möblierungszuschläge und anteilige Monate bei Ein- " +
+        "und Auszug. Diesen Rest in die Kaltspalte zu schieben, würde eine " +
+        "Kaltmiete behaupten, die niemand vereinbart hat.",
+      wert: (s) => betrag(s.nicht_aufgeteilt),
+      gesamtWert: betrag(gesamt.nicht_aufgeteilt),
+    },
+    {
+      name: "Warm",
+      zusatz: "= Kalt + BK + o. A. = Soll",
+      gruppe: "warm",
+      titel:
+        "Die Gesamtmiete des Monats — dieselbe Zahl, die auf dieser Seite " +
+        "sonst Soll heisst. Warm ist keine zusätzliche Größe, sondern die " +
+        "Summe der drei Zeilen darüber.",
+      wert: (s) => betrag(s.soll),
+      gesamtWert: betrag(gesamt.soll),
     },
     {
       name: "Ist",
-      wert: (s) => <span className="ziffern">{zahl(s.ist)}</span>,
-      gesamtWert: <span className="ziffern">{zahl(gesamt.ist)}</span>,
+      zusatz: "zugeordnet",
+      wert: (s) => betrag(s.ist),
+      gesamtWert: betrag(gesamt.ist),
     },
     {
       name: "Abweichung",
@@ -277,10 +476,22 @@ function SummenZeilen({
   return (
     <>
       {zeilen.map((z, i) => (
-        <tr key={z.name} className="mb-summe">
+        <tr
+          key={z.name}
+          className="mb-summe"
+          data-gruppe={z.gruppe}
+          /* Die erste Summenzeile trägt die Linie gegen die Einheiten
+             darüber. Über :first-child geht das nicht: Im Objektblock steht
+             vor ihr die Objektzeile und die Einheiten, im Fuß des ganzen
+             Buchs steht sie wirklich zuerst. */
+          data-erste={i === 0 ? "ja" : undefined}
+        >
           <th scope="row" className="mb-einheit">
             {i === 0 ? <strong>{titel}</strong> : <span className="mb-leise">{titel}</span>}
-            <span className="mb-unter">{z.name}</span>
+            <span className="mb-unter" title={z.titel}>
+              {z.schild ?? z.name}
+            </span>
+            {z.zusatz && <span className="mb-unter mb-still">{z.zusatz}</span>}
           </th>
           {spalten.map((s, j) => (
             <td key={j} className="betrag mb-summenzelle">
@@ -290,10 +501,19 @@ function SummenZeilen({
           <td className="betrag mb-summenzelle">{z.gesamtWert}</td>
           {/* Die beiden letzten Spalten stehen für den ganzen Zeitraum und
               nicht je Summenzeile — sie werden einmal ausgefüllt und reichen
-              über die vier Zeilen hinweg. */}
+              über alle Summenzeilen hinweg. rowSpan kommt aus der Länge der
+              Liste und nicht als Zahl aus dem Quelltext: Vorher stand hier
+              eine 4, und wer eine Summenzeile ergänzt, verschiebt damit die
+              halbe Tabelle.
+
+              Die Kalt-/BK-Zelle wiederholt dieselben Werte, die auch in der
+              Spalte "Zeitraum gesamt" der Zeilen Kalt, BK und o. A. stehen.
+              Das ist Absicht und keine zweite Rechnung: Es ist der Fuß der
+              Kalt-/BK-Spalte der Einheitenzeilen darüber, und beide lesen
+              dieselbe `Summe` — sie können deshalb nicht auseinanderlaufen. */}
           {i === 0 && (
             <>
-              <td className="betrag mb-summenzelle" rowSpan={4}>
+              <td className="betrag mb-summenzelle" rowSpan={zeilen.length}>
                 <span className="ziffern">{zahl(gesamt.kaltmiete)}</span>
                 <span className="mb-unter ziffern">
                   BK {zahl(gesamt.nebenkosten)}
@@ -303,11 +523,16 @@ function SummenZeilen({
                     className="mb-unter ziffern"
                     title="Soll ohne Aufteilung in Kaltmiete und Betriebskosten: Inklusivmieten, Möblierungszuschläge und anteilige Monate."
                   >
-                    o. A. {zahl(gesamt.nicht_aufgeteilt)}
+                    <Ruf
+                      ziel="mb-fn-oa"
+                      zeichen="o. A."
+                      was="ohne Aufteilung"
+                    />{" "}
+                    {zahl(gesamt.nicht_aufgeteilt)}
                   </span>
                 )}
               </td>
-              <td className="betrag mb-summenzelle" rowSpan={4}>
+              <td className="betrag mb-summenzelle" rowSpan={zeilen.length}>
                 <span className="ziffern">
                   {kaution === null ? "—" : zahl(kaution)}
                 </span>
@@ -338,19 +563,29 @@ function ObjektBlock({
     <tbody>
       <tr className="mb-gruppe">
         <th scope="colgroup" colSpan={spannweite}>
-          {g.objekt_name}
-          <span className="mb-leise">
-            {" · "}
-            {g.zeilen.length} {g.zeilen.length === 1 ? "Einheit" : "Einheiten"}
-            {g.zahlungsdaten_ab
-              ? ` · Kontodaten ab ${TAG_JAHR.format(alsDatum(g.zahlungsdaten_ab))}`
-              : " · keine Kontodaten — hier wird nichts abgeglichen und nicht gemahnt"}
+          {/* Die Zelle spannt über alle Spalten -- klebte sie selbst, täte
+              das nichts. Es klebt deshalb ihr Inhalt: Beim Rollen nach
+              rechts bleibt der Objektname stehen. */}
+          <span className="mb-gruppe-inhalt">
+            {g.objekt_name}
+            <span className="mb-leise">
+              {" · "}
+              {g.zeilen.length}{" "}
+              {g.zeilen.length === 1 ? "Einheit" : "Einheiten"}
+              {g.zahlungsdaten_ab
+                ? ` · Kontodaten ab ${TAG_JAHR.format(alsDatum(g.zahlungsdaten_ab))}`
+                : " · keine Kontodaten — hier wird nichts abgeglichen und nicht gemahnt"}
+            </span>
           </span>
         </th>
       </tr>
 
-      {g.zeilen.map((z) => (
-        <tr key={z.einheit.id}>
+      {g.zeilen.map((z, i) => (
+        /* Jede fünfte Zeile bekommt eine stärkere Linie -- wie die
+           Hilfslinien im Kontobuch. Bei 38 Einheiten über 12 Spalten ist
+           das Verrutschen um eine Zeile der eigentliche Fehler, nicht das
+           Rechnen. */
+        <tr key={z.einheit.id} data-takt={(i + 1) % 5 === 0 ? "ja" : undefined}>
           <th scope="row" className="mb-einheit">
             <Link href={`/einheit/${z.einheit.id}`}>{z.bezeichnung}</Link>
             {z.untertitel && <span className="mb-unter">{z.untertitel}</span>}
@@ -381,7 +616,8 @@ function ObjektBlock({
                 className="mb-unter ziffern"
                 title="Soll ohne Aufteilung: Inklusivmiete, Möblierungszuschlag oder anteiliger Monat."
               >
-                o. A. {zahl(z.summe.nicht_aufgeteilt)}
+                <Ruf ziel="mb-fn-oa" zeichen="o. A." was="ohne Aufteilung" />{" "}
+                {zahl(z.summe.nicht_aufgeteilt)}
               </span>
             )}
           </td>
@@ -417,12 +653,28 @@ export function MietenbuchRaster({
 
   return (
     <>
-      <style>{RASTER_CSS}</style>
-      <div className="tabelle-rolle">
+      {/* Dass hier etwas in sich rollt, sieht man sonst erst, wenn man es
+          zufällig tut. */}
+      <p className="mb-rollhinweis">
+        Zeilen sind Einheiten, Spalten sind Monate. Das Raster rollt in sich —
+        waagerecht durch die Monate, senkrecht durch die Einheiten. Die
+        Einheitenspalte und der Monatskopf bleiben dabei stehen.
+      </p>
+      {/* Genau ein Rollbehälter, in beide Richtungen. Vorher rollten zwei
+          ineinander (.tabelle-rolle und die Tabelle selbst), und wer zog,
+          bewegte zufällig den einen oder den anderen. role/aria-label/tabIndex
+          machen den Behälter mit der Tastatur erreichbar und anrollbar --
+          ohne das käme man mit der Tastatur nicht an die späten Monate. */}
+      <div
+        className="mb-rolle"
+        role="region"
+        aria-label="Mietenbuch — Raster aus Einheiten und Monaten"
+        tabIndex={0}
+      >
         <table className="mb-raster">
           <thead>
             <tr>
-              <th rowSpan={2} className="mb-einheit mb-kopf">
+              <th rowSpan={2} className="mb-einheit" scope="col">
                 Einheit
               </th>
               <th colSpan={monate.length} className="mb-mitte">
@@ -477,149 +729,7 @@ export function MietenbuchRaster({
           )}
         </table>
       </div>
+      <Fussnoten />
     </>
   );
 }
-
-/**
- * Nur das, was dieses Raster braucht und keine andere Seite: die klebende
- * erste Spalte und der Aufbau einer Zelle. Die Farben und Abstände kommen
- * aus den Marken in globals.css -- diese Datei legt keine eigenen fest.
- */
-const RASTER_CSS = `
-.mb-raster { font-size: var(--text-s); }
-.mb-raster th,
-.mb-raster td { padding: 0.375rem 0.5rem; }
-
-/* Die Einheitenspalte bleibt stehen, während die Monate durchlaufen. */
-.mb-raster .mb-einheit {
-  position: sticky;
-  left: 0;
-  z-index: 3;
-  text-align: left;
-  min-width: 9.5rem;
-  max-width: 11rem;
-  background: var(--flaeche-tief);
-  border-right: 1px solid var(--linie-stark);
-  vertical-align: top;
-  white-space: normal;
-  font-weight: 600;
-  color: var(--fg);
-}
-.mb-raster thead .mb-einheit { z-index: 4; }
-.mb-raster .mb-einheit a { color: var(--fg); }
-.mb-raster .mb-einheit a:hover { color: var(--akzent); text-decoration: underline; }
-
-.mb-raster .mb-mitte { text-align: center; }
-.mb-raster .mb-monat { min-width: 5.5rem; text-align: right; }
-.mb-raster .mb-monat[data-jetzt="ja"] { color: var(--akzent); }
-
-.mb-unter {
-  display: block;
-  font-weight: 400;
-  font-size: var(--text-xs);
-  color: var(--fg-leise);
-}
-.mb-leise { color: var(--fg-leise); font-weight: 400; }
-
-/* --- Gruppenkopf --------------------------------------------------------- */
-.mb-raster .mb-gruppe th {
-  position: sticky;
-  left: 0;
-  text-align: left;
-  font-size: var(--text-m);
-  color: var(--fg);
-  background: var(--akzent-flaeche);
-  border-top: 1px solid var(--linie-stark);
-  border-bottom: 1px solid var(--linie-stark);
-}
-
-/* --- Zelle --------------------------------------------------------------- */
-.mb-raster .mb-zelle {
-  text-align: right;
-  vertical-align: top;
-  border-left: 1px solid var(--linie);
-}
-.mb-raster .mb-zelle[data-jetzt="ja"] { box-shadow: inset 2px 0 0 var(--akzent); }
-
-.mb-teil {
-  display: block;
-  padding: 0.0625rem 0;
-}
-.mb-teil + .mb-teil {
-  border-top: 1px dashed var(--linie-stark);
-  margin-top: 0.1875rem;
-  padding-top: 0.1875rem;
-}
-.mb-teil:hover .mb-soll { text-decoration: underline; }
-
-.mb-soll {
-  display: block;
-  font-variant-numeric: tabular-nums;
-  font-weight: 600;
-  color: var(--fg);
-}
-.mb-stand,
-.mb-abw {
-  display: block;
-  font-size: var(--text-xs);
-  white-space: nowrap;
-}
-.mb-rest {
-  display: block;
-  font-size: var(--text-xs);
-  color: var(--fg-leise);
-  font-variant-numeric: tabular-nums;
-}
-.mb-stand[data-art="gut"]   { color: var(--gut); }
-.mb-stand[data-art="warn"]  { color: var(--warn); }
-.mb-stand[data-art="fehl"]  { color: var(--fehl); font-weight: 600; }
-.mb-stand[data-art="still"] { color: var(--fg-still); }
-
-.mb-name {
-  display: block;
-  font-size: var(--text-xs);
-  color: var(--fg-leise);
-  font-weight: 400;
-  max-width: 6.5rem;
-  margin-left: auto;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.mb-frist { color: var(--fg-still); }
-
-/* Flächen je Zustand. Zusätzlich zum Zeichen und zum Wort, nie allein. */
-.mb-raster .mb-zelle[data-status="offen"]     { background: var(--fehl-flaeche); }
-.mb-raster .mb-zelle[data-status="teilweise"] { background: var(--warn-flaeche); }
-.mb-raster .mb-zelle[data-status="bezahlt"]   { background: var(--gut-flaeche); }
-.mb-raster .mb-zelle[data-grund="frei"] {
-  background: repeating-linear-gradient(
-    135deg,
-    var(--flaeche-ruhig) 0 6px,
-    var(--flaeche-tief) 6px 12px
-  );
-}
-
-/* --- Summen -------------------------------------------------------------- */
-.mb-raster .mb-zeilensumme,
-.mb-raster .mb-summenzelle {
-  background: var(--flaeche-ruhig);
-  border-left: 1px solid var(--linie-stark);
-  vertical-align: top;
-}
-.mb-raster .mb-summe > th,
-.mb-raster .mb-summe > td {
-  background: var(--flaeche-tief);
-  border-top: 1px solid var(--linie-stark);
-}
-.mb-abw[data-art="fehl"] { color: var(--fehl); font-weight: 600; }
-.mb-abw[data-art="warn"] { color: var(--warn); }
-.mb-abw[data-art="gut"]  { color: var(--fg-leise); }
-
-@media (max-width: 40rem) {
-  .mb-raster .mb-einheit { min-width: 7.5rem; max-width: 8.5rem; }
-  .mb-raster .mb-monat { min-width: 5rem; }
-  .mb-name { max-width: 5rem; }
-}
-`;

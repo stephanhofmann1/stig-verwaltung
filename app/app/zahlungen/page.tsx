@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { query } from "@/lib/db";
 import { schlageZuordnungenVor } from "@/lib/zuordnung";
 import { tag } from "@/lib/formate";
@@ -6,6 +7,8 @@ import { PruefZeile } from "@/components/PruefZeile";
 export const dynamic = "force-dynamic";
 
 interface OffenerPosten {
+  /** Das Ziel der Zeile -- die naechste Frage nach "wer schuldet was". */
+  mietverhaeltnis_id: string;
   kontakt_name: string;
   einheit: string;
   objekt: string;
@@ -63,7 +66,8 @@ export default async function Zahlungen() {
   `);
 
   const offenePosten = await query<OffenerPosten>(`
-    SELECT k.anzeigename AS kontakt_name, e.bezeichnung AS einheit,
+    SELECT mv.id AS mietverhaeltnis_id,
+           k.anzeigename AS kontakt_name, e.bezeichnung AS einheit,
            o.name AS objekt, s.monat::text, s.betrag::text,
            (s.betrag - COALESCE(
               (SELECT sum(z.betrag) FROM zuordnung z
@@ -124,8 +128,10 @@ export default async function Zahlungen() {
         })
       )}
 
+      {/* Zweiter Abschnitt derselben Seite, darum h2: "Zahlungen" oben
+          ist das einzige h1. */}
       <div className="titelzeile">
-        <h1>Offene Posten</h1>
+        <h2>Offene Posten</h2>
         <span className="zaehler ziffern">{euro(summeOffen)}</span>
       </div>
       {offenePosten.length === 0 ? (
@@ -136,8 +142,16 @@ export default async function Zahlungen() {
         </div>
       ) : (
         <div className="register">
-          {offenePosten.map((p, i) => (
-            <div className="posten" key={i}>
+          {/* Wer einen offenen Posten liest, will als Naechstes den Vertrag
+              sehen -- Miethoehe, Zahlungsverlauf, Mahnstand. Bisher war das
+              eine Sackgasse: Die Zeile leuchtete beim Ueberfahren auf und
+              fuehrte nirgendwohin. */}
+          {offenePosten.map((p) => (
+            <Link
+              href={`/mietverhaeltnis/${p.mietverhaeltnis_id}`}
+              className="posten"
+              key={`${p.mietverhaeltnis_id}-${p.monat}`}
+            >
               <span className="nummer ziffern">
                 {p.monat.slice(5, 7)}/{p.monat.slice(2, 4)}
               </span>
@@ -150,11 +164,11 @@ export default async function Zahlungen() {
                   <span>Teilzahlung von {euro(p.betrag)}</span>
                 )}
               </span>
-            </div>
+            </Link>
           ))}
         </div>
       )}
-      <p className="hinweis" style={{ marginTop: "1.5rem" }}>
+      <p className="hinweis">
         Ein offener Posten ist noch kein Rückstand. Bar vereinnahmte Mieten
         tauchen in keinem Auszug auf — vor jeder Mahnung die Barkasse prüfen.
       </p>

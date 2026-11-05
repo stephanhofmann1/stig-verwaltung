@@ -93,17 +93,11 @@ export function DokumentHochladen({
     );
   }
 
-  const feld = { display: "block", marginTop: "0.25rem" };
-
+  // Das Stilobjekt `feld` ist weg: .feld aus Abschnitt 12 von globals.css
+  // macht dasselbe, und das Raster macht .feldraster.
   return (
-    <form onSubmit={schicke} style={{ marginTop: "0.75rem" }}>
-      <div
-        style={{
-          display: "grid",
-          gap: "0.75rem 1.25rem",
-          gridTemplateColumns: "repeat(auto-fit, minmax(14rem, 1fr))",
-        }}
-      >
+    <form onSubmit={schicke}>
+      <div className="feldraster">
         <label>
           Datei
           <input
@@ -112,13 +106,17 @@ export function DokumentHochladen({
             // Nur ein Vorschlag für den Dateidialog. Entschieden wird am
             // Inhalt, im Server -- diese Liste schützt nichts.
             accept=".pdf,.png,.jpg,.jpeg,.heic,.heif,application/pdf,image/png,image/jpeg,image/heic"
-            style={feld}
+            className="feld"
           />
         </label>
 
         <label>
           Art
-          <select value={art} onChange={(e) => setArt(e.target.value)} style={feld}>
+          <select
+            value={art}
+            onChange={(e) => setArt(e.target.value)}
+            className="feld"
+          >
             {ARTEN.map((a) => (
               <option key={a.wert} value={a.wert}>
                 {a.label}
@@ -134,12 +132,12 @@ export function DokumentHochladen({
             value={bezeichnung}
             onChange={(e) => setBezeichnung(e.target.value)}
             placeholder="Grundriss 1. OG"
-            style={feld}
+            className="feld"
           />
         </label>
       </div>
 
-      <label style={{ display: "block", marginTop: "0.75rem" }}>
+      <label>
         <input
           type="checkbox"
           checked={sichtbar}
@@ -147,13 +145,13 @@ export function DokumentHochladen({
         />{" "}
         für den Mieter sichtbar
       </label>
-      <p className="hinweis" style={{ marginTop: "0.25rem" }}>
+      <p className="hinweis">
         {hinweisMieter ??
           "Ohne Haken sieht die Datei nur die Verwaltung. Mit Haken erscheint " +
             "sie im Mieterbereich — und zwar ausschließlich bei diesem " +
             "Mietverhältnis."}
       </p>
-      <p className="hinweis" style={{ marginTop: "0.25rem" }}>
+      <p className="hinweis">
         PDF, PNG, JPEG oder HEIC, bis 25 MB. Geprüft wird der Inhalt der
         Datei, nicht ihre Endung.
       </p>

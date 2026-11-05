@@ -84,7 +84,9 @@ export function AuszugUpload({ konten }: { konten: string[] }) {
   }
 
   const erraten = vorschau && vorschau.format === "unbekannt";
-  const feld = { display: "block", marginBottom: "0.75rem" };
+  // Das Stilobjekt `feld` ist ersatzlos weg: .feld aus Abschnitt 12 von
+  // globals.css macht dasselbe, und den Abstand zur naechsten Gruppe
+  // traegt das label, in dem das Feld steht.
 
   if (konten.length === 0) {
     return (
@@ -101,7 +103,7 @@ export function AuszugUpload({ konten }: { konten: string[] }) {
         <select
           value={konto}
           onChange={(e) => setKonto(e.target.value)}
-          style={feld}
+          className="feld"
         >
           {konten.map((k) => <option key={k} value={k}>{k}</option>)}
         </select>
@@ -117,7 +119,7 @@ export function AuszugUpload({ konten }: { konten: string[] }) {
             setErgebnis(null);
             setFehler("");
           }}
-          style={feld}
+          className="feld"
         />
         <span className="hinweis">
           Der Umsatz-Export aus dem Onlinebanking als CSV. Sparkasse, ING,
@@ -127,7 +129,11 @@ export function AuszugUpload({ konten }: { konten: string[] }) {
         </span>
       </label>
 
-      {fehler && <p style={{ color: "#b3261e" }}>{fehler}</p>}
+      {fehler && (
+        <p className="rueckmeldung" data-art="fehler">
+          {fehler}
+        </p>
+      )}
 
       {!vorschau && (
         <button
@@ -139,11 +145,9 @@ export function AuszugUpload({ konten }: { konten: string[] }) {
       )}
 
       {vorschau && (
-        <div style={{ marginTop: "1rem" }}>
-          <h3 style={{ marginBottom: "0.25rem" }}>
-            Gelesen, noch nicht gespeichert
-          </h3>
-          <p className="hinweis" style={{ marginTop: 0 }}>
+        <div className="abschnitt">
+          <h3>Gelesen, noch nicht gespeichert</h3>
+          <p className="hinweis">
             Format <strong>{vorschau.format}</strong>, Zeichensatz{" "}
             {vorschau.kodierung}
             {vorschau.zeitraum &&
@@ -153,7 +157,7 @@ export function AuszugUpload({ konten }: { konten: string[] }) {
           </p>
 
           {erraten && (
-            <p style={{ color: "#b3261e" }}>
+            <p className="rueckmeldung" data-art="fehler">
               Dieses Format ist keines der vier bekannten. Die Spalten wurden
               geraten. Bitte an den Zeilen unten Beträge und Buchungstage
               nachsehen, bevor du übernimmst.
@@ -161,19 +165,26 @@ export function AuszugUpload({ konten }: { konten: string[] }) {
           )}
 
           {vorschau.warnungen.map((w, i) => (
-            <p key={i} style={{ color: "#8a6d00" }}>{w}</p>
+            <p key={i} className="rueckmeldung" data-art="warn">
+              {w}
+            </p>
           ))}
 
           {vorschau.proben.length > 0 && (
             <table>
               <thead>
-                <tr><th>Tag</th><th>Betrag</th><th>Absender</th><th>Zweck</th></tr>
+                <tr>
+                  <th>Tag</th>
+                  <th className="betrag">Betrag</th>
+                  <th>Absender</th>
+                  <th>Zweck</th>
+                </tr>
               </thead>
               <tbody>
                 {vorschau.proben.map((p, i) => (
                   <tr key={i}>
                     <td>{p.buchungstag}</td>
-                    <td style={{ textAlign: "right" }}>{euro(p.betrag)}</td>
+                    <td className="betrag">{euro(p.betrag)}</td>
                     <td>{p.absender ?? "—"}</td>
                     <td>{p.verwendungszweck}</td>
                   </tr>
@@ -187,7 +198,7 @@ export function AuszugUpload({ konten }: { konten: string[] }) {
             </p>
           )}
 
-          <p style={{ marginTop: "1rem" }}>
+          <p className="knopfreihe">
             <button onClick={() => schicke(false)} disabled={stand !== "bereit"}>
               {stand === "schreibt" ? "übernimmt …" : "Übernehmen"}
             </button>{" "}
@@ -203,15 +214,17 @@ export function AuszugUpload({ konten }: { konten: string[] }) {
       )}
 
       {ergebnis && (
-        <div style={{ marginTop: "1rem" }}>
-          <p style={{ color: "#1b6b3a" }}>
+        <div className="abschnitt">
+          <p className="rueckmeldung" data-art="gut">
             Übernommen: {ergebnis.neu} neue Buchungen
             {ergebnis.bereits_bekannt > 0 &&
               `, ${ergebnis.bereits_bekannt} waren schon da`}
             .
           </p>
           {ergebnis.warnungen.map((w, i) => (
-            <p key={i} style={{ color: "#8a6d00" }}>{w}</p>
+            <p key={i} className="rueckmeldung" data-art="warn">
+              {w}
+            </p>
           ))}
           <p className="hinweis">
             Die eindeutigen Zahlungen sind bereits zugeordnet. Der Rest liegt
