@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
-import { query } from "./db";
+import { one, query } from "./db";
 import { vergleichbar } from "./zuordnung";
 
 /**
@@ -643,6 +643,23 @@ export async function legeAb(daten: Buffer, dateiname: string): Promise<string> 
   await mkdir(join(pfad, ".."), { recursive: true });
   await writeFile(pfad, daten);
   return pfad;
+}
+
+/**
+ * Liegt dieser Inhalt schon als Beleg?
+ *
+ * Gesucht wird über den Fingerabdruck im Ablagepfad, nicht über den
+ * ganzen Pfad: Der enthält den Monat, und derselbe Beleg nach einem
+ * Monatswechsel erneut eingeliefert wäre sonst keine Dublette.
+ *
+ * Steht hier und nicht in der Route, weil es zwei Wege hereingibt --
+ * Einzelupload und Sammel-Einlieferung -- und eine Dublettenregel, die
+ * an zwei Stellen steht, ist irgendwann zwei verschiedene Regeln.
+ */
+export async function sucheDublette(daten: Buffer): Promise<{ id: string } | null> {
+  return one<{ id: string }>(`SELECT id FROM beleg WHERE ablage_pfad LIKE $1`, [
+    `%${ablageMarke(daten)}%`,
+  ]);
 }
 
 export interface AnhangEingang {
