@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import { angemeldeteSitzung } from "@/lib/anmeldung";
 import { one } from "@/lib/db";
-import { anhangMitPfad, auslieferung, entferne, leseInhalt } from "@/lib/anhaenge";
+import {
+  anhangMitPfad,
+  auslieferung,
+  entferne,
+  kopfzeilen,
+  leseInhalt,
+} from "@/lib/anhaenge";
 import { darfSchreiben } from "@/lib/dokumente";
 
 export const dynamic = "force-dynamic";
@@ -21,40 +27,6 @@ const UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type Ctx = { params: Promise<{ id: string }> };
-
-/**
- * Die Kopfzeilen der Auslieferung.
- *
- * nosniff ist hier wichtiger als irgendwo sonst in dieser Anwendung:
- * Eingehende Anhänge kommen von Fremden und gehen grundsätzlich als
- * application/octet-stream hinaus (lib/anhaenge.ts: auslieferung). Ohne
- * nosniff dürfte der Browser in die Datei schauen, sich für HTML
- * entscheiden und sie im Ursprung dieser Anwendung ausführen -- genau
- * das, was die octet-stream-Regel verhindern soll.
- *
- * sandbox und default-src 'none' decken den zweiten Weg ab: Ein PDF darf
- * Javascript enthalten, und ein PDF liefern wir inline aus.
- */
-function kopfzeilen(
-  contentType: string,
-  disposition: "inline" | "attachment",
-  dateiname: string,
-  laenge: number,
-): Record<string, string> {
-  const schlicht = dateiname
-    .replace(/[^\x20-\x7e]/g, "_")
-    .replace(/["\\]/g, "");
-  return {
-    "Content-Type": contentType,
-    "Content-Length": String(laenge),
-    "Content-Disposition":
-      `${disposition}; filename="${schlicht}"; ` +
-      `filename*=UTF-8''${encodeURIComponent(dateiname)}`,
-    "X-Content-Type-Options": "nosniff",
-    "Cache-Control": "no-store, private",
-    "Content-Security-Policy": "default-src 'none'; sandbox",
-  };
-}
 
 export async function GET(_req: Request, { params }: Ctx) {
   const { id } = await params;

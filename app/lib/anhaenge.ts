@@ -187,6 +187,48 @@ export function auslieferung(a: {
 }
 
 /**
+ * Die Kopfzeilen einer Dateiauslieferung.
+ *
+ * Stand bis zum 05.11.2026 in api/anhang/[id]/route.ts. Seit es einen
+ * zweiten Weg gibt, über den Dateien aus dieser Anwendung hinausgehen
+ * (api/belege/[id]/datei), steht sie hier: Eine Sicherungsregel, die an
+ * zwei Stellen gepflegt wird, ist nach der ersten Änderung zwei
+ * verschiedene Regeln -- und die schwächere entscheidet.
+ *
+ * nosniff ist dabei das Wichtigste: Was als application/octet-stream
+ * hinausgeht, darf der Browser nicht selbst als HTML deuten und im
+ * Ursprung dieser Anwendung ausführen.
+ *
+ * sandbox und default-src 'none' decken den zweiten Weg ab: Ein PDF darf
+ * Javascript enthalten, und PDFs liefern wir inline aus.
+ *
+ * Der Dateiname steht zweimal im Header -- einmal auf ASCII reduziert für
+ * alte Browser, einmal nach RFC 5987 für die Umlaute. Anführungszeichen
+ * und Rückschrägstriche fallen aus der schlichten Fassung heraus, weil
+ * sie den Header sonst beenden würden.
+ */
+export function kopfzeilen(
+  contentType: string,
+  disposition: "inline" | "attachment",
+  dateiname: string,
+  laenge: number,
+): Record<string, string> {
+  const schlicht = dateiname
+    .replace(/[^\x20-\x7e]/g, "_")
+    .replace(/["\\]/g, "");
+  return {
+    "Content-Type": contentType,
+    "Content-Length": String(laenge),
+    "Content-Disposition":
+      `${disposition}; filename="${schlicht}"; ` +
+      `filename*=UTF-8''${encodeURIComponent(dateiname)}`,
+    "X-Content-Type-Options": "nosniff",
+    "Cache-Control": "no-store, private",
+    "Content-Security-Policy": "default-src 'none'; sandbox",
+  };
+}
+
+/**
  * HEIC ist bei Empfängern ein Problem.
  *
  * Die Kamera des iPhones liefert HEIC, und Outlook unter Windows zeigt

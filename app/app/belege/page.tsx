@@ -3,6 +3,7 @@ import { schlageBelegeVor, offeneBelege } from "@/lib/belegabgleich";
 import { tag } from "@/lib/formate";
 import { BelegZeile } from "@/components/BelegZeile";
 import { BelegUpload } from "@/components/BelegUpload";
+import { Einlieferung } from "@/components/Einlieferung";
 import { KOSTENARTEN } from "@/lib/kostenarten";
 
 export const dynamic = "force-dynamic";
@@ -46,6 +47,46 @@ export default async function Belege() {
            count(*) FILTER (WHERE beleg_nicht_noetig)::int AS befreit
       FROM buchung
   `);
+  const lieferungen = await query<{
+    id: string;
+    dateiname: string;
+    enthalten: number;
+    uebernommen: number;
+    abgelehnt: number;
+    auffaellig: number;
+    angelegt_am: string;
+  }>(`
+    SELECT id, dateiname, enthalten, uebernommen, abgelehnt, auffaellig,
+           angelegt_am::text
+      FROM beleg_lieferung
+     ORDER BY angelegt_am DESC
+     LIMIT 10
+  `);
+
+  // Belege, bei denen die beiden Auswertungen sich nicht einig waren.
+  // Diese Liste ist der Preis dafür, auf eine Sichtung von 300 Belegen zu
+  // verzichten -- und sie ist kurz genug, um sie wirklich durchzusehen.
+  const abweichend = await query<{
+    id: string;
+    dateiname: string | null;
+    aussteller: string | null;
+    belegdatum: string | null;
+    betrag_brutto: string | null;
+    abweichung: string;
+  }>(`
+    SELECT id, dateiname, aussteller, belegdatum::text, betrag_brutto::text,
+           abweichung
+      FROM beleg
+     WHERE abweichung IS NOT NULL
+     ORDER BY belegdatum DESC NULLS LAST
+  `);
+
+  // Welche Jahre überhaupt Bewegungen haben -- nur dafür lohnt ein Export.
+  const jahre = await query<{ jahr: number }>(`
+    SELECT DISTINCT date_part('year', buchungstag)::int AS jahr
+      FROM buchung ORDER BY jahr DESC
+  `);
+
   const s = stand[0] ?? { gesamt: 0, belegt: 0, befreit: 0 };
   const luecken = vorschlaege.length;
 
@@ -91,6 +132,103 @@ export default async function Belege() {
         Abbuchung — solche Belege ordnen sich danach von selbst zu.
       </p>
       <BelegUpload objekte={objekte} kostenarten={KOSTENARTEN} />
+
+      <h2 className="abschnitt">Viele Belege auf einmal</h2>
+      <p className="hinweis">
+        Für einen Altbestand: ein Archiv (tar.gz) mit bis zu 500 Belegen.
+        Statt einer Sichtung am Bildschirm wird jeder Beleg zweimal
+        unabhängig gelesen — vom Regelwerk hier und von einer Beifügung
+        <code> einordnung.json</code> im Archiv. Wo Betrag oder Datum
+        voneinander abweichen, wird der Beleg angelegt und markiert, und der
+        selbsttätige Abgleich lässt ihn liegen.
+      </p>
+      <Einlieferung />
+
+      {lieferungen.length > 0 && (
+        <div className="register">
+          {lieferungen.map((l) => (
+            <div className="posten" data-still="ja" key={l.id}>
+              <span className="nummer ziffern">{l.uebernommen}</span>
+              <span className="betreff">{l.dateiname}</span>
+              <span className="zeit ziffern">{tag(l.angelegt_am)}</span>
+              <span className="unterzeile">
+                <span>{l.enthalten} Dateien im Archiv</span>
+                {l.abgelehnt > 0 && <span>{l.abgelehnt} abgelehnt</span>}
+                {l.auffaellig > 0 && (
+                  <span className="marker" data-art="heikel">
+                    {l.auffaellig} mit Abweichung
+                  </span>
+                )}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {abweichend.length > 0 && (
+        <>
+          <div className="titelzeile">
+            <h2>Belege mit Abweichung</h2>
+            <span className="zaehler ziffern">{abweichend.length}</span>
+          </div>
+          <p className="hinweis">
+            Hier haben zwei Auswertungen desselben Belegs verschiedene Beträge
+            oder Daten ergeben. Diese Belege sind nicht automatisch zugeordnet
+            worden. Ein Klick öffnet die Datei — danach ist in Sekunden klar,
+            welcher Wert stimmt.
+          </p>
+          <div className="register">
+            {abweichend.map((b) => (
+              <a
+                className="posten"
+                href={`/api/belege/${b.id}/datei`}
+                target="_blank"
+                rel="noreferrer"
+                key={b.id}
+                data-heikel="ja"
+              >
+                <span className="nummer ziffern">
+                  {b.belegdatum ? tag(b.belegdatum) : "—"}
+                </span>
+                <span className="betreff">
+                  {b.aussteller ?? b.dateiname ?? "ohne Aussteller"}
+                </span>
+                <span className="zeit ziffern">
+                  {b.betrag_brutto ? euro(b.betrag_brutto) : "Betrag unklar"}
+                </span>
+                <span className="unterzeile">
+                  <span>{b.abweichung}</span>
+                </span>
+              </a>
+            ))}
+          </div>
+        </>
+      )}
+
+      {jahre.length > 0 && (
+        <>
+          <h2 className="abschnitt">Für den Steuerberater</h2>
+          <p className="hinweis">
+            Ein Archiv je Jahr: das Journal aller Bewegungen, lückenlos
+            durchnummeriert, Einnahmen und Ausgaben getrennt, Summen je Objekt
+            und Kostenart, die Ausgaben ohne Beleg als eigene Liste — und jeder
+            Einzelbeleg als Datei, benannt nach seiner Nummer im Journal.
+            Kostenart und Umlagefähigkeit stehen darin als Vorschlag, nicht als
+            Festlegung; die Begleitdatei sagt das auch.
+          </p>
+          <div className="knopfreihe">
+            {jahre.map((j) => (
+              <a
+                className="knopf"
+                href={`/api/steuer/paket?jahr=${j.jahr}`}
+                key={j.jahr}
+              >
+                Paket {j.jahr}
+              </a>
+            ))}
+          </div>
+        </>
+      )}
 
       <div className="titelzeile">
         <h2>Ausgaben ohne Beleg</h2>
@@ -146,12 +284,16 @@ export default async function Belege() {
           {belege.map((b) => {
             const offen = Number(b.offen);
             return (
-              // Kein Weg zur Datei: Ein Beleg hat keine Zeile in
-              // `dokument`, und /api/dokumente/<id> liefert nur die. Ein
-              // Link dorthin waere ein 404 -- schlimmer als keiner.
-              <div
+              // Der Weg zur Datei geht über /api/belege/<id>/datei (seit
+              // dem 05.11.2026). Vorher gab es ihn nicht, und ohne ihn ließ
+              // sich keine Zuordnung prüfen: Die Zeile sagt "Amazon,
+              // 45,44 €" -- ob das im Beleg steht, weiß man erst, wenn man
+              // ihn sieht.
+              <a
                 className="posten"
-                data-still="ja"
+                href={`/api/belege/${b.id}/datei`}
+                target="_blank"
+                rel="noreferrer"
                 key={b.id}
                 data-heikel={offen > 0.005 ? "ja" : "nein"}
               >
@@ -175,7 +317,7 @@ export default async function Belege() {
                     <span className="marker">bezahlt</span>
                   )}
                 </span>
-              </div>
+              </a>
             );
           })}
         </div>

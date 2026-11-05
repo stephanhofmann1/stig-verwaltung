@@ -1087,7 +1087,8 @@ td.betrag { font-weight: 500; }
   align-items: center;
 }
 
-button {
+button,
+.knopf {
   font: inherit;
   font-size: var(--text-n);
   font-weight: 600;
@@ -1101,8 +1102,10 @@ button {
   box-shadow: var(--schatten-1);
   transition: background 100ms ease, border-color 100ms ease, color 100ms ease;
 }
-button:hover { background: color-mix(in srgb, var(--fg) 85%, var(--akzent)); border-color: transparent; }
-button:active { box-shadow: none; }
+button:hover,
+.knopf:hover { background: color-mix(in srgb, var(--fg) 85%, var(--akzent)); border-color: transparent; }
+button:active,
+.knopf:active { box-shadow: none; }
 
 /* Stille Aktion — gleich groß, aber ohne Gewicht. */
 button[data-art="still"] {
@@ -1118,6 +1121,32 @@ button[data-art="still"]:hover {
 
 /* Aktion, die etwas unwiederbringlich tut. */
 button[data-art="gefahr"]:hover { background: color-mix(in srgb, var(--fehl) 85%, #000); }
+
+/* Ein Verweis, der wie ein Knopf aussieht -- weil er sich wie einer
+   verhaelt: Er loest etwas aus (einen Download), er fuehrt nicht nur
+   woandershin. Die Gestaltung erbt er ueber die Selektorliste oben;
+   hier steht nur, was ein <a> zusaetzlich braucht. */
+.knopf {
+  display: inline-block;
+  text-decoration: none;
+  color: var(--grund);
+}
+
+/* Eine Listenzeile, die zur Datei fuehrt.
+   Ohne diese beiden Zeilen waere sie blau und unterstrichen -- und eine
+   Liste aus 300 unterstrichenen Zeilen liest niemand. Unterstrichen wird
+   beim Zeigen, und nur der Betreff. */
+a.posten { color: inherit; text-decoration: none; }
+a.posten:hover .betreff { text-decoration: underline; }
+
+/* Die Sammel-Einlieferung. */
+.einlieferung { margin-top: var(--abstand-3); }
+.einlieferung input[type="file"] {
+  font: inherit;
+  font-size: var(--text-k);
+  color: var(--fg-leise);
+  max-width: 100%;
+}
 
 button:disabled,
 button:disabled:hover {
