@@ -130,23 +130,56 @@ jobs:
         run: scp -q /tmp/neu.tgz root@78.47.196.190:/opt/stig/neu.tgz
 
       - name: Auspacken, migrieren, starten
+        # Das Fernstueck steht als Hier-Dokument und nicht in einer
+        # verschachtelten Anfuehrungszeichenkette: Darin war jedes
+        # Anfuehrungszeichen dreifach zu schuetzen, und ein Skript, das
+        # man nicht mehr lesen kann, aendert niemand gern richtig.
         run: |
-          ssh root@78.47.196.190 'bash -lc "
-            set -e
-            cd /opt/stig
-            echo \"== Auspacken ==\"
-            tar xzf neu.tgz && rm -f neu.tgz
-            chmod +x start.sh migrieren.sh einrichten.sh db/nachbuchen.sh 2>/dev/null || true
-            echo
-            echo \"== Datenbank migrieren ==\"
-            ./migrieren.sh
-            echo
-            echo \"== Anwendung neu bauen und starten ==\"
-            ./start.sh up -d --build
-            echo
-            echo \"== Stand ==\"
-            ./start.sh ps
-          "'
+          ssh root@78.47.196.190 'bash -s' <<'FERN'
+          set -e
+          cd /opt/stig
+
+          echo "== Auspacken =="
+          # Welche .sql-Dateien das Paket mitbringt -- abgelesen, BEVOR
+          # ausgepackt wird.
+          tar tzf neu.tgz \
+            | sed -n 's|^\(\./\)\?db/\([^/]*\.sql\)$|\2|p' \
+            | sort > /tmp/soll.txt
+          tar xzf neu.tgz && rm -f neu.tgz
+          chmod +x start.sh migrieren.sh einrichten.sh db/nachbuchen.sh 2>/dev/null || true
+
+          # Tar legt Dateien dazu, nimmt aber keine weg. Eine .sql, die
+          # das Paket nicht mehr enthaelt, bleibt also in db/ liegen --
+          # und migrieren.sh bricht bei jeder Fremddatei dort ab, zu
+          # Recht. Am 05.11.2026 war genau das der Fall: Die Saatdatei
+          # mit den DELETEs lag auf dem Server, nachdem sie aus dem Paket
+          # entfernt worden war.
+          #
+          # Beiseitegelegt, nicht geloescht. Beiseite genuegt, um den
+          # Lauf freizumachen, und was geloescht ist, kann niemand mehr
+          # nachsehen.
+          ls db/*.sql 2>/dev/null | sed 's|^db/||' | sort > /tmp/ist.txt
+          UEBRIG=$(comm -13 /tmp/soll.txt /tmp/ist.txt)
+          if [ -n "$UEBRIG" ]; then
+            mkdir -p abgelegt
+            for n in $UEBRIG; do
+              echo "  nicht mehr im Paket, beiseitegelegt: db/$n"
+              mv "db/$n" "abgelegt/$n"
+            done
+          fi
+
+          echo
+          echo "== Datenbank migrieren =="
+          ./migrieren.sh
+
+          echo
+          echo "== Anwendung neu bauen und starten =="
+          ./start.sh up -d --build
+
+          echo
+          echo "== Stand =="
+          ./start.sh ps
+          FERN
 
       - name: Läuft es wirklich?
         # Ein Container, der "Up" meldet, kann trotzdem bei jeder Anfrage
