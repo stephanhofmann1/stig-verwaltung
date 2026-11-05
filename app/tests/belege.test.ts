@@ -772,3 +772,35 @@ describe("Mehrere Belegstücke in einer Datei", () => {
     assert.equal(zaehleBelegstuecke("Gesamtsumme: in EUR 9,82 1,87 11,69"), 0);
   });
 });
+
+describe("Belegnummern mit Bindestrichen", () => {
+  /**
+   * Amazon vergibt neben "DE6UDGSPAEUI" auch
+   * "DS-AEU-INV-DE-2025-191950229". Ein Muster aus nur Buchstaben und
+   * Ziffern sah davon zwei Zeichen und zaehlte die Datei als ein Stueck.
+   * Am 05.11.2026 blieb so eine Datei mit drei Rechnungen unerkannt und
+   * der Leser nahm die letzte: 13,75 EUR statt 37,73 EUR.
+   * Die Nummern hier sind erfunden.
+   */
+  const drei =
+    "Rechnungsnummer DS-AEU-INV-DE-2025-100000001 Zahlbetrag 3,99 € Seite 1 von 2 " +
+    "Rechnungsnummer DS-AEU-INV-DE-2025-100000001 Seite 2 von 2 " +
+    "Rechnungsnummer DS-AEU-INV-DE-2025-100000002 Zahlbetrag 19,99 € Seite 1 von 1 " +
+    "Rechnungsnummer DS-AEU-INV-DE-2025-100000003 Zahlbetrag 13,75 € Seite 1 von 1";
+
+  test("drei Stücke werden als drei gezählt", () => {
+    assert.equal(zaehleBelegstuecke(drei), 3);
+  });
+
+  test("die Summe ist 37,73 und nicht die letzte Zahl", () => {
+    const m = findeSummeMehrererRechnungen(drei);
+    assert.ok(m);
+    assert.equal(m!.rechnungen, 3);
+    assert.equal(m!.summe, 37.73);
+    assert.equal(werteBelegAus(drei).betrag_brutto, 37.73);
+  });
+
+  test("die kurze Form zählt weiterhin", () => {
+    assert.equal(zaehleBelegstuecke("Rechnungsnummer DE6UDGSPAEUI Zahlbetrag 41,39 €"), 1);
+  });
+});
