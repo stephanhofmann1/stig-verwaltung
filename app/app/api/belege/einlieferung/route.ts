@@ -11,6 +11,7 @@ import {
   type BelegBefund,
 } from "@/lib/belege";
 import { uebernehmeSichereBelege } from "@/lib/belegabgleich";
+import { findeReferenzen } from "@/lib/referenzen";
 import { leseTar, TarFehler, MAX_EINTRAEGE } from "@/lib/tar";
 
 export const dynamic = "force-dynamic";
@@ -329,6 +330,18 @@ export async function POST(req: Request) {
         abweichung,
       ],
     );
+
+    // Referenznummern mitschreiben. Sie sind der verlässlichste Weg zur
+    // Abbuchung: Bei Amazon steht die Bestellnummer im Verwendungszweck,
+    // die Rechnungsnummer nie.
+    for (const r of findeReferenzen(gelesen.text)) {
+      await query(
+        `INSERT INTO beleg_referenz (beleg_id, art, wert, normiert)
+         VALUES ($1,$2,$3,$4)
+         ON CONFLICT (mandant_id, beleg_id, art, normiert) DO NOTHING`,
+        [b.id, r.art, r.wert, r.normiert],
+      );
+    }
 
     angelegt.push({ datei: name, beleg_id: b.id, betrag, abweichung });
   }
