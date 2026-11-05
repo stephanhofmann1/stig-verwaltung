@@ -330,15 +330,108 @@ function lieseTag(text: string): string | null {
  * im Text ist dann nicht das Belegdatum. Unmögliche Daten (31.02.) werden
  * verworfen statt zurechtgebogen.
  */
+/**
+ * Datumsetiketten in Rangfolge. Das erste Etikett, das ein Datum
+ * liefert, gewinnt -- nicht das erste, das im Text vorkommt.
+ *
+ * WARUM DIE RANGFOLGE NOETIG WURDE
+ *
+ * Eine Amazon-Rechnung nennt beide Daten, und der Lesetext (pdfjs)
+ * stellt sie flach hintereinander:
+ *
+ *   ... Bestelldatum 28.08.2026 Bestellnummer 302-... Rechnungsdatum
+ *   /Lieferdatum 29.08.2026 Rechnungsnummer DE6871MONAEUD ...
+ *
+ * Eine Alternation aus allen Etiketten greift, was im Text zuerst
+ * steht -- also das Bestelldatum. Am 05.11.2026 trug die Gegenprobe
+ * genau das zutage: 30 von 100 Amazon-Belegen lagen mit dem
+ * Bestelldatum in den Buechern, meist einen Tag zu frueh. Fuer die
+ * Buchfuehrung zaehlt das Rechnungsdatum.
+ */
+const DATUMSETIKETTEN: RegExp[] = [
+  /\b(?:rechnungs-?\/?(?:leistungs)?datum|belegdatum|gutschriftsdatum|invoice\s+date)\b/gi,
+  /\b(?:rechnung\s*nr\.?:?|datum)\b/gi,
+  /\b(?:bestelldatum|order\s+date|date)\b/gi,
+];
+
+const MONATE: Record<string, number> = {
+  januar: 1, februar: 2, "märz": 3, maerz: 3, april: 4, mai: 5, juni: 6,
+  juli: 7, august: 8, september: 9, oktober: 10, november: 11, dezember: 12,
+};
+
+/** "29 September 2026" und "29. September 2026". */
+function lieseMonatsname(text: string): string | null {
+  const m = text.match(/\b(\d{1,2})\.?\s+([A-Za-zÄÖÜäöüß]+)\s+(20\d{2})\b/);
+  if (!m) return null;
+  const mo = MONATE[m[2].toLowerCase()];
+  if (!mo || !istTag(+m[3], mo, +m[1])) return null;
+  return `${m[3]}-${String(mo).padStart(2, "0")}-${m[1].padStart(2, "0")}`;
+}
+
 export function findeDatum(text: string): string | null {
-  const etikett = text.match(
-    /\b(?:rechnungs-?datum|belegdatum|bestelldatum|datum|invoice\s+date|order\s+date|date)\b[^0-9\n]{0,24}([0-9][0-9.\-\/]{7,9})/i,
-  );
-  if (etikett) {
-    const t = lieseTag(etikett[1]);
-    if (t) return t;
+  for (const etikett of DATUMSETIKETTEN) {
+    const muster = new RegExp(etikett.source, etikett.flags);
+    for (const t of text.matchAll(muster)) {
+      // Hinter dem Etikett darf Fuellung stehen ("/Lieferdatum"), aber
+      // keine Ziffer -- sonst wuerde ein fremdes Datum eingesammelt.
+      const rest = text.slice((t.index ?? 0) + t[0].length, (t.index ?? 0) + t[0].length + 40);
+      const luecke = rest.match(/^[^0-9\n]{0,24}/);
+      if (!luecke) continue;
+      const kandidat = rest.slice(luecke[0].length, luecke[0].length + 20);
+      const tag = lieseTag(kandidat) ?? lieseMonatsname(`${luecke[0]}${kandidat}`);
+      if (tag) return tag;
+    }
   }
-  return lieseTag(text);
+  return lieseTag(text) ?? lieseMonatsname(text);
+}
+
+/**
+ * Mehrere Rechnungen in einer Datei: der Belegbetrag ist die Summe.
+ *
+ * Amazon legt die Rechnungen mehrerer Sendungen einer Bestellung in ein
+ * einzelnes PDF. Die Abbuchung auf dem Konto ist dann eine -- ueber die
+ * Summe. Wer nur einen der Zahlbetraege liest, bucht zu wenig und
+ * findet die Abbuchung nie.
+ *
+ * Geschluesselt wird auf die RECHNUNGSNUMMER, nicht auf das Vorkommen
+ * von "Zahlbetrag": Amazon wiederholt Nummer und Betrag im Seitenkopf
+ * mehrseitiger Rechnungen. Eine Rechnung ueber 47,02 EUR auf zwei
+ * Seiten ergibt 47,02 EUR, nicht 94,04 EUR.
+ *
+ * GEPRUEFT AN DER BANK (05.11.2026, 101 Amazon-Belege)
+ *
+ * 7 Dateien enthielten mehr als eine Rechnung. In jedem dieser Faelle
+ * stimmte die Summe auf den Cent mit einer offenen Abbuchung ueberein:
+ * 128,89 / 13,19 / 34,96 / 38,74 / 28,98 / 59,43 / 239,00 EUR.
+ *
+ * Gibt es nur eine Rechnung in der Datei, liefert diese Funktion null
+ * und das gewoehnliche Regelwerk entscheidet -- diese Regel soll nichts
+ * uebernehmen, was sie nicht besser weiss.
+ */
+export function findeSummeMehrererRechnungen(
+  text: string,
+): { summe: number; rechnungen: number } | null {
+  const muster =
+    /Rechnungsnummer\s+([A-Z0-9]{8,20})|Zahlbetrag\s*([-]?\d{1,3}(?:\.\d{3})*,\d{2})/g;
+  const jeRechnung = new Map<string, number>();
+  let aktuell: string | null = null;
+  for (const t of text.matchAll(muster)) {
+    if (t[1]) {
+      aktuell = t[1];
+      continue;
+    }
+    if (!t[2] || !aktuell || jeRechnung.has(aktuell)) continue;
+    const wert = leseZahl(t[2]);
+    if (wert === null) continue;
+    jeRechnung.set(aktuell, wert);
+  }
+  if (jeRechnung.size < 2) return null;
+  let summe = 0;
+  for (const w of jeRechnung.values()) summe += w;
+  summe = Math.round(summe * 100) / 100;
+  const geprueft = pruefeBetrag(summe);
+  if (geprueft === null) return null;
+  return { summe: geprueft, rechnungen: jeRechnung.size };
 }
 
 // ---------------------------------------------------------------------------
@@ -384,7 +477,10 @@ export function werteBelegAus(text: string, dateiname?: string): BelegBefund {
   b.aussteller = findeAussteller(alles);
   b.belegnummer = findeBelegnummer(text, dateiname ?? "");
   b.belegdatum = findeDatum(text) ?? (dateiname ? findeDatum(dateiname) : null);
-  b.betrag_brutto = findeBetrag(text);
+  // Mehrere Rechnungen in einer Datei: die Summe, sonst das gewoehnliche
+  // Regelwerk.
+  const mehrere = findeSummeMehrererRechnungen(text);
+  b.betrag_brutto = mehrere?.summe ?? findeBetrag(text);
 
   b.quelle.aussteller = b.aussteller ? "text" : null;
   b.quelle.belegnummer = b.belegnummer ? "text" : null;
