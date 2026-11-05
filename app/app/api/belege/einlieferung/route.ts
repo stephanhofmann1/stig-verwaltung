@@ -12,6 +12,16 @@ import {
 } from "@/lib/belege";
 import { uebernehmeSichereBelege } from "@/lib/belegabgleich";
 import { findeAlleReferenzen } from "@/lib/referenzen";
+import {
+  type Zulieferung,
+  datumFeld,
+  geld,
+  liesZulieferungen,
+  nurName,
+  text,
+  widerspruch,
+  zahl,
+} from "@/lib/gegenprobe";
 import { leseTar, TarFehler, MAX_EINTRAEGE } from "@/lib/tar";
 
 export const dynamic = "force-dynamic";
@@ -59,54 +69,14 @@ export const maxDuration = 300;
  */
 
 /** Zwei Beträge gelten als gleich, wenn sie auf den Cent gleich sind. */
-function gleichBetrag(a: number | null, b: number | null): boolean {
-  if (a === null || b === null) return true; // nur eine Quelle: kein Widerspruch
-  return Math.round(a * 100) === Math.round(b * 100);
-}
 
-function gleichDatum(a: string | null, b: string | null): boolean {
-  if (!a || !b) return true;
-  return a.slice(0, 10) === b.slice(0, 10);
-}
 
-function geld(n: number | null): string {
-  return n === null ? "ohne" : n.toFixed(2).replace(".", ",");
-}
 
-interface Beifuegung {
-  aussteller?: unknown;
-  belegnummer?: unknown;
-  datum?: unknown;
-  brutto?: unknown;
-  objekt?: unknown;
-  kostenart?: unknown;
-  umlagefaehig?: unknown;
-  anlagegut?: unknown;
-  begruendung?: unknown;
-}
 
-function text(w: unknown, max: number): string | null {
-  if (typeof w !== "string") return null;
-  const s = w.trim();
-  return s ? s.slice(0, max) : null;
-}
 
-function zahl(w: unknown): number | null {
-  if (typeof w === "number" && Number.isFinite(w) && w > 0) {
-    return Math.round(w * 100) / 100;
-  }
-  return null;
-}
 
-function datumFeld(w: unknown): string | null {
-  const s = text(w, 10);
-  return s && /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
-}
 
 /** Nur der letzte Pfadteil, ohne Verzeichnisse. */
-function nurName(n: string): string {
-  return (n.split("/").pop() ?? "beleg").slice(0, 200) || "beleg";
-}
 
 export async function POST(req: Request) {
   // Eigene Prüfung, auch wenn die Middleware den Pfad abdeckt: Eine
@@ -168,21 +138,31 @@ export async function POST(req: Request) {
   }
 
   // --- Beifügung herausnehmen ---------------------------------------------
-  let beifuegung: Record<string, Beifuegung> = {};
+  let beifuegung: Record<string, Zulieferung> = {};
+  let beifuegungDa = false;
+  let beifuegungUmschlag = false;
   const rest = [];
   for (const e of eintraege) {
     if (nurName(e.name) === "einordnung.json") {
+      beifuegungDa = true;
+      let geparst: unknown;
       try {
-        const geparst = JSON.parse(e.inhalt.toString("utf8"));
-        if (geparst && typeof geparst === "object" && !Array.isArray(geparst)) {
-          beifuegung = geparst as Record<string, Beifuegung>;
-        }
+        geparst = JSON.parse(e.inhalt.toString("utf8"));
       } catch {
         return NextResponse.json(
           { fehler: "einordnung.json im Archiv ist kein gültiges JSON." },
           { status: 400 },
         );
       }
+      const gelesen = liesZulieferungen(geparst);
+      if ("fehler" in gelesen) {
+        return NextResponse.json(
+          { fehler: `einordnung.json: ${gelesen.fehler}` },
+          { status: 400 },
+        );
+      }
+      beifuegung = gelesen.je;
+      beifuegungUmschlag = gelesen.umschlag;
       continue;
     }
     rest.push(e);
@@ -199,6 +179,28 @@ export async function POST(req: Request) {
       { fehler: `Höchstens ${MAX_EINTRAEGE} Belege je Lieferung.` },
       { status: 400 },
     );
+  }
+
+  // Eine Beifügung, die keinen einzigen Beleg im Archiv trifft, ist
+  // falsch geschlüsselt. Am 05.11.2026 ging genau das durch: 100
+  // Rechnungen wurden mit einer Lesung eingebucht, die Meldung lautete
+  // "0 Auffällige", und das klang wie Einigkeit. Lieber hier abweisen
+  // als mit einem Zeugen weitermachen, den niemand gezählt hat.
+  if (beifuegungDa) {
+    const imArchiv = new Set(rest.map((e) => nurName(e.name)));
+    const treffer = Object.keys(beifuegung).filter((k) => imArchiv.has(k)).length;
+    if (treffer === 0) {
+      return NextResponse.json(
+        {
+          fehler:
+            `einordnung.json trifft keinen der ${rest.length} Belege im Archiv. ` +
+            "Die Schlüssel müssen die Dateinamen der Belege sein.",
+          beispiele_beifuegung: Object.keys(beifuegung).slice(0, 5),
+          beispiele_archiv: [...imArchiv].slice(0, 5),
+        },
+        { status: 400 },
+      );
+    }
   }
 
   // --- Objekte auflösen ----------------------------------------------------
@@ -226,6 +228,8 @@ export async function POST(req: Request) {
     [nurName(datei.name || "lieferung.tgz"), roh.length, marke, rest.length],
   );
 
+  let mitWiderspruch = 0;
+  let zweiZeugen = 0;
   const bericht: Array<{ datei: string; grund: string }> = [];
   const angelegt: Array<{
     datei: string;
@@ -260,21 +264,21 @@ export async function POST(req: Request) {
 
     // Quelle 2: die Beifügung, gesucht unter dem vollen Pfad und unter
     // dem reinen Dateinamen.
-    const bei: Beifuegung = beifuegung[e.name] ?? beifuegung[name] ?? {};
+    const bei: Zulieferung = beifuegung[nurName(e.name)] ?? beifuegung[name] ?? {};
 
     const betragBei = zahl(bei.brutto);
     const datumBei = datumFeld(bei.datum);
     const betragRegel = regel.betrag_brutto ?? null;
     const datumRegel = regel.belegdatum ?? null;
 
-    const widerspruch: string[] = [];
-    if (!gleichBetrag(betragRegel, betragBei)) {
-      widerspruch.push(`Betrag: Regelwerk ${geld(betragRegel)} / Beifügung ${geld(betragBei)}`);
-    }
-    if (!gleichDatum(datumRegel, datumBei)) {
-      widerspruch.push(`Datum: Regelwerk ${datumRegel ?? "ohne"} / Beifügung ${datumBei ?? "ohne"}`);
-    }
-    const abweichung = widerspruch.length ? widerspruch.join("; ") : null;
+    // Derselbe Vergleich wie in der nachgeholten Gegenprobe -- eine
+    // Regel, eine Stelle.
+    const abweichung = widerspruch(
+      { betrag: betragRegel, datum: datumRegel },
+      { betrag: betragBei, datum: datumBei },
+    );
+    if (abweichung) mitWiderspruch += 1;
+    if (bei.brutto !== undefined || bei.datum !== undefined) zweiZeugen += 1;
 
     const betrag = betragRegel ?? betragBei;
     const belegdatum = datumRegel ?? datumBei;
@@ -376,7 +380,18 @@ export async function POST(req: Request) {
     angelegt: angelegt.length,
     abgelehnt: bericht.length,
     auffaellig,
-    mit_beifuegung: Object.keys(beifuegung).length,
+    // Nicht die Groesse der Beifuegung, sondern wie viele Belege sie
+    // wirklich erreicht hat. Der Unterschied ist der ganze Punkt: Eine
+    // Beifuegung, die danebengreift, sah vorher aus wie Einigkeit.
+    mit_zwei_zeugen: zweiZeugen,
+    mit_widerspruch: mitWiderspruch,
+    beifuegung: beifuegungDa
+      ? {
+          eintraege: Object.keys(beifuegung).length,
+          umschlag: beifuegungUmschlag,
+          ohne_zweite_lesung: rest.length - zweiZeugen,
+        }
+      : null,
     abgleich,
     bericht,
   });
