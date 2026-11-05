@@ -408,6 +408,32 @@ export function findeDatum(text: string): string | null {
  * und das gewoehnliche Regelwerk entscheidet -- diese Regel soll nichts
  * uebernehmen, was sie nicht besser weiss.
  */
+/**
+ * Wie viele einzelne Belegstuecke stecken in dieser Datei?
+ *
+ * WARUM DAS GEBRAUCHT WIRD
+ *
+ * Amazon legt in eine PDF-Datei, was zu einer Bestellung oder einem
+ * Zeitraum gehoert -- und das kann Verschiedenes sein. Am 05.11.2026
+ * fand sich eine Datei mit einer Rechnung ueber 41,39 EUR UND einer
+ * Quittung ueber 13,20 EUR, letztere zu einer ganz anderen Bestellung
+ * (303-4494565-8831557, Haendler HB-DIGITAL).
+ *
+ * findeBetrag nimmt unter gleichrangigen Treffern den letzten im Text.
+ * Bei so einer Datei ist das die Quittung -- 13,20 EUR statt 41,39 EUR,
+ * und zwar lautlos. Wer zaehlt, wie viele Stuecke drin sind, kann
+ * wenigstens sagen: hier ist der Betrag nicht eindeutig.
+ *
+ * Gezaehlt werden die VERSCHIEDENEN Belegnummern, nicht ihre Vorkommen:
+ * Amazon wiederholt Nummer und Betrag im Kopf jeder Seite.
+ */
+export function zaehleBelegstuecke(text: string): number {
+  const muster = /(?:Rechnungs|Quittungs|Gutschrifts)nummer\s+([A-Z0-9]{8,20})/g;
+  const nummern = new Set<string>();
+  for (const t of text.matchAll(muster)) nummern.add(t[1]);
+  return nummern.size;
+}
+
 export function findeSummeMehrererRechnungen(
   text: string,
 ): { summe: number; rechnungen: number } | null {

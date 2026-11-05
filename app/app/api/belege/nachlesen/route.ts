@@ -3,7 +3,11 @@ import { readFile } from "node:fs/promises";
 import { angemeldeteSitzung } from "@/lib/anmeldung";
 import { query } from "@/lib/db";
 import { lieseBeleg } from "@/lib/belegtext";
-import { werteBelegAus } from "@/lib/belege";
+import {
+  findeSummeMehrererRechnungen,
+  werteBelegAus,
+  zaehleBelegstuecke,
+} from "@/lib/belege";
 import { uebernehmeSichereBelege } from "@/lib/belegabgleich";
 
 export const dynamic = "force-dynamic";
@@ -98,6 +102,7 @@ export async function POST(anfrage: Request) {
   let ohneDatei = 0;
   let ohneTextebene = 0;
   let unveraendert = 0;
+  let uneindeutig = 0;
   let geschrieben = 0;
 
   for (const b of belege) {
@@ -118,7 +123,19 @@ export async function POST(anfrage: Request) {
     const betragAlt = b.betrag_brutto === null ? null : Number(b.betrag_brutto);
     const datumAlt = b.belegdatum;
 
+    // Steckt mehr als ein Belegstueck in der Datei und kann die
+    // Summenregel es nicht aufloesen, ist der Betrag nicht bestimmbar:
+    // findeBetrag nimmt dann den letzten im Text, und das kann die
+    // Quittung einer fremden Bestellung sein. Am 05.11.2026 waere so
+    // aus 41,39 EUR ein Betrag von 13,20 EUR geworden. Datum darf
+    // trotzdem nachgezogen werden -- das haengt nicht am Stueck.
+    const stuecke = zaehleBelegstuecke(d.text);
+    const summeKlar = findeSummeMehrererRechnungen(d.text) !== null;
+    const betragUneindeutig = stuecke > 1 && !summeKlar;
+    if (betragUneindeutig) uneindeutig += 1;
+
     const betragAnders =
+      !betragUneindeutig &&
       neu.betrag_brutto !== null &&
       (betragAlt === null ||
         Math.round(neu.betrag_brutto * 100) !== Math.round(betragAlt * 100));
@@ -183,6 +200,7 @@ export async function POST(anfrage: Request) {
     ohne_datei: ohneDatei,
     ohne_textebene: ohneTextebene,
     unveraendert,
+    betrag_uneindeutig: uneindeutig,
     wuerde_sich_aendern: aenderungen.length,
     geschrieben,
     gesperrt: gesperrt.length,
