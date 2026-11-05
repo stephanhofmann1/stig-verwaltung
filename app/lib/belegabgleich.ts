@@ -72,6 +72,13 @@ export async function offeneBelege(): Promise<BelegKandidat[]> {
       LEFT JOIN kontakt k ON k.id = bg.kontakt_id
       LEFT JOIN vorgang v ON v.id = bg.vorgang_id
      WHERE bg.richtung = 'eingang'
+       -- Belege, bei denen die beiden Auswertungen sich über Betrag oder
+       -- Datum nicht einig waren (db/033, api/belege/einlieferung), bleiben
+       -- hier aussen vor. Sonst würde der selbsttätige Abgleich genau die
+       -- Zeilen festschreiben, deren Zahlen zweifelhaft sind -- und ein
+       -- bestätigter falscher Treffer ist schlimmer als keiner: Er sieht
+       -- wie Arbeit aus, die erledigt ist.
+       AND bg.abweichung IS NULL
      ORDER BY bg.belegdatum DESC NULLS LAST
   `);
 }
