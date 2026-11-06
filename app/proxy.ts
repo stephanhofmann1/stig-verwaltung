@@ -98,6 +98,28 @@ function gleich(a: string | null, b: string | undefined): boolean {
 export function proxy(req: NextRequest) {
   const pfad = req.nextUrl.pathname;
 
+  /*
+    Die Wurzel gehört dem Schaufenster -- für jeden, auch für
+    Angemeldete.
+
+    Vorher war das nach Anmeldestatus geteilt: Fremde sahen das
+    Schaufenster, wer angemeldet war, sprang direkt ins Cockpit. Das war
+    für den täglichen Gebrauch bequem und hatte einen Haken, der erst in
+    der Benutzung auffiel: Die beiden Menschen, die hier arbeiten,
+    bekamen ihre eigene Außenseite nie zu Gesicht. Wer sie herzeigen
+    wollte, musste sich abmelden oder die Adresse von Hand eintippen.
+
+    Jetzt ist stig-immobilien.de für alle dasselbe, und das Cockpit hat
+    mit /cockpit eine eigene Adresse. Der Weg hinein steht auf dem
+    Schaufenster und ist einen Klick lang.
+  */
+  if (pfad === "/") {
+    const ziel = req.nextUrl.clone();
+    ziel.pathname = "/willkommen";
+    ziel.search = "";
+    return NextResponse.redirect(ziel);
+  }
+
   if (OFFEN.some((p) => pfad === p || pfad.startsWith(p))) {
     /*
       Das Schaufenster bekommt ein anderes Grundgerüst als die
@@ -114,10 +136,23 @@ export function proxy(req: NextRequest) {
     if (pfad === "/willkommen") {
       const kopfzeilen = new Headers(req.headers);
       kopfzeilen.set("x-schaufenster", "ja");
+      /*
+        Ob jemand angemeldet ist, entscheidet nur über eine Beschriftung:
+        "Zur Verwaltung" statt "Anmelden". Die Auskunft kommt von hier
+        und nicht von der Seite selbst, weil die Seite keine Daten lesen
+        soll -- so steht es auf ihr, und pruefeSitzung() prüft allein die
+        Signatur des Kekses, ohne die Datenbank anzufassen.
+      */
+      if (pruefeSitzung(req.cookies.get(COOKIE_NAME)?.value)) {
+        kopfzeilen.set("x-angemeldet", "ja");
+      } else {
+        kopfzeilen.delete("x-angemeldet");
+      }
       return NextResponse.next({ request: { headers: kopfzeilen } });
     }
     const kopfzeilen = new Headers(req.headers);
     kopfzeilen.delete("x-schaufenster");
+    kopfzeilen.delete("x-angemeldet");
     return NextResponse.next({ request: { headers: kopfzeilen } });
   }
 
@@ -140,26 +175,19 @@ export function proxy(req: NextRequest) {
     if (pfad.startsWith("/api/")) {
       return NextResponse.json({ fehler: "nicht angemeldet" }, { status: 401 });
     }
+    /*
+      Jeder geschützte Pfad führt zur Anmeldung, und zwar mit dem Ziel im
+      Gepäck -- nach dem Anmelden geht es dort weiter, wo man hinwollte.
+
+      Einen Sonderfall für die Wurzel gibt es hier nicht mehr: Sie wird
+      ganz oben abgefangen und zeigt für jeden das Schaufenster. Wer
+      /cockpit aufruft und nicht angemeldet ist, will sich anmelden --
+      ihn stattdessen auf die Außenseite zu schicken, wäre ein Umweg mit
+      verlorener Absicht.
+    */
     const ziel = req.nextUrl.clone();
-    if (pfad === "/") {
-      /*
-        Die Wurzel gehört dem Schaufenster, nicht der Anmeldung.
-
-        Vorher landete jeder, der stig-immobilien.de aufrief, sofort vor
-        einem Passwortfeld. Für die zwei Menschen, die sich hier anmelden
-        können, war das der kürzeste Weg; für alle anderen war die Adresse
-        eine verschlossene Tür ohne Schild. Jetzt steht dort, was diese
-        Plattform ist, und von dort führt ein Weg zur Anmeldung.
-
-        Wer angemeldet ist, kommt hier gar nicht vorbei: Die Prüfung oben
-        hat dann schon durchgelassen, und / zeigt das Cockpit wie bisher.
-      */
-      ziel.pathname = "/willkommen";
-      ziel.search = "";
-    } else {
-      ziel.pathname = "/anmelden";
-      ziel.search = `?weiter=${encodeURIComponent(pfad)}`;
-    }
+    ziel.pathname = "/anmelden";
+    ziel.search = `?weiter=${encodeURIComponent(pfad)}`;
     return NextResponse.redirect(ziel);
   }
 
@@ -171,7 +199,7 @@ export function proxy(req: NextRequest) {
     // hingehört, statt zurück auf die Anmeldung. Sonst sieht es für einen
     // Mieter wie ein kaputtes Login aus.
     const ziel = req.nextUrl.clone();
-    ziel.pathname = sitzung.rolle === "mieter" ? "/mieter" : "/";
+    ziel.pathname = sitzung.rolle === "mieter" ? "/mieter" : "/cockpit";
     ziel.search = "";
     return NextResponse.redirect(ziel);
   }

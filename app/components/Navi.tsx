@@ -68,7 +68,7 @@ const GRUPPEN: Gruppe[] = [
   {
     titel: "Übersicht",
     punkte: [
-      { href: "/", text: "Cockpit" },
+      { href: "/cockpit", text: "Cockpit" },
       { href: "/mietenbuch", text: "Mietenbuch" },
     ],
   },
@@ -136,7 +136,9 @@ const NAVI_ID = "hauptnavigation";
  * die Kopfnavigation eingeklappt.
  */
 export function istAktiv(p: Punkt, pfad: string): boolean {
-  if (p.href === "/") return pfad === "/";
+  // Frueher lag das Cockpit auf der Wurzel und brauchte hier einen
+  // Sonderfall, damit nicht jeder Pfad als "Cockpit" markiert wurde.
+  // Seit es auf /cockpit liegt, reicht der normale Vergleich unten.
   return [p.href, ...(p.auch ?? [])].some(
     (anfang) => pfad === anfang || pfad.startsWith(anfang + "/"),
   );
@@ -201,7 +203,17 @@ export function Navi({ benutzer }: { benutzer: string | null }) {
    * nach dem Anmelden wiederfindet.
    */
   if (pfad === "/willkommen") {
-    return (
+    /*
+      Zwei Beschriftungen, weil hier beide ankommen: Seit die Wurzel fuer
+      jeden das Schaufenster zeigt, steht auch, wer laengst angemeldet
+      ist, vor diesem Knopf. "Anmelden" waere dann schlicht falsch und
+      fuehrte auf eine Seite, die ihn sofort weiterschickt.
+    */
+    return benutzer ? (
+      <Link className="kopf-weiter" href="/cockpit">
+        Zur Verwaltung
+      </Link>
+    ) : (
       <Link className="kopf-weiter" href="/anmelden">
         Anmelden
       </Link>

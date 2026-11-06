@@ -1,6 +1,6 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import {
@@ -195,20 +195,68 @@ describe("Der Weg zur Seite", () => {
     assert.match(PROXY, /"\/willkommen"/);
   });
 
-  test("die Wurzel führt ohne Sitzung zum Schaufenster, nicht zur Anmeldung", () => {
+  test("die Wurzel führt zum Schaufenster, und zwar für jeden", () => {
     /*
-      Vorher stand hier ein Dreisatz, der / und alles andere gleich
-      behandelte und auf /anmelden schickte. Wer die Adresse aufruft,
-      ohne hier zu arbeiten, stand damit vor einem Passwortfeld ohne
-      Erklärung.
+      Zuerst war das nach Anmeldestatus geteilt: Fremde sahen das
+      Schaufenster, Angemeldete sprangen ins Cockpit. In der Benutzung
+      zeigte sich der Haken -- die beiden Menschen, die hier arbeiten,
+      bekamen ihre eigene Aussenseite nie zu Gesicht und mussten sich
+      zum Herzeigen abmelden.
+
+      Geprueft wird deshalb die Reihenfolge: Die Weiche muss VOR der
+      Sitzungspruefung stehen. Stuende sie dahinter, haette sie wieder
+      zwei Faelle, und einer davon fuehrte am Schaufenster vorbei.
     */
-    // Geprüft wird der Block, nicht die Datei: Es gibt mehrere Stellen,
-    // an denen der Pfad verglichen wird, und nur eine davon ist die
-    // Weiche ohne Sitzung.
-    const block = PROXY.slice(PROXY.indexOf("if (!sitzung)"));
-    assert.ok(block.length > 0, "Die Weiche ohne Sitzung ist nicht mehr auffindbar");
-    assert.match(block, /if \(pfad === "\/"\)/);
+    const weiche = PROXY.indexOf('if (pfad === "/")');
+    const sitzung = PROXY.indexOf("const sitzung = pruefeSitzung");
+    assert.ok(weiche > 0, "Die Weiche fuer die Wurzel fehlt");
+    assert.ok(sitzung > 0, "Die Sitzungspruefung ist nicht auffindbar");
+    assert.ok(
+      weiche < sitzung,
+      "Die Wurzel wird erst nach der Sitzungspruefung entschieden — " +
+        "dann sieht ein Angemeldeter das Schaufenster nicht",
+    );
+    const block = PROXY.slice(weiche, weiche + 400);
     assert.match(block, /ziel\.pathname = "\/willkommen"/);
+  });
+
+  test("das Cockpit hat eine eigene Adresse", () => {
+    // Sonst waere es unerreichbar: Die Wurzel zeigt jetzt das
+    // Schaufenster, und dort lag das Cockpit vorher.
+    assert.ok(
+      existsSync(new URL("../app/cockpit/page.tsx", import.meta.url)),
+      "app/cockpit/page.tsx fehlt",
+    );
+    assert.ok(
+      !existsSync(new URL("../app/page.tsx", import.meta.url)),
+      "Auf der Wurzel liegt noch eine Seite — sie wuerde nie erreicht",
+    );
+  });
+
+  test("nach dem Anmelden geht es ins Cockpit, nicht auf die Wurzel", () => {
+    // Die Wurzel wuerde zurueck aufs Schaufenster leiten -- wer sich
+    // gerade angemeldet hat, stuende wieder vor der Aussenseite.
+    const anmelden = readFileSync(
+      join(HIER, "../app/anmelden/page.tsx"), "utf8");
+    assert.match(anmelden, /weiter \?\? "\/cockpit"/);
+    assert.match(PROXY, /"\/mieter" : "\/cockpit"/);
+  });
+
+  test("keine Navigation zeigt mehr auf die nackte Wurzel", () => {
+    /*
+      Die Fussleiste auf dem Telefon war beim Umbau zunaechst
+      uebersehen worden und zeigte weiter auf / -- ein Klick aufs
+      Cockpit haette dort das Schaufenster geoeffnet. Aufgefallen ist
+      das nur, weil ein Test die Ziele beider Leisten vergleicht.
+    */
+    for (const datei of ["../components/Navi.tsx", "../components/NaviBoden.tsx"]) {
+      const quelle = readFileSync(join(HIER, datei), "utf8");
+      assert.ok(
+        !/\{\s*href:\s*"\/"\s*,/.test(quelle),
+        `${datei} fuehrt noch auf die nackte Wurzel`,
+      );
+      assert.match(quelle, /"\/cockpit"/);
+    }
   });
 
   test("jeder andere geschützte Pfad führt weiterhin zur Anmeldung", () => {
@@ -304,5 +352,52 @@ describe("Der Chat-Endpunkt", () => {
     // und an der anderen zu knapp.
     assert.match(ROUTE, /ASSISTENT_MODELL/);
     assert.ok(!ROUTE.includes("AGENT_MODELL"));
+  });
+});
+
+describe("Das Schaufenster kennt den Angemeldeten", () => {
+  /*
+    Seit die Wurzel fuer jeden das Schaufenster zeigt, stehen auch die
+    beiden, die hier arbeiten, davor. "Anmelden" waere dann falsch --
+    der Weg muss direkt ins Cockpit fuehren.
+  */
+  const NAVI = readFileSync(join(HIER, "../components/Navi.tsx"), "utf8");
+
+  test("die Auskunft kommt aus dem Proxy, nicht aus der Datenbank", () => {
+    /*
+      Der Kern: Diese Seite sagt an zwei Stellen zu, keine Daten zu
+      lesen. Das Versprechen darf nicht an einer Beschriftung
+      zerbrechen. Der Proxy setzt den Kopf; pruefeSitzung() prueft
+      allein die Signatur des Kekses.
+    */
+    assert.match(PROXY, /kopfzeilen\.set\("x-angemeldet", "ja"\)/);
+    assert.match(SEITE, /headers\(\)\)\.get\("x-angemeldet"\)/);
+  });
+
+  test("der Kopf wird auf jedem anderen Weg entfernt", () => {
+    // Sonst koennte ihn jemand von aussen mitschicken. Dasselbe gilt
+    // schon fuer x-schaufenster.
+    assert.match(PROXY, /kopfzeilen\.delete\("x-angemeldet"\)/);
+  });
+
+  test("Angemeldete sehen den Weg ins Cockpit, nicht zur Anmeldung", () => {
+    assert.match(SEITE, /angemeldet \? "\/cockpit" : "\/anmelden"/);
+    // Auch oben in der Kopfzeile, nicht nur im Text.
+    const kopf = NAVI.slice(NAVI.indexOf('pfad === "/willkommen"'));
+    assert.match(kopf, /benutzer \?/);
+    assert.match(kopf, /href="\/cockpit"/);
+  });
+
+  test("die Seite liest weiterhin keine Daten", () => {
+    // Dieselbe Pruefung wie oben, hier als Waechter ueber die
+    // Erweiterung: Der bequeme Weg waere angemeldeterBenutzer()
+    // gewesen -- und der fuehrt nach lib/anmeldung, wo der
+    // Datenbankpool liegt.
+    for (const verboten of ["angemeldeterBenutzer", "angemeldeteSitzung", "lib/db"]) {
+      assert.ok(
+        !SEITE.includes(verboten),
+        `Die oeffentliche Seite benutzt "${verboten}"`,
+      );
+    }
   });
 });

@@ -80,7 +80,7 @@ import { istAktiv, type Punkt } from "./Navi";
  * bemerkt, weil er auf breiten Geräten unsichtbar ist.
  */
 const ZIELE: Punkt[] = [
-  { href: "/", text: "Cockpit" },
+  { href: "/cockpit", text: "Cockpit" },
   { href: "/mietenbuch", text: "Mietenbuch" },
   { href: "/vorgaenge", text: "Vorgänge", auch: ["/vorgang"] },
   { href: "/mahnwesen", text: "Rückstände" },
@@ -202,7 +202,7 @@ function ZeichenBelege() {
 /** Zu jedem Weg das Zeichen. Getrennt von ZIELE, damit die Liste oben
  *  lesbar bleibt — dort steht die Entscheidung, hier die Zeichnung. */
 const ZEICHEN_ZU_WEG: Record<string, () => React.ReactElement> = {
-  "/": ZeichenCockpit,
+  "/cockpit": ZeichenCockpit,
   "/mietenbuch": ZeichenMietenbuch,
   "/vorgaenge": ZeichenVorgaenge,
   "/mahnwesen": ZeichenRueckstaende,

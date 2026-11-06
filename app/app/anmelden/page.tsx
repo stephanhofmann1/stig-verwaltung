@@ -23,7 +23,7 @@ export default async function Anmelden({
       <p className="hinweis">
         Hier liegen Mieterdaten. Der Zugang ist auf die Verwaltung beschränkt.
       </p>
-      <AnmeldeFormular weiter={weiter ?? "/"} />
+      <AnmeldeFormular weiter={weiter ?? "/cockpit"} />
     </div>
   );
 }
