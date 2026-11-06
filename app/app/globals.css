@@ -1610,6 +1610,28 @@ th.betrag {
   .navi-schalter { display: inline-flex; }
   .navi-gruppe { border-right: 0; padding-right: 0; }
 
+  /* Das Menue auf dem Telefon: nur was nicht schon unten steht.
+     ----------------------------------------------------------------
+     Vorher klappte es die ganze Schreibtisch-Navigation untereinander
+     auf: zwoelf Punkte und vier Gruppenueberschriften, bei rund 44
+     Pixeln je Zeile gut 600 Pixel. Auf einem Telefon ist das der halbe
+     Bildschirm -- und fuenf dieser Punkte standen gleichzeitig unten in
+     der Fussleiste.
+
+     Also fallen hier genau die fuenf weg (Navi.tsx setzt die
+     Markierung, NaviBoden.tsx prueft, dass es dieselben sind), und mit
+     ihnen die Gruppenueberschriften: Bei zwei bis drei Punkten je
+     Gruppe ordnet eine Ueberschrift nichts mehr, sie kostet nur eine
+     Zeile. Was bleibt, sind sieben Zeilen -- die Seiten, die man am
+     Schreibtisch braucht und unterwegs selten.
+
+     Der Haltepunkt ist derselbe, an dem die Fussleiste erscheint
+     (40rem, siehe .navi-boden). Haette eine der beiden Regeln einen
+     anderen, waere ein Ziel bei irgendeiner Breite nirgends
+     erreichbar. */
+  .navi a[data-unten="ja"] { display: none; }
+  .navi .navi-titel { display: none; }
+
   /* Unter 40rem ist die Navigation ein Feld unter der Kopfzeile, kein
      weggerollter Streifen. .kopf ist sticky und damit positioniert. */
   .navi[data-offen="nein"] { display: none; }
