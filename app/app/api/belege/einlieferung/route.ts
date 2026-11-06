@@ -428,3 +428,105 @@ export async function GET() {
   `);
   return NextResponse.json({ lieferungen: zeilen });
 }
+
+/**
+ * Eine ganze Lieferung zurücknehmen.
+ *
+ * WOFÜR
+ *
+ * Eine Einlieferung bringt bis zu 500 Belege auf einmal. Ist mit dem
+ * Stapel etwas nicht in Ordnung -- falsch erzeugte Dateien, der falsche
+ * Mandant, ein Fehler in der Beifügung --, gab es bisher keinen Weg
+ * zurück. Am 06.11.2026 lagen so 61 Zahlungsnachweise mit einem falsch
+ * gelesenen Datum in der Ablage; erzeugt waren sie von mir, der Fehler
+ * steckte im Dokument, und zu reparieren war nichts: Neu einliefern
+ * hätte Dubletten ergeben.
+ *
+ * Wer stapelweise einliefern kann, muss stapelweise zurücknehmen
+ * können. Sonst wird aus jedem Fehler ein dauerhafter Eintrag in den
+ * Büchern.
+ *
+ * WAS SIE NICHT ANFASST
+ *
+ * Belege, die schon einer Buchung zugeordnet sind. Die Zuordnung ist
+ * eine Entscheidung -- maschinell oder von Hand --, und ein
+ * Löschbefehl auf eine Lieferung soll sie nicht stillschweigend
+ * mitnehmen. Solche Belege bleiben stehen und werden gezählt; wer sie
+ * wirklich los will, löst erst die Zuordnung (siehe
+ * /api/belege/zuordnungen).
+ *
+ * Die abgelegte Datei bleibt auf der Platte. Sie ist der einzige
+ * Originalbeleg, den es gibt, und sie kostet wenig. Ein Löschbefehl,
+ * der Originale vernichtet, ist eine andere Entscheidung als dieser.
+ */
+export async function DELETE(anfrage: Request) {
+  const sitzung = await angemeldeteSitzung();
+  if (!sitzung || sitzung.rolle === "mieter" || sitzung.rolle === "lesen") {
+    return NextResponse.json({ fehler: "nicht berechtigt" }, { status: 403 });
+  }
+
+  let id = "";
+  try {
+    const b = await anfrage.json();
+    if (b && typeof b === "object" && typeof b.lieferung_id === "string") {
+      id = b.lieferung_id;
+    }
+  } catch {
+    /* unten als fehlender Wert behandelt */
+  }
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+    return NextResponse.json(
+      { fehler: "Keine gültige Kennung der Lieferung." },
+      { status: 400 },
+    );
+  }
+
+  const [lieferung] = await query<{ id: string; dateiname: string }>(
+    `SELECT id, dateiname FROM beleg_lieferung WHERE id = $1`,
+    [id],
+  );
+  if (!lieferung) {
+    return NextResponse.json(
+      { fehler: "Diese Lieferung gibt es nicht." },
+      { status: 404 },
+    );
+  }
+
+  // Erst zählen, was bleibt -- damit die Antwort es nennen kann.
+  const [{ zugeordnet }] = await query<{ zugeordnet: string }>(
+    `SELECT count(*)::text AS zugeordnet
+       FROM beleg bg
+      WHERE bg.lieferung_id = $1
+        AND EXISTS (SELECT 1 FROM belegbuchung bb WHERE bb.beleg_id = bg.id)`,
+    [id],
+  );
+
+  const geloescht = await query<{ id: string }>(
+    `DELETE FROM beleg bg
+      WHERE bg.lieferung_id = $1
+        AND NOT EXISTS (SELECT 1 FROM belegbuchung bb WHERE bb.beleg_id = bg.id)
+      RETURNING bg.id`,
+    [id],
+  );
+
+  // Die Lieferung selbst verschwindet nur, wenn nichts mehr an ihr
+  // hängt. Sonst bliebe ein Beleg ohne Herkunft zurück.
+  let lieferungWeg = false;
+  if (Number(zugeordnet) === 0) {
+    await query(`DELETE FROM beleg_lieferung WHERE id = $1`, [id]);
+    lieferungWeg = true;
+  }
+
+  return NextResponse.json({
+    ok: true,
+    lieferung: lieferung.dateiname,
+    geloescht: geloescht.length,
+    behalten_weil_zugeordnet: Number(zugeordnet),
+    lieferung_entfernt: lieferungWeg,
+    hinweis:
+      Number(zugeordnet) > 0
+        ? `${zugeordnet} Belege sind einer Buchung zugeordnet und bleiben stehen. ` +
+          "Erst die Zuordnung lösen, dann noch einmal zurücknehmen."
+        : "Die Lieferung ist vollständig zurückgenommen. Die abgelegten Dateien bleiben auf der Platte.",
+  });
+}
