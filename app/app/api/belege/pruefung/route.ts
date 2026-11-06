@@ -81,8 +81,14 @@ export async function GET() {
       JOIN beleg bg ON bg.id = bb.beleg_id
       JOIN buchung b ON b.id = bb.buchung_id
      WHERE bg.belegdatum IS NOT NULL
-       AND (b.buchungstag - bg.belegdatum < -$1
-            OR b.buchungstag - bg.belegdatum > $2)
+       -- $1 und $2 ausdruecklich als int: Ohne die Angabe steht in
+       -- "< -$1" ein unary Minus auf einem Parameter unbekannten Typs,
+       -- und Postgres bricht mit "operator is not unique: - unknown"
+       -- ab. Genau das hat die Route am 06.11.2026 im Betrieb mit 500
+       -- antworten lassen -- die Tests lesen Quelltext und koennen so
+       -- etwas nicht sehen.
+       AND (b.buchungstag - bg.belegdatum < -($1::int)
+            OR b.buchungstag - bg.belegdatum > $2::int)
        AND bb.begruendung NOT LIKE '%steht im Verwendungszweck%'
      ORDER BY abs(b.buchungstag - bg.belegdatum) DESC
   `,

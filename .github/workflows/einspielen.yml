@@ -95,7 +95,11 @@ jobs:
         # migriert da.
         run: |
           set -euo pipefail
-          docker run -d --name pg -e POSTGRES_PASSWORD=test postgres:16
+          # Mit veroeffentlichtem Hafen: Nach den Migrationen wird jede
+          # feste SQL-Abfrage der Anwendung an diese Datenbank gehalten
+          # (pruefe-sql.mts), und der Node-Treiber braucht dafuer TCP.
+          docker run -d --name pg -e POSTGRES_PASSWORD=test \
+            -p 127.0.0.1:55432:5432 postgres:16
 
           # Warten, bis die Datenbank wirklich steht.
           #
@@ -134,6 +138,24 @@ jobs:
               psql -v ON_ERROR_STOP=1 -q -U postgres -d postgres < "$f"
           done
           echo "Alle $(ls db/0*.sql | wc -l) Migrationen durchgelaufen."
+
+          # Jetzt steht eine fertig migrierte Datenbank. Jede feste
+          # SQL-Abfrage der Anwendung wird ihr einmal vorgelegt.
+          #
+          # Die uebrigen Tests lesen Quelltext und sprechen mit keiner
+          # Datenbank. Am 06.11.2026 hat das eine Abfrage mit "< -$1"
+          # durchgelassen -- ein unary Minus auf einem Parameter ohne
+          # Typangabe, das Postgres mit "operator is not unique"
+          # abweist. 1404 Tests gruen, tsc sauber, Einspielen gruen --
+          # und die Route antwortete im Betrieb mit 500.
+          #
+          # PREPARE plant die Abfrage und fuehrt sie NICHT aus: Es
+          # prueft Spaltennamen, Typen und Parameterverwendung, ohne
+          # eine Zeile zu lesen oder zu schreiben.
+          cd app
+          PGHOST=127.0.0.1 PGPORT=55432 PGUSER=postgres \
+          PGDATABASE=postgres PGPASSWORD=test npx tsx pruefe-sql.mts
+          cd ..
 
   einspielen:
     name: Auf den Server
