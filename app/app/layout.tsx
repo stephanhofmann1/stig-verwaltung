@@ -5,6 +5,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Navi } from "@/components/Navi";
 import { NaviBoden } from "@/components/NaviBoden";
+import { headers } from "next/headers";
 import { angemeldeterBenutzer } from "@/lib/anmeldung";
 
 /**
@@ -116,9 +117,20 @@ export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   const benutzer = await angemeldeterBenutzer();
+
+  /*
+    Das Schaufenster unter /willkommen trägt dasselbe Gerüst, aber ein
+    anderes Maß: keine Navigationsschiene an der Seite, keine
+    Spaltenbreite, volle Seite. Den Pfad kennt eine Server-Komponente
+    nicht; proxy.ts gibt ihn als Anfragekopf mit. Was daraus folgt,
+    steht als Regelsatz in app/schaufenster.css -- hier wird nur
+    geschaltet.
+  */
+  const schaufenster = (await headers()).get("x-schaufenster") === "ja";
+
   return (
     <html lang="de">
-      <body>
+      <body data-seite={schaufenster ? "schaufenster" : undefined}>
         {/*
           Die Kopfzeile ist eine Reihe aus vier Dingen, nicht aus zwei.
 
