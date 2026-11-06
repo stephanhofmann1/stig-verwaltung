@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import Link from "next/link";
 import { Register } from "@/components/SchaufensterFaltung";
 import { Entwurf } from "@/components/SchaufensterEntwurf";
@@ -7,9 +8,10 @@ import { Assistent } from "@/components/SchaufensterAssistent";
 /**
  * Das Schaufenster.
  *
- * Die einzige Seite dieser Anwendung, die ohne Anmeldung zu sehen ist.
- * Wer stig-immobilien.de aufruft und nicht angemeldet ist, landet hier;
- * wer angemeldet ist, sieht wie bisher das Cockpit.
+ * Die einzige Seite dieser Anwendung, die ohne Anmeldung zu sehen ist --
+ * und zugleich die Anlaufstelle fuer jeden: stig-immobilien.de fuehrt
+ * hierher, ob angemeldet oder nicht. Ins Cockpit geht es von hier mit
+ * einem Klick.
  *
  * Was diese Seite ist: eine Darstellung dessen, wie hier verwaltet wird.
  * Was sie nicht ist: ein Verkaufsprospekt. Die Plattform ist kein Produkt
@@ -281,7 +283,21 @@ const FRAGEN = [
   },
 ];
 
-export default function Willkommen() {
+export default async function Willkommen() {
+  /*
+    Wer angemeldet ist, bekommt den direkten Weg ins Cockpit statt einer
+    Einladung zur Anmeldung.
+
+    Die Auskunft kommt als Anfragekopf aus dem Proxy, nicht aus der
+    Datenbank. Diese Seite sagt an zwei Stellen zu, keine Daten zu
+    lesen, und dieses Versprechen soll nicht an einer Beschriftung
+    zerbrechen. Der Kopf wird ausschliesslich im Proxy gesetzt und für
+    jeden anderen Pfad entfernt -- von aussen mitgeschickt bewirkt er
+    nichts.
+  */
+  const angemeldet = (await headers()).get("x-angemeldet") === "ja";
+  const portalZiel = angemeldet ? "/cockpit" : "/anmelden";
+
   return (
     <div className="schaufenster">
       {/* --- Der Kopf ------------------------------------------------- */}
@@ -310,7 +326,7 @@ export default function Willkommen() {
                 beruht. Abgeschickt wird sie, wenn ein Mensch es sagt.
               </p>
               <div className="s-wege">
-                <Link className="s-knopf" href="/anmelden">
+                <Link className="s-knopf" href={portalZiel}>
                   Zur Verwaltung
                 </Link>
                 <a className="s-verweis" href="#oberflaeche">
@@ -749,8 +765,8 @@ export default function Willkommen() {
                 <b>kontakt@stig-immobilien.de</b>
               </div>
               <div className="s-wege">
-                <Link className="s-verweis" href="/anmelden">
-                  Zur Verwaltung anmelden <Pfeil />
+                <Link className="s-verweis" href={portalZiel}>
+                  {angemeldet ? "Zur Verwaltung" : "Zur Verwaltung anmelden"} <Pfeil />
                 </Link>
               </div>
             </div>

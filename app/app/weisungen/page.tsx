@@ -106,7 +106,7 @@ export default async function Weisungsseite() {
       )}
 
       <div className="knopfreihe abschnitt">
-        <Link href="/" className="verweis">
+        <Link href="/cockpit" className="verweis">
           Zurück zur Übersicht
         </Link>
       </div>

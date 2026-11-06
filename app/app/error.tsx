@@ -62,7 +62,7 @@ export default function Fehler({
               .marker ist dieselbe Pille wie "kritisch" -- wer Wege wie
               Urteile aussehen laesst, bringt dem Nutzer bei, Urteile zu
               uebersehen. */}
-          <Link href="/" className="verweis">
+          <Link href="/cockpit" className="verweis">
             Zurück zum Cockpit
           </Link>
         </div>

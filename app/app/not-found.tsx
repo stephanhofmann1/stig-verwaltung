@@ -22,7 +22,7 @@ export default function NichtGefunden() {
         {/* .verweis und nicht .marker: .marker ist die Pille fuer ein
             Urteil ("kritisch", "heikel"). Ein Rueckweg ist keines. */}
         <div className="knopfreihe">
-          <Link href="/" className="verweis">
+          <Link href="/cockpit" className="verweis">
             Zurück zum Cockpit
           </Link>
           {/* Die beiden Wege, die der Text nennt -- unter denselben Namen,
