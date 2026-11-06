@@ -126,6 +126,146 @@ function bezeichne(b: BelegKandidat): string {
   return teile.join(" · ");
 }
 
+/**
+ * Woerter, die keinen Aussteller kennzeichnen.
+ *
+ * Die Namenspruefung nahm jedes Wort ab vier Zeichen. "GmbH" hat vier.
+ * Damit passte jede GmbH zu jeder GmbH -- und wenn dann noch der Betrag
+ * stimmte, galt das als "Aussteller erkannt und Betrag stimmt auf den
+ * Cent". Bei zwei Rechnungen ueber denselben Betrag von zwei
+ * verschiedenen Firmen waere das eine falsche Zuordnung mit dem
+ * Guetesiegel "sicher".
+ *
+ * Rechtsformen und Allerweltszusaetze zaehlen deshalb nicht als Kennung.
+ */
+const BEDEUTUNGSLOS = new Set([
+  // Kurze Rechtsformen zaehlen hier mit, obwohl sie die Vier-Zeichen-
+  // Huerde ohnehin nicht nehmen: Sie duerfen auch nicht als halbes Paar
+  // durchgehen. "Alpha GmbH & Co. KG" und "Beta GmbH & Co. KG" haben
+  // beide die Folge "co kg" -- ohne diese Eintraege waere das ein
+  // Treffer zwischen zwei fremden Firmen.
+  "ag", "se", "ug", "eg", "ev", "kg", "co", "sa", "as", "ab", "oy",
+  "plc", "llc", "lp", "aps",
+  "gmbh", "mbh", "ohg", "kgaa", "gbr", "egbr", "ltd", "limited", "inc",
+  "corp", "sarl", "scrl", "sca", "nv", "bv", "sprl", "spa", "srl",
+  "haftungsbeschraenkt", "haftungsbeschrankt", "unternehmergesellschaft",
+  "deutschland", "germany", "europe", "european", "international",
+  "holding", "gruppe", "group", "company", "verwaltung", "service",
+  "services", "online", "payments", "payment",
+]);
+
+/**
+ * Traegt der Beleg den Namen, der in der Abbuchung steht?
+ *
+ * Zwei Wege, und der zweite ist der eigentliche Gewinn:
+ *
+ *   a) Ein kennzeichnendes Wort ab vier Zeichen steht in beiden.
+ *   b) Zwei aufeinanderfolgende Woerter des Belegnamens stehen in
+ *      derselben Reihenfolge in der Abbuchung.
+ *
+ * (b) faengt die Faelle, die (a) nicht kann: "SMP GmbH & Co. KG" hat
+ * kein kennzeichnendes Wort ab vier Zeichen -- "smp" sind drei, "gmbh"
+ * und "co" und "kg" sagen nichts. Die Folge "smp gmbh" dagegen steht so
+ * im Verwendungszweck und ist eindeutig. Zwei Woerter in Reihe sind ein
+ * staerkeres Zeugnis als ein einzelnes kurzes.
+ */
+export function nameStecktDrin(belegName: string, zweck: string): boolean {
+  const name = vergleichbar(belegName);
+  const text = vergleichbar(zweck);
+  if (!name || !text) return false;
+
+  const woerter = name.split(" ").filter(Boolean);
+
+  // a) ein kennzeichnendes Wort
+  if (
+    woerter.some(
+      (w) => w.length >= 4 && !BEDEUTUNGSLOS.has(w) && text.includes(w),
+    )
+  ) {
+    return true;
+  }
+
+  // b) zwei Woerter in Reihe -- aber nicht zwei bedeutungslose
+  // ("gmbh co" stuende sonst in jeder zweiten Abbuchung).
+  for (let i = 0; i + 1 < woerter.length; i += 1) {
+    const paar = `${woerter[i]} ${woerter[i + 1]}`;
+    if (BEDEUTUNGSLOS.has(woerter[i]) && BEDEUTUNGSLOS.has(woerter[i + 1])) {
+      continue;
+    }
+    if (text.includes(paar)) return true;
+  }
+  return false;
+}
+
+/** Tage zwischen zwei Tagesangaben, positiv wenn b nach a liegt. */
+function tageZwischen(a: string, b: string): number | null {
+  const x = Date.parse(`${a.slice(0, 10)}T00:00:00Z`);
+  const y = Date.parse(`${b.slice(0, 10)}T00:00:00Z`);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  return Math.round((y - x) / 86_400_000);
+}
+
+/**
+ * Das Fenster, in dem eine Abbuchung zu einem Beleg gehoeren kann.
+ *
+ * Bezahlt wird nach dem Rechnungsdatum, nicht davor -- aber eine
+ * Abbuchung kann einen Tag vor dem gedruckten Rechnungsdatum im Auszug
+ * stehen, etwa bei einem Abonnement, das am Monatsersten bucht und die
+ * Rechnung auf den Zweiten datiert. Zwei Tage Vorlauf sind deshalb
+ * erlaubt, 45 Tage Nachlauf.
+ */
+const VORLAUF_TAGE = 2;
+const NACHLAUF_TAGE = 45;
+
+/**
+ * Der Abstand, den der zweitbeste Beleg haben muss.
+ *
+ * Ohne diese Huerde waere "der naechstliegende gewinnt" ein Muenzwurf,
+ * sobald zwei Belege dicht beieinander liegen. Fuenf Tage trennen ein
+ * Monatsabonnement sicher (die Nachbarn liegen 30 Tage weg) und
+ * verweigern die Entscheidung dort, wo zwei gleiche Betraege in
+ * derselben Woche gezahlt wurden.
+ */
+const MINDESTABSTAND_TAGE = 5;
+
+/**
+ * Unter gleich teuren Belegen den einen waehlen, den das Datum ausweist.
+ *
+ * WOFUER
+ *
+ * Am 06.11.2026 lagen neun WG-Gesucht-Rechnungen ueber je 41,53 EUR
+ * neben neun Abbuchungen ueber je 41,53 EUR. Der Betrag entscheidet
+ * nichts, der Name steht in jeder der neun Abbuchungen gleich -- nur das
+ * Datum unterscheidet sie: Rechnung vom 12.09., Abbuchung ein paar Tage
+ * spaeter.
+ *
+ * WANN SIE SCHWEIGT
+ *
+ * Wenn kein Beleg im Fenster liegt, wenn dem naechsten ein zweiter zu
+ * dicht folgt, oder wenn der Abbuchung selbst das Datum fehlt. Dann
+ * bleibt die Zuordnung offen -- ein Muenzwurf, der als Zuordnung
+ * festgeschrieben wird, sieht hinterher aus wie erledigte Arbeit.
+ */
+export function waehleNachDatum(
+  kandidaten: BelegKandidat[],
+  buchungsdatum: string | null,
+): { beleg: BelegKandidat; tage: number } | null {
+  if (!buchungsdatum) return null;
+  const mitDatum = kandidaten
+    .filter((b) => b.belegdatum)
+    .map((b) => ({ beleg: b, tage: tageZwischen(b.belegdatum!, buchungsdatum) }))
+    .filter(
+      (x): x is { beleg: BelegKandidat; tage: number } =>
+        x.tage !== null && x.tage >= -VORLAUF_TAGE && x.tage <= NACHLAUF_TAGE,
+    )
+    .sort((p, q) => Math.abs(p.tage) - Math.abs(q.tage));
+
+  if (mitDatum.length === 0) return null;
+  if (mitDatum.length === 1) return mitDatum[0];
+  const abstand = Math.abs(mitDatum[1].tage) - Math.abs(mitDatum[0].tage);
+  return abstand >= MINDESTABSTAND_TAGE ? mitDatum[0] : null;
+}
+
 export async function schlageBelegeVor(): Promise<BelegVorschlag[]> {
   const ausgaben = await offeneAusgaben();
   const belege = await offeneBelege();
@@ -211,12 +351,11 @@ export async function schlageBelegeVor(): Promise<BelegVorschlag[]> {
     }
 
     // 2. Aussteller erkannt und Betrag stimmt
-    const perName = belege.filter((b) => {
-      if (Number(b.offen) <= 0.005) return false;
-      const name = vergleichbar(b.aussteller ?? b.kontakt_name ?? "");
-      const teile = name.split(" ").filter((t) => t.length >= 4);
-      return teile.length > 0 && teile.some((t) => text.includes(t));
-    });
+    const perName = belege.filter(
+      (b) =>
+        Number(b.offen) > 0.005 &&
+        nameStecktDrin(b.aussteller ?? b.kontakt_name ?? "", normierterZweck),
+    );
     const nameUndBetrag = perName.filter(
       (b) => Math.abs(Number(b.offen) - betrag) < 0.005,
     );
@@ -231,6 +370,30 @@ export async function schlageBelegeVor(): Promise<BelegVorschlag[]> {
         beleg_bezeichnung: bezeichne(b),
       });
       continue;
+    }
+
+    // 2a. Derselbe Aussteller, derselbe Betrag, mehrere Belege -- dann
+    // entscheidet das Datum.
+    //
+    // Der Fall, der das noetig machte: neun WG-Gesucht-Rechnungen ueber
+    // je 41,53 EUR neben neun Abbuchungen ueber je 41,53 EUR. Betrag und
+    // Name sind bei allen neun gleich; nur das Datum unterscheidet sie.
+    if (nameUndBetrag.length > 1) {
+      const gewaehlt = waehleNachDatum(nameUndBetrag, a.buchungstag);
+      if (gewaehlt) {
+        vorschlaege.push({
+          buchung_id: a.id,
+          beleg_id: gewaehlt.beleg.id,
+          betrag,
+          sicherheit: "sicher",
+          begruendung:
+            `Aussteller und Betrag stimmen bei ${nameUndBetrag.length} Belegen; ` +
+            `dieser liegt ${gewaehlt.tage} Tage vor der Abbuchung und damit ` +
+            "deutlich näher als der nächstbeste.",
+          beleg_bezeichnung: bezeichne(gewaehlt.beleg),
+        });
+        continue;
+      }
     }
 
     // 3. nur der Betrag
@@ -251,6 +414,30 @@ export async function schlageBelegeVor(): Promise<BelegVorschlag[]> {
       continue;
     }
 
+    // 3a. Mehrere Belege mit dem Betrag, aber nur einer passt zeitlich.
+    //
+    // Hier fehlt der Name, also bleibt es ein Vorschlag und wird nicht
+    // festgeschrieben: uebernehmeSichereBelege() nimmt nur "sicher".
+    // Betrag und Datum allein sagen nichts darueber, WER das Geld
+    // bekommen hat -- das muss ein Mensch ansehen.
+    if (nurBetrag.length > 1) {
+      const gewaehlt = waehleNachDatum(nurBetrag, a.buchungstag);
+      if (gewaehlt) {
+        vorschlaege.push({
+          buchung_id: a.id,
+          beleg_id: gewaehlt.beleg.id,
+          betrag,
+          sicherheit: "unsicher",
+          begruendung:
+            `${nurBetrag.length} Belege mit diesem Betrag. Dieser liegt ` +
+            `${gewaehlt.tage} Tage vor der Abbuchung und damit am nächsten — ` +
+            "der Aussteller ist aber nicht bestätigt, bitte prüfen.",
+          beleg_bezeichnung: bezeichne(gewaehlt.beleg),
+        });
+        continue;
+      }
+    }
+
     vorschlaege.push({
       buchung_id: a.id,
       beleg_id: null,
@@ -258,7 +445,8 @@ export async function schlageBelegeVor(): Promise<BelegVorschlag[]> {
       sicherheit: "unsicher",
       begruendung:
         nurBetrag.length > 1
-          ? `${nurBetrag.length} Belege mit diesem Betrag — nicht eindeutig.`
+          ? `${nurBetrag.length} Belege mit diesem Betrag — nicht eindeutig, ` +
+            "und auch das Datum entscheidet es nicht."
           : "Kein passender Beleg vorhanden.",
     });
   }
