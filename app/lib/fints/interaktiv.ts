@@ -1,7 +1,8 @@
 import { query, one } from "../db";
 import { randomBytes } from "node:crypto";
 import { entschluessele, schluesselVorhanden } from "./geheimnis";
-import { alsBuchungen, zeitraum, type ZugangsDaten, type FintsUmsatz } from "./abruf";
+import { alsBuchungen, bankMeldung, zeitraum, type ZugangsDaten,
+         type FintsUmsatz } from "./abruf";
 import { merke, hole as holeSitzung, vergiss } from "./sitzungen";
 import type { RohBuchung } from "../kontoimport";
 
@@ -149,6 +150,15 @@ export async function starteAbruf(
             "Die Bank verlangt für die Erstanmeldung eine TAN.",
           medium: s.tanMediaName ?? null,
         };
+      }
+      /*
+        Wie in holen.ts: lib-fints wirft bei abgelehnter Anmeldung keine
+        Ausnahme, sondern setzt success=false. Ohne diese Abfrage lief
+        der Code in die Kontenliste und meldete "Stimmt der
+        Anmeldename?", obwohl die Bank etwas ganz anderes gesagt hatte.
+      */
+      if (!s.success) {
+        return { art: "fehler", meldung: bankMeldung(s.bankAnswers) };
       }
     }
 

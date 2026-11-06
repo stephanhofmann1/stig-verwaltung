@@ -108,6 +108,81 @@ export async function POST(req: Request) {
   return NextResponse.json({ ok: true, bezeichnung });
 }
 
+/**
+ * Einen vorhandenen Zugang ändern.
+ *
+ * Warum eigens, obwohl POST bei gleicher Bezeichnung schon aktualisiert:
+ * POST verlangt eine PIN. Wer nur den Anmeldenamen korrigieren will --
+ * der häufigste Fall, weil Sparkassen die Legitimations-ID erwarten und
+ * nicht den selbst gewählten Anmeldenamen --, müsste die PIN erneut
+ * eintippen. Dabei vertippt man sich, und drei Fehlversuche sperren den
+ * Zugang. Hier bleibt die gespeicherte PIN also liegen, solange keine
+ * neue kommt.
+ *
+ * Jede Änderung an den Zugangsdaten setzt `bank_information` zurück: Die
+ * gespeicherte Synchronisation gehört zu einer Anmeldung, die es so
+ * nicht mehr gibt. Und sie weckt einen stillgelegten Zugang wieder --
+ * stillgelegt wurde er wegen der Daten, die gerade korrigiert werden.
+ */
+export async function PATCH(req: Request) {
+  const sitzung = await angemeldeteSitzung();
+  if (!sitzung || sitzung.rolle === "mieter") {
+    return NextResponse.json({ fehler: "nicht berechtigt" }, { status: 403 });
+  }
+
+  const form = await req.formData();
+  const feld = (n: string) => String(form.get(n) ?? "").trim();
+
+  const id = feld("id");
+  if (!id) {
+    return NextResponse.json({ fehler: "Zugang fehlt" }, { status: 400 });
+  }
+
+  const vorhanden = await one<{ id: string }>(
+    `SELECT id FROM fints_zugang WHERE id = $1`,
+    [id],
+  );
+  if (!vorhanden) {
+    return NextResponse.json({ fehler: "Zugang nicht gefunden" }, { status: 404 });
+  }
+
+  const benutzer = feld("benutzer");
+  const url = feld("url");
+  const pin = String(form.get("pin") ?? "");
+
+  if (!benutzer) {
+    return NextResponse.json({ fehler: "Der Anmeldename fehlt." }, { status: 400 });
+  }
+  if (url && !/^https:\/\//i.test(url)) {
+    return NextResponse.json(
+      { fehler: "Die FinTS-Adresse muss mit https:// beginnen." },
+      { status: 400 },
+    );
+  }
+
+  // Leere PIN heißt "unverändert", nicht "löschen". Wer die PIN entfernen
+  // will, löscht den Zugang.
+  const geheim = pin ? verschluessele(pin) : null;
+
+  await query(
+    `UPDATE fints_zugang
+        SET benutzer = $2,
+            url = COALESCE(NULLIF($3, ''), url),
+            kunden_id = NULLIF($4, ''),
+            konto_iban = NULLIF($5, ''),
+            pin_verschluesselt = COALESCE($6, pin_verschluesselt),
+            bank_information = NULL,
+            tan_faellig = false,
+            tan_hinweis = NULL,
+            letzter_fehler = NULL,
+            aktiv = true
+      WHERE id = $1`,
+    [id, benutzer, url, feld("kunden_id"), feld("konto_iban"), geheim],
+  );
+
+  return NextResponse.json({ ok: true });
+}
+
 export async function DELETE(req: Request) {
   const sitzung = await angemeldeteSitzung();
   if (!sitzung || sitzung.rolle === "mieter") {

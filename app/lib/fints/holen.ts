@@ -1,6 +1,7 @@
 import { query, one, tx } from "../db";
 import { entschluessele, schluesselVorhanden } from "./geheimnis";
-import { alsBuchungen, zeitraum, type AbrufErgebnis, type ZugangsDaten,
+import { alsBuchungen, bankMeldung, wegenZugangsdaten, zeitraum,
+         type AbrufErgebnis, type ZugangsDaten,
          type FintsUmsatz } from "./abruf";
 
 /**
@@ -119,6 +120,26 @@ export async function hole(z: ZugangsDaten, heute = new Date()): Promise<AbrufEr
           medium: s.tanMediaName ?? null,
         };
       }
+      /*
+        Die Anmeldung selbst prüfen, und zwar hier.
+
+        lib-fints wirft bei einer abgelehnten Anmeldung keine Ausnahme:
+        Sie setzt `success` auf false (Rückmeldecode >= 9000) und legt
+        den Klartext der Bank in `bankAnswers`. Ohne diese Abfrage lief
+        der Code weiter, fand eine leere Kontenliste und meldete „Die
+        Bank liefert kein Konto zu diesem Zugang. Stimmt der
+        Anmeldename?" — eine Vermutung, die bei falscher PIN oder
+        gesperrtem Zugang in die Irre führt und dazu verleitet, am
+        Anmeldenamen zu drehen, während die Bank die Fehlversuche zählt.
+        Am 06.11.2026 genau so passiert.
+
+        Jede andere Stelle dieser Datei prüfte `success` bereits; nur
+        die Erstanmeldung nicht — also ausgerechnet der Fall, der beim
+        Einrichten auftritt.
+      */
+      if (!s.success) {
+        return { art: "fehler", meldung: bankMeldung(s.bankAnswers) };
+      }
     }
 
     const konten = client.config.bankingInformation?.upd?.bankAccounts ?? [];
@@ -192,9 +213,28 @@ export async function vermerke(
     return { neu: 0, bekannt: 0 };
   }
   if (e.art === "fehler") {
+    /*
+      Bei einem Fehler an den Zugangsdaten wird der Zugang stillgelegt,
+      nicht nur vermerkt.
+
+      Vorher blieb `aktiv` stehen und nur `letzter_fehler` wurde
+      geschrieben. Bei einer abgelehnten PIN hiess das: Der Lauf
+      versucht es abends wieder, am nächsten Morgen noch einmal -- und
+      nach drei Versuchen sperrt die Bank den Zugang. Nicht nur für
+      diese Software, sondern auch für das Onlinebanking im Browser.
+
+      Ein Netzfehler legt nichts stumm: Der ist beim nächsten Lauf
+      vorbei, und ein stillgelegter Zugang, den niemand bemerkt, lässt
+      Zahlungen als Rückstand erscheinen. Deshalb die Unterscheidung in
+      wegenZugangsdaten().
+    */
+    const stillegen = wegenZugangsdaten(e.meldung);
     await query(
-      `UPDATE fints_zugang SET letzter_fehler = $2 WHERE id = $1`,
-      [z.id, e.meldung.slice(0, 2000)],
+      `UPDATE fints_zugang
+          SET letzter_fehler = $2,
+              aktiv = CASE WHEN $3::boolean THEN false ELSE aktiv END
+        WHERE id = $1`,
+      [z.id, e.meldung.slice(0, 2000), stillegen],
     );
     return { neu: 0, bekannt: 0 };
   }

@@ -186,3 +186,62 @@ export function alsBuchungen(umsaetze: FintsUmsatz[]): RohBuchung[] {
   }));
   return nummeriere(rohe);
 }
+
+/** Was die Bank zu einer Nachricht zurückmeldet: Code plus Klartext. */
+export interface BankRueckmeldung {
+  code: number;
+  text: string;
+}
+
+/**
+ * Macht aus den Rückmeldungen der Bank einen lesbaren Satz.
+ *
+ * Die Bank schickt zu jeder Nachricht eine Liste von Rückmeldungen mit
+ * vierstelligem Code. Alles ab 9000 ist ein Fehler. Diese Codes stehen
+ * hier ungefiltert im Text, weil sie bei der Suche helfen: "9931" findet
+ * in jedem Bankforum die richtige Erklärung, "Anmeldung fehlgeschlagen"
+ * nicht.
+ */
+export function bankMeldung(antworten?: BankRueckmeldung[]): string {
+  const alle = (antworten ?? []).filter((a) => a && a.code >= 9000);
+  if (alle.length === 0) {
+    // Auch ohne Fehlercode kann die Anmeldung scheitern -- dann wenigstens
+    // sagen, dass es die Bank war und nicht wir.
+    const sonst = (antworten ?? []).map((a) => `${a.code} ${a.text}`).join("; ");
+    return sonst
+      ? `Die Bank hat die Anmeldung abgelehnt: ${sonst}`
+      : "Die Bank hat die Anmeldung abgelehnt, ohne einen Grund zu nennen.";
+  }
+  return alle.map((a) => `${a.code} ${a.text}`).join("; ");
+}
+
+/**
+ * Geht es bei diesem Fehler um die Zugangsdaten?
+ *
+ * Der Unterschied entscheidet, ob ein Zugang weiterlaufen darf. Eine
+ * Zeitüberschreitung ist ärgerlich und beim nächsten Lauf vorbei. Eine
+ * abgelehnte PIN ist es nicht: Jeder weitere Versuch verbraucht einen
+ * der drei, die der Bank bis zur Sperrung bleiben. Zwei Läufe am Tag --
+ * und nach anderthalb Tagen ist der Zugang zu, auch der im Browser.
+ *
+ * Geprüft wird auf beides, Code und Klartext, weil die Codes zwischen
+ * den Rechenzentren abweichen. Lieber einmal zu viel stilllegen: Das
+ * kostet einen Klick, das Gegenteil kostet den Gang in die Filiale.
+ */
+export function wegenZugangsdaten(meldung: string): boolean {
+  const t = meldung.toLowerCase();
+  // 9931/9942 PIN gesperrt bzw. falsch, 9210 ungültige Daten,
+  // 9340/9941 Signatur bzw. Legitimation abgelehnt.
+  if (/\b(9210|9340|9931|9941|9942)\b/.test(t)) return true;
+  return (
+    t.includes("pin") ||
+    t.includes("gesperrt") ||
+    t.includes("legitimation") ||
+    t.includes("benutzerkennung") ||
+    t.includes("kundensystem") ||
+    t.includes("teilnehmer") ||
+    t.includes("nicht zugelassen") ||
+    t.includes("ungültige daten") ||
+    t.includes("ungueltige daten")
+  );
+}
