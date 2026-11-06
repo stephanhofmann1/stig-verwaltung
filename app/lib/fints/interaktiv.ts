@@ -185,9 +185,33 @@ async function weiterMitUmsaetzen(
         z.konto_iban && k.iban && k.iban.replace(/\s/g, "") === z.konto_iban,
     ) ?? konten[0];
   if (!konto) {
+    /*
+      Hier ist die Anmeldung bereits geglückt -- sonst waere weiter oben
+      abgebrochen worden. Die Bank kennt also Anmeldename und PIN und
+      meldet trotzdem kein Konto in den Userparameterdaten (HIUPD).
+
+      Die alte Meldung riet auf den Anmeldenamen und schickte damit in
+      die falsche Richtung: Wer bis hierher kommt, hat ihn richtig.
+      Haeufigster Grund bei Geschaeftskonten ist, dass die Konten fuer
+      FinTS nicht freigeschaltet sind -- die Anmeldung geht, der
+      Kontozugriff nicht.
+
+      Der Zusatz zur IBAN steht da, weil die zweite Moeglichkeit eine
+      Einschraenkung bei uns ist: Ist im Zugang eine IBAN hinterlegt,
+      die nicht zu den gemeldeten Konten passt, faende die Suche nichts
+      -- dann liegt es nicht an der Bank.
+    */
     return {
       art: "fehler",
-      meldung: "Die Bank liefert kein Konto zu diesem Zugang. Stimmt der Anmeldename?",
+      meldung:
+        "Die Anmeldung bei der Bank hat geklappt, aber sie meldet kein " +
+        "Konto zu diesem Zugang" +
+        (z.konto_iban
+          ? ` (gesucht wurde ${z.konto_iban}; die Bank nannte ${konten.length} Konto/Konten).`
+          : ".") +
+        " Anmeldename und PIN stimmen also. Bei Geschäftskonten ist meist " +
+        "der Kontozugriff über FinTS nicht freigeschaltet — das muss die " +
+        "Bank für jedes Konto einzeln einrichten.",
     };
   }
 

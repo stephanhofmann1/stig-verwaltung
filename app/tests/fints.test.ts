@@ -696,3 +696,42 @@ describe("Nur die Bank kann einen Zugang stilllegen", () => {
     assert.match(HOLEN, /bankMeldung\(s\.bankAnswers\), vonDerBank: true/);
   });
 });
+
+describe("Kein Konto trotz geglueckter Anmeldung", () => {
+  /*
+    Am 06.11.2026 stand bei richtigem VR-NetKey und richtiger PIN immer
+    noch "Stimmt der Anmeldename?" -- und schickte damit in die falsche
+    Richtung. An dieser Stelle im Ablauf ist die Anmeldung naemlich
+    schon durch: Waere sie es nicht, haette die Pruefung auf success
+    vorher abgebrochen. Wer die Meldung liest, hat den Anmeldenamen
+    also richtig und sucht trotzdem dort weiter.
+  */
+  const INTERAKTIV = readFileSync(
+    new URL("../lib/fints/interaktiv.ts", import.meta.url), "utf8");
+
+  test("die Meldung behauptet nicht mehr, der Anmeldename sei schuld", () => {
+    assert.ok(
+      !INTERAKTIV.includes("Stimmt der Anmeldename?"),
+      "Die alte, irrefuehrende Meldung steht noch im Code",
+    );
+  });
+
+  test("sie sagt, dass die Anmeldung geklappt hat", () => {
+    // Das ist die eine Information, die der Leser an dieser Stelle
+    // wirklich braucht: Es liegt nicht an den Zugangsdaten.
+    const stelle = INTERAKTIV.slice(INTERAKTIV.indexOf("if (!konto)"));
+    assert.match(stelle, /Anmeldung bei der Bank hat geklappt/);
+    assert.match(stelle, /freigeschaltet/);
+  });
+
+  test("sie nennt die gesuchte IBAN, wenn eine hinterlegt ist", () => {
+    /*
+      Die zweite moegliche Ursache ist eine Einschraenkung bei uns: Eine
+      im Zugang hinterlegte IBAN, die zu keinem gemeldeten Konto passt.
+      Dann liegt es nicht an der Bank, und das muss unterscheidbar sein.
+    */
+    const stelle = INTERAKTIV.slice(INTERAKTIV.indexOf("if (!konto)"));
+    assert.match(stelle, /z\.konto_iban/);
+    assert.match(stelle, /konten\.length/);
+  });
+});
