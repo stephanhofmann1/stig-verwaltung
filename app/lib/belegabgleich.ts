@@ -451,10 +451,101 @@ export async function schlageBelegeVor(): Promise<BelegVorschlag[]> {
     });
   }
 
-  return vorschlaege;
+  // Zum Schluss: Kein Beleg darf zwei Abbuchungen belegen.
+  return entwirreMehrfachnutzung(
+    vorschlaege,
+    new Map(ausgaben.map((a) => [a.id, a.buchungstag])),
+    new Map(belege.map((b) => [b.id, b.belegdatum])),
+  );
 }
 
 /** Schreibt die sicheren Treffer fest. */
+/**
+ * Einen Beleg nur einmal festschreiben.
+ *
+ * WOFUER
+ *
+ * Der Abgleich laeuft ueber die Abbuchungen und sucht je Abbuchung den
+ * passenden Beleg. Die Liste der offenen Belege wird dabei EINMAL
+ * geladen; das Feld `offen` darin ist ein Stand von vorher. Innerhalb
+ * eines Laufs sinkt es nicht mit. Also konnte derselbe Beleg mehreren
+ * Abbuchungen als "sicher" zugeschlagen werden.
+ *
+ * Am 06.11.2026 war das kein Gedankenspiel: Ein Zahlungsnachweis ueber
+ * 16,99 EUR hing an VIER Abbuchungen von je 16,99 EUR, drei davon am
+ * selben Tag. Vier Zahlungen, ein Beleg -- in den Buechern sah es aus
+ * wie vier belegte Ausgaben. Ueber Laufgrenzen hinweg war der Fall
+ * abgedeckt (`offeneBelege` zieht die schon gebuchten Betraege ab);
+ * innerhalb eines Laufs nicht.
+ *
+ * WIE ENTSCHIEDEN WIRD
+ *
+ * Nicht "wer zuerst kommt". Die Reihenfolge der Abbuchungen ist
+ * willkuerlich, und ein Wuerfelwurf waere hier schlimmer als eine
+ * offene Frage. Es gewinnt die Abbuchung, die dem Belegdatum am
+ * naechsten liegt -- nach demselben Fenster, nach dem auch
+ * `waehleNachDatum` entscheidet. Bei gleichem Abstand entscheidet die
+ * Kennung, damit zwei Laeufe dasselbe Ergebnis haben.
+ *
+ * Die unterlegenen Vorschlaege werden NICHT weggeworfen, sondern auf
+ * "unsicher" gesetzt und nennen den Grund. Eine weggeworfene Abbuchung
+ * waere eine stillschweigend unbelegte Ausgabe; eine unsichere steht
+ * auf der Liste und wartet auf einen Blick.
+ */
+export function entwirreMehrfachnutzung(
+  vorschlaege: BelegVorschlag[],
+  buchungstag: Map<string, string | null>,
+  belegdatum: Map<string, string | null>,
+): BelegVorschlag[] {
+  // Wer beansprucht welchen Beleg? Haupttreffer und Teillieferungen
+  // zaehlen gleich -- festgeschrieben werden beide.
+  const anspruch = new Map<string, number[]>();
+  vorschlaege.forEach((v, i) => {
+    if (v.sicherheit !== "sicher") return;
+    for (const id of [v.beleg_id, ...(v.weitere ?? []).map((w) => w.beleg_id)]) {
+      if (id) (anspruch.get(id) ?? anspruch.set(id, []).get(id)!).push(i);
+    }
+  });
+
+  const ergebnis = vorschlaege.map((v) => ({ ...v }));
+  for (const [belegId, stellen] of anspruch) {
+    if (stellen.length < 2) continue;
+    const bd = belegdatum.get(belegId) ?? null;
+    const bewertet = stellen.map((i) => {
+      const tag = buchungstag.get(ergebnis[i].buchung_id) ?? null;
+      const tage = bd && tag ? tageZwischen(bd, tag) : null;
+      const passt =
+        tage !== null && tage >= -VORLAUF_TAGE && tage <= NACHLAUF_TAGE;
+      return { i, tage, rang: passt ? Math.abs(tage!) : Number.MAX_SAFE_INTEGER };
+    });
+    bewertet.sort(
+      (a, b) =>
+        a.rang - b.rang ||
+        ergebnis[a.i].buchung_id.localeCompare(ergebnis[b.i].buchung_id),
+    );
+
+    const sieger = bewertet[0];
+    for (const verlierer of bewertet.slice(1)) {
+      const v = ergebnis[verlierer.i];
+      const grund =
+        `Dieser Beleg gehoert zu einer anderen Abbuchung: Sie liegt ` +
+        `${sieger.tage === null ? "naeher" : `${sieger.tage} Tage`} am ` +
+        "Belegdatum. Fuer diese Bewegung fehlt der Beleg noch.";
+      if (v.beleg_id === belegId) {
+        v.sicherheit = "unsicher";
+        v.begruendung = grund;
+      } else {
+        // Nur eine Teillieferung war doppelt: Der Haupttreffer bleibt,
+        // der strittige Beleg faellt aus `weitere` heraus.
+        v.weitere = (v.weitere ?? []).filter((w) => w.beleg_id !== belegId);
+        v.begruendung = `${v.begruendung} Ein weiterer Beleg wurde nicht ` +
+          "mitgebucht, weil er zu einer anderen Abbuchung naeher passt.";
+      }
+    }
+  }
+  return ergebnis;
+}
+
 export async function uebernehmeSichereBelege(): Promise<{
   uebernommen: number;
   offen: number;
@@ -473,13 +564,17 @@ export async function uebernehmeSichereBelege(): Promise<{
         ...(x.weitere ?? []),
       ];
       for (const t of alle) {
-        await c.query(
+        // RETURNING liefert nur bei einem echten INSERT eine Zeile.
+        // Vorher zaehlte der Zaehler auch die vom ON CONFLICT
+        // verworfenen mit und meldete mehr Arbeit, als getan war.
+        const r = await c.query(
           `INSERT INTO belegbuchung (buchung_id, beleg_id, betrag, sicherheit, begruendung)
            VALUES ($1,$2,$3,'sicher',$4)
-           ON CONFLICT (buchung_id, beleg_id) DO NOTHING`,
+           ON CONFLICT (buchung_id, beleg_id) DO NOTHING
+           RETURNING id`,
           [x.buchung_id, t.beleg_id, t.betrag, x.begruendung],
         );
-        gebucht += 1;
+        gebucht += r.rowCount ?? 0;
       }
     }
   });
