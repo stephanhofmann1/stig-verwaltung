@@ -8,11 +8,13 @@ import {
   findeBetrag,
   findeDatum,
   findeKontobewegung,
+  findeSummeMehrererRechnungen,
+  leererBefund,
   leseZahl,
   pruefeModellfelder,
-  werteBelegAus,
-  leererBefund,
   type BewegungZeile,
+  werteBelegAus,
+  zaehleBelegstuecke,
 } from "../lib/belege";
 import { istBild, istPdf, lieseBeleg, seitenAuswahl } from "../lib/belegtext";
 import { vergleichbar } from "../lib/zuordnung";
@@ -567,5 +569,238 @@ describe("seitenAuswahl", () => {
   test("bei langen Belegen Anfang und Ende -- dort stehen Kopf und Summe", () => {
     const s = seitenAuswahl(100, 4);
     assert.deepEqual(s, [1, 2, 99, 100]);
+  });
+});
+
+/**
+ * Liest das Portal wirklich Text aus einem PDF?
+ *
+ * ANLASS, 05.11.2026
+ *
+ * Es konnte es nicht -- und zwar nie. pdfjs lädt seinen Arbeiter zur
+ * Laufzeit nach, und im gebündelten Serverbetrieb lag er nicht dort, wo
+ * pdfjs ihn suchte:
+ *
+ *   Setting up fake worker failed: Cannot find module
+ *   '/app/.next/server/chunks/pdf.worker.mjs'
+ *
+ * lieseBeleg fängt diesen Fehler und meldet "keine Textebene". Damit sah
+ * jedes PDF wie ein Scan aus. 229 Belege sind so eingeliefert worden,
+ * ohne dass eine einzige Zeile daraus gelesen wurde -- und weil die
+ * Felder aus einer mitgelieferten Beifügung kamen, wirkte das Ergebnis
+ * vollständig. Gemeldet wurden "0 Abweichungen zwischen zwei Lesungen".
+ * Es gab nie zwei Lesungen; die zweite schwieg.
+ *
+ * Diese Tests prüfen das Gegenteil: dass aus einem PDF mit Textebene
+ * auch Text herauskommt. Ein Test, der nur prüft, dass lieseBeleg nicht
+ * wirft, hätte den Ausfall mitgetragen.
+ */
+describe("Textebene wirklich lesen", () => {
+  async function pdfMitText(zeilen: string[]): Promise<Buffer> {
+    const dok = await PDFDocument.create();
+    const schrift = await dok.embedFont(StandardFonts.Helvetica);
+    const seite = dok.addPage([595, 842]);
+    zeilen.forEach((z, i) =>
+      seite.drawText(z, { x: 50, y: 780 - i * 20, size: 11, font: schrift }),
+    );
+    return Buffer.from(await dok.save());
+  }
+
+  test("aus einem PDF mit Textebene kommt der Text heraus", async () => {
+    const bytes = await pdfMitText([
+      "Rechnung",
+      "Bestellnummer 303-9211199-0875554",
+      "Zahlbetrag 45,44 EUR",
+    ]);
+    const d = await lieseBeleg(bytes);
+    assert.equal(d.art, "pdf");
+    assert.equal(d.fehler, null, `Lesefehler: ${d.fehler}`);
+    assert.equal(d.ohne_textebene, false, "PDF wurde fälschlich für einen Scan gehalten");
+    assert.match(d.text, /Bestellnummer/);
+    assert.match(d.text, /303-9211199-0875554/);
+  });
+
+  test("der Betragsleser findet den Betrag darin", async () => {
+    const bytes = await pdfMitText(["Rechnung", "Zahlbetrag 1.234,56 EUR"]);
+    const d = await lieseBeleg(bytes);
+    assert.equal(findeBetrag(d.text), 1234.56);
+  });
+
+  test("ein leeres PDF gilt als ohne Textebene -- und nicht als Fehler", async () => {
+    const dok = await PDFDocument.create();
+    dok.addPage([595, 842]);
+    const d = await lieseBeleg(Buffer.from(await dok.save()));
+    assert.equal(d.fehler, null);
+    assert.equal(d.ohne_textebene, true);
+  });
+});
+
+describe("Rangfolge der Datumsetiketten", () => {
+  /**
+   * Der Lesetext einer Amazon-Rechnung stellt beide Daten flach
+   * hintereinander, und das Bestelldatum steht zuerst. Eine Alternation
+   * aus allen Etiketten greift deshalb das falsche. Am 05.11.2026 lagen
+   * 30 von 100 Amazon-Belegen mit dem Bestelldatum in den Buechern.
+   * Alle Nummern hier sind erfunden.
+   */
+  const amazon =
+    "Rechnung Seite 1 von 1 USt. 19% 29,40 € 5,59 € Gesamtpreis 34,99 € " +
+    "Rechnungsdetails Bestelldatum 28.08.2026 Bestellnummer 302-1111111-2222222 " +
+    "USt-IDNr. LU20260743 Verkauft von Beispiel GmbH " +
+    "Rechnungsdatum /Lieferdatum 29.08.2026 Rechnungsnummer DE6871MONAEUD " +
+    "Zahlbetrag 34,99 €";
+
+  test("das Rechnungsdatum gewinnt, auch wenn das Bestelldatum vorher steht", () => {
+    assert.equal(findeDatum(amazon), "2026-08-29");
+  });
+
+  test('die Füllung "/Lieferdatum" steht nicht im Weg', () => {
+    assert.equal(findeDatum("Rechnungsdatum /Lieferdatum 27.09.2026"), "2026-09-27");
+  });
+
+  test("ein deutscher Monatsname wird gelesen", () => {
+    assert.equal(
+      findeDatum("Bestelldatum 26 September 2026 Rechnungsdatum /Lieferdatum 27 September 2026"),
+      "2026-09-27",
+    );
+    assert.equal(findeDatum("Belegdatum 07. März 2026"), "2026-03-07");
+  });
+
+  test("ohne Rechnungsdatum gilt das Bestelldatum", () => {
+    assert.equal(findeDatum("Bestelldatum 28.08.2026"), "2026-08-28");
+  });
+
+  test("ohne jedes Etikett das erste Datum im Text", () => {
+    assert.equal(findeDatum("Lieferung am 14.03.2026 an die Baustelle"), "2026-03-14");
+  });
+
+  test("ein unmögliches Datum wird nicht genommen", () => {
+    assert.equal(findeDatum("Rechnungsdatum 31.02.2026"), null);
+  });
+});
+
+describe("Mehrere Rechnungen in einer Datei", () => {
+  /**
+   * Amazon legt die Rechnungen mehrerer Sendungen einer Bestellung in
+   * ein PDF. Die Abbuchung ist eine -- ueber die Summe. Die Zahlen hier
+   * sind der am 05.11.2026 an der Bank bestaetigte Fall: 68,91 + 19,99 +
+   * 39,99 = 128,89 EUR, und genau 128,89 EUR wurden abgebucht.
+   */
+  const drei =
+    "Rechnungsnummer DE11AAAAAAEUD Zahlbetrag 68,91 € " +
+    "Rechnungsnummer DE22BBBBBBEUD Zahlbetrag 19,99 € " +
+    "Rechnungsnummer DE33CCCCCCEUD Zahlbetrag 39,99 €";
+
+  test("die Summe, nicht ein Teil", () => {
+    const m = findeSummeMehrererRechnungen(drei);
+    assert.ok(m);
+    assert.equal(m!.rechnungen, 3);
+    assert.equal(m!.summe, 128.89);
+  });
+
+  test("werteBelegAus nimmt die Summe", () => {
+    assert.equal(werteBelegAus(drei).betrag_brutto, 128.89);
+  });
+
+  test("dieselbe Rechnung auf zwei Seiten wird nicht verdoppelt", () => {
+    // Amazon wiederholt Nummer und Betrag im Seitenkopf. 47,02 EUR auf
+    // zwei Seiten sind 47,02 EUR.
+    const zweiSeiten =
+      "Rechnungsnummer DE66DIQPEAEUD Zahlbetrag 47,02 € Seite 1 von 2 " +
+      "Rechnungsnummer DE66DIQPEAEUD Zahlbetrag 47,02 € Seite 2 von 2";
+    assert.equal(findeSummeMehrererRechnungen(zweiSeiten), null);
+  });
+
+  test("eine einzige Rechnung ergibt null -- das Regelwerk entscheidet", () => {
+    assert.equal(
+      findeSummeMehrererRechnungen("Rechnungsnummer DE11AAAAAAEUD Zahlbetrag 34,99 €"),
+      null,
+    );
+  });
+
+  test("ohne Rechnungsnummern greift die Regel nicht", () => {
+    // Eine polnische Haendlerrechnung schreibt netto/USt/brutto in eine
+    // Zeile. Sie hat kein "Zahlbetrag" und keine Amazon-Nummern -- hier
+    // darf nichts summiert werden.
+    assert.equal(
+      findeSummeMehrererRechnungen("Gesamtsumme: in EUR 9,82 1,87 11,69"),
+      null,
+    );
+  });
+
+  test("eine unglaubwürdige Summe wird verworfen", () => {
+    const viel =
+      "Rechnungsnummer DE11AAAAAAEUD Zahlbetrag 999.999,00 € " +
+      "Rechnungsnummer DE22BBBBBBEUD Zahlbetrag 999.999,00 €";
+    assert.equal(findeSummeMehrererRechnungen(viel), null);
+  });
+});
+
+describe("Mehrere Belegstücke in einer Datei", () => {
+  /**
+   * Der Fall vom 05.11.2026: eine Datei mit einer Rechnung über 41,39 €
+   * und einer Quittung über 13,20 € zu einer anderen Bestellung.
+   * findeBetrag nimmt den letzten gleichrangigen Treffer -- hier also
+   * 13,20 €. Gezählt wird, damit das auffällt.
+   */
+  const gemischt =
+    "Seite 1 von 2 Rechnung Rechnungsnummer DE6UDGSPAEUI Zahlbetrag 41,39 € " +
+    "Bestelldatum 07 März 2026 Bestellnummer 303-1111111-2222222 " +
+    "Seite 2 von 2 Quittung Quittungsnummer XX6009PPY2RVVT Zahlbetrag 13,20 € " +
+    "Bestelldatum 07 März 2026 Bestellnummer 303-4444444-5555555";
+
+  test("zwei Stücke werden als zwei gezählt", () => {
+    assert.equal(zaehleBelegstuecke(gemischt), 2);
+  });
+
+  test("die Summenregel greift hier nicht -- die Nummern sind verschiedener Art", () => {
+    // Nur eine Rechnungsnummer: Summieren waere geraten.
+    assert.equal(findeSummeMehrererRechnungen(gemischt), null);
+  });
+
+  test("ein Stück auf mehreren Seiten bleibt eins", () => {
+    assert.equal(
+      zaehleBelegstuecke(
+        "Seite 1 von 2 Rechnungsnummer DE66DIQPEAEUD Zahlbetrag 47,02 € " +
+          "Seite 2 von 2 Rechnungsnummer DE66DIQPEAEUD Zahlbetrag 47,02 €",
+      ),
+      1,
+    );
+  });
+
+  test("ohne Belegnummer null Stücke", () => {
+    assert.equal(zaehleBelegstuecke("Gesamtsumme: in EUR 9,82 1,87 11,69"), 0);
+  });
+});
+
+describe("Belegnummern mit Bindestrichen", () => {
+  /**
+   * Amazon vergibt neben "DE6UDGSPAEUI" auch
+   * "DS-AEU-INV-DE-2025-191950229". Ein Muster aus nur Buchstaben und
+   * Ziffern sah davon zwei Zeichen und zaehlte die Datei als ein Stueck.
+   * Am 05.11.2026 blieb so eine Datei mit drei Rechnungen unerkannt und
+   * der Leser nahm die letzte: 13,75 EUR statt 37,73 EUR.
+   * Die Nummern hier sind erfunden.
+   */
+  const drei =
+    "Rechnungsnummer DS-AEU-INV-DE-2025-100000001 Zahlbetrag 3,99 € Seite 1 von 2 " +
+    "Rechnungsnummer DS-AEU-INV-DE-2025-100000001 Seite 2 von 2 " +
+    "Rechnungsnummer DS-AEU-INV-DE-2025-100000002 Zahlbetrag 19,99 € Seite 1 von 1 " +
+    "Rechnungsnummer DS-AEU-INV-DE-2025-100000003 Zahlbetrag 13,75 € Seite 1 von 1";
+
+  test("drei Stücke werden als drei gezählt", () => {
+    assert.equal(zaehleBelegstuecke(drei), 3);
+  });
+
+  test("die Summe ist 37,73 und nicht die letzte Zahl", () => {
+    const m = findeSummeMehrererRechnungen(drei);
+    assert.ok(m);
+    assert.equal(m!.rechnungen, 3);
+    assert.equal(m!.summe, 37.73);
+    assert.equal(werteBelegAus(drei).betrag_brutto, 37.73);
+  });
+
+  test("die kurze Form zählt weiterhin", () => {
+    assert.equal(zaehleBelegstuecke("Rechnungsnummer DE6UDGSPAEUI Zahlbetrag 41,39 €"), 1);
   });
 });

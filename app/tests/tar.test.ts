@@ -5,6 +5,7 @@ import { gzipSync } from "node:zlib";
 import {
   leseTar,
   nameIstHarmlos,
+  normiereTarName,
   TarFehler,
   MAX_DATEI_BYTES,
 } from "../lib/tar";
@@ -241,5 +242,43 @@ describe("Was abgewiesen wird", () => {
       assert.match(e.message, /binaere Zahlenfelder|Pruefsumme/);
       return true;
     });
+  });
+});
+
+describe("Punkt-Segmente im Namen", () => {
+  test("ein Punkt ist kein Ausbruch und wird entfernt", () => {
+    // "tar czf paket.tgz -C ordner ." schreibt "./beleg.pdf". Am
+    // 05.11.2026 wies die Einlieferung ein Paket mit 57 Amazon-
+    // Rechnungen deshalb komplett ab.
+    assert.equal(normiereTarName("./beleg.pdf"), "beleg.pdf");
+    assert.equal(normiereTarName("./Amazon/./beleg.pdf"), "Amazon/beleg.pdf");
+    assert.equal(normiereTarName("beleg.pdf"), "beleg.pdf");
+  });
+
+  test("Punkt-Punkt bleibt verboten", () => {
+    assert.equal(nameIstHarmlos("./../beleg.pdf"), false);
+    assert.equal(nameIstHarmlos("a/./../../etc/passwd"), false);
+    assert.equal(nameIstHarmlos("./beleg.pdf"), true);
+  });
+
+  test("Leerzeichen und Klammern sind harmlos", () => {
+    // Chrome haengt bei gleichem Namen " (1)" an.
+    assert.equal(nameIstHarmlos("amazon_304-2286816-3655519_rechnung_4 (1).pdf"), true);
+    assert.equal(normiereTarName("./amazon_304-2286816-3655519_rechnung_4 (1).pdf"),
+                 "amazon_304-2286816-3655519_rechnung_4 (1).pdf");
+  });
+
+  test("ein Archiv mit ./-Namen wird gelesen", () => {
+    const tar = archiv([
+      { name: "./beleg.pdf", inhalt: Buffer.from("%PDF-1.4 eins") },
+      { name: "./unterordner/zwei.pdf", inhalt: Buffer.from("%PDF-1.4 zwei") },
+    ]);
+    const e = leseTar(tar);
+    assert.deepEqual(e.map((x) => x.name), ["beleg.pdf", "unterordner/zwei.pdf"]);
+  });
+
+  test("ein Eintrag, der nur aus Punkten besteht, wird abgewiesen", () => {
+    const tar = archiv([{ name: "./.", inhalt: Buffer.from("x") }]);
+    assert.throws(() => leseTar(tar), /keinen Namen/);
   });
 });
