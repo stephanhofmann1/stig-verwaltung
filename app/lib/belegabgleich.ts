@@ -229,6 +229,54 @@ const NACHLAUF_TAGE = 45;
 const MINDESTABSTAND_TAGE = 5;
 
 /**
+ * Passt die Abbuchung zeitlich ueberhaupt zum Beleg?
+ *
+ * WOFUER
+ *
+ * Regel 2 ("Aussteller erkannt und Betrag stimmt auf den Cent")
+ * schrieb fest, ohne auf das Datum zu sehen. Bei einem einzigen
+ * Kandidaten schien das genug: derselbe Name, derselbe Betrag.
+ *
+ * Am 06.11.2026 zeigte sich, dass es nicht genug ist. Eine Quittung
+ * ueber 4,99 EUR vom 17.03.2026 war zwei Abbuchungen ueber je 4,99 EUR
+ * zugeschlagen worden -- vom 14.01. und vom 27.01.2026, also zwei und
+ * drei Monate VOR dem Belegdatum. Beides ist unmoeglich: Was im Maerz
+ * ausgestellt wurde, kann im Januar nicht bezahlt worden sein.
+ *
+ * WARUM NICHT UEBERALL
+ *
+ * Die Regeln 0 und 1 treffen ueber eine Kennung -- Bestellnummer,
+ * Kundennummer, Belegnummer -- die der Zahlungsempfaenger vergeben
+ * hat und die auf dem Beleg UND in der Abbuchung steht. Dort ist das
+ * Datum gleichgueltig: Wer dieselbe Nummer auf beiden Seiten hat,
+ * braucht keinen Kalender. Eine Jahresabrechnung, die 90 Tage spaeter
+ * bezahlt wird, soll an ihrer Kundennummer erkannt bleiben.
+ *
+ * Ohne Datum auf einer der beiden Seiten laesst sich nichts
+ * ausschliessen; dann gilt das Fenster als eingehalten.
+ */
+export function imZeitfenster(
+  belegdatum: string | null,
+  buchungstag: string | null,
+): boolean {
+  if (!belegdatum || !buchungstag) return true;
+  const t = tageZwischen(belegdatum, buchungstag);
+  return t === null || (t >= -VORLAUF_TAGE && t <= NACHLAUF_TAGE);
+}
+
+/** Wie der zeitliche Widerspruch in Worten heisst. */
+export function zeitlicherWiderspruch(
+  belegdatum: string | null,
+  buchungstag: string | null,
+): string | null {
+  if (imZeitfenster(belegdatum, buchungstag)) return null;
+  const t = tageZwischen(belegdatum!, buchungstag!)!;
+  return t < 0
+    ? `die Abbuchung liegt ${-t} Tage vor dem Belegdatum`
+    : `zwischen Belegdatum und Abbuchung liegen ${t} Tage`;
+}
+
+/**
  * Unter gleich teuren Belegen den einen waehlen, den das Datum ausweist.
  *
  * WOFUER
@@ -361,12 +409,19 @@ export async function schlageBelegeVor(): Promise<BelegVorschlag[]> {
     );
     if (nameUndBetrag.length === 1) {
       const b = nameUndBetrag[0];
+      // Name und Betrag allein genuegen nicht: Das Datum muss moeglich
+      // sein. Sonst bleibt der Treffer ein Vorschlag und nennt den
+      // Widerspruch -- weggeworfen wuerde er die Spur verlieren.
+      const widerspruch = zeitlicherWiderspruch(b.belegdatum, a.buchungstag);
       vorschlaege.push({
         buchung_id: a.id,
         beleg_id: b.id,
         betrag,
-        sicherheit: "sicher",
-        begruendung: "Aussteller erkannt und Betrag stimmt auf den Cent.",
+        sicherheit: widerspruch ? "unsicher" : "sicher",
+        begruendung: widerspruch
+          ? `Aussteller erkannt und Betrag stimmt auf den Cent, aber ` +
+            `${widerspruch} — das passt zeitlich nicht zusammen, bitte prüfen.`
+          : "Aussteller erkannt und Betrag stimmt auf den Cent.",
         beleg_bezeichnung: bezeichne(b),
       });
       continue;
@@ -451,10 +506,101 @@ export async function schlageBelegeVor(): Promise<BelegVorschlag[]> {
     });
   }
 
-  return vorschlaege;
+  // Zum Schluss: Kein Beleg darf zwei Abbuchungen belegen.
+  return entwirreMehrfachnutzung(
+    vorschlaege,
+    new Map(ausgaben.map((a) => [a.id, a.buchungstag])),
+    new Map(belege.map((b) => [b.id, b.belegdatum])),
+  );
 }
 
 /** Schreibt die sicheren Treffer fest. */
+/**
+ * Einen Beleg nur einmal festschreiben.
+ *
+ * WOFUER
+ *
+ * Der Abgleich laeuft ueber die Abbuchungen und sucht je Abbuchung den
+ * passenden Beleg. Die Liste der offenen Belege wird dabei EINMAL
+ * geladen; das Feld `offen` darin ist ein Stand von vorher. Innerhalb
+ * eines Laufs sinkt es nicht mit. Also konnte derselbe Beleg mehreren
+ * Abbuchungen als "sicher" zugeschlagen werden.
+ *
+ * Am 06.11.2026 war das kein Gedankenspiel: Ein Zahlungsnachweis ueber
+ * 16,99 EUR hing an VIER Abbuchungen von je 16,99 EUR, drei davon am
+ * selben Tag. Vier Zahlungen, ein Beleg -- in den Buechern sah es aus
+ * wie vier belegte Ausgaben. Ueber Laufgrenzen hinweg war der Fall
+ * abgedeckt (`offeneBelege` zieht die schon gebuchten Betraege ab);
+ * innerhalb eines Laufs nicht.
+ *
+ * WIE ENTSCHIEDEN WIRD
+ *
+ * Nicht "wer zuerst kommt". Die Reihenfolge der Abbuchungen ist
+ * willkuerlich, und ein Wuerfelwurf waere hier schlimmer als eine
+ * offene Frage. Es gewinnt die Abbuchung, die dem Belegdatum am
+ * naechsten liegt -- nach demselben Fenster, nach dem auch
+ * `waehleNachDatum` entscheidet. Bei gleichem Abstand entscheidet die
+ * Kennung, damit zwei Laeufe dasselbe Ergebnis haben.
+ *
+ * Die unterlegenen Vorschlaege werden NICHT weggeworfen, sondern auf
+ * "unsicher" gesetzt und nennen den Grund. Eine weggeworfene Abbuchung
+ * waere eine stillschweigend unbelegte Ausgabe; eine unsichere steht
+ * auf der Liste und wartet auf einen Blick.
+ */
+export function entwirreMehrfachnutzung(
+  vorschlaege: BelegVorschlag[],
+  buchungstag: Map<string, string | null>,
+  belegdatum: Map<string, string | null>,
+): BelegVorschlag[] {
+  // Wer beansprucht welchen Beleg? Haupttreffer und Teillieferungen
+  // zaehlen gleich -- festgeschrieben werden beide.
+  const anspruch = new Map<string, number[]>();
+  vorschlaege.forEach((v, i) => {
+    if (v.sicherheit !== "sicher") return;
+    for (const id of [v.beleg_id, ...(v.weitere ?? []).map((w) => w.beleg_id)]) {
+      if (id) (anspruch.get(id) ?? anspruch.set(id, []).get(id)!).push(i);
+    }
+  });
+
+  const ergebnis = vorschlaege.map((v) => ({ ...v }));
+  for (const [belegId, stellen] of anspruch) {
+    if (stellen.length < 2) continue;
+    const bd = belegdatum.get(belegId) ?? null;
+    const bewertet = stellen.map((i) => {
+      const tag = buchungstag.get(ergebnis[i].buchung_id) ?? null;
+      const tage = bd && tag ? tageZwischen(bd, tag) : null;
+      const passt =
+        tage !== null && tage >= -VORLAUF_TAGE && tage <= NACHLAUF_TAGE;
+      return { i, tage, rang: passt ? Math.abs(tage!) : Number.MAX_SAFE_INTEGER };
+    });
+    bewertet.sort(
+      (a, b) =>
+        a.rang - b.rang ||
+        ergebnis[a.i].buchung_id.localeCompare(ergebnis[b.i].buchung_id),
+    );
+
+    const sieger = bewertet[0];
+    for (const verlierer of bewertet.slice(1)) {
+      const v = ergebnis[verlierer.i];
+      const grund =
+        `Dieser Beleg gehoert zu einer anderen Abbuchung: Sie liegt ` +
+        `${sieger.tage === null ? "naeher" : `${sieger.tage} Tage`} am ` +
+        "Belegdatum. Fuer diese Bewegung fehlt der Beleg noch.";
+      if (v.beleg_id === belegId) {
+        v.sicherheit = "unsicher";
+        v.begruendung = grund;
+      } else {
+        // Nur eine Teillieferung war doppelt: Der Haupttreffer bleibt,
+        // der strittige Beleg faellt aus `weitere` heraus.
+        v.weitere = (v.weitere ?? []).filter((w) => w.beleg_id !== belegId);
+        v.begruendung = `${v.begruendung} Ein weiterer Beleg wurde nicht ` +
+          "mitgebucht, weil er zu einer anderen Abbuchung naeher passt.";
+      }
+    }
+  }
+  return ergebnis;
+}
+
 export async function uebernehmeSichereBelege(): Promise<{
   uebernommen: number;
   offen: number;
@@ -473,13 +619,17 @@ export async function uebernehmeSichereBelege(): Promise<{
         ...(x.weitere ?? []),
       ];
       for (const t of alle) {
-        await c.query(
+        // RETURNING liefert nur bei einem echten INSERT eine Zeile.
+        // Vorher zaehlte der Zaehler auch die vom ON CONFLICT
+        // verworfenen mit und meldete mehr Arbeit, als getan war.
+        const r = await c.query(
           `INSERT INTO belegbuchung (buchung_id, beleg_id, betrag, sicherheit, begruendung)
            VALUES ($1,$2,$3,'sicher',$4)
-           ON CONFLICT (buchung_id, beleg_id) DO NOTHING`,
+           ON CONFLICT (buchung_id, beleg_id) DO NOTHING
+           RETURNING id`,
           [x.buchung_id, t.beleg_id, t.betrag, x.begruendung],
         );
-        gebucht += 1;
+        gebucht += r.rowCount ?? 0;
       }
     }
   });
