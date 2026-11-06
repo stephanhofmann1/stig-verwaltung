@@ -254,3 +254,58 @@ describe("Die Seite und die Spracherkennung", () => {
     assert.match(stueck, /return \(\) => hoerer\.current\?\.stop\(\)/);
   });
 });
+
+describe("Den privaten Mandanten anlegen", () => {
+  const stueck = readFileSync(
+    new URL("../components/MandantAnlegen.tsx", import.meta.url),
+    "utf8",
+  );
+  const seite = readFileSync(
+    new URL("../app/ablage/page.tsx", import.meta.url),
+    "utf8",
+  );
+
+  test("das Angebot steht nur da, solange es einen Zugang gibt", () => {
+    // Sobald es zwei sind, erscheint oben der Umschalter -- dann waere
+    // das Feld eine zweite Antwort auf eine beantwortete Frage.
+    assert.match(stueck, /if \(anzahlZugaenge > 1\) return null/);
+    assert.match(seite, /anzahlZugaenge=\{zugaenge\.length\}/);
+  });
+
+  test("Name und Kürzel werden nicht vorgegeben", () => {
+    // Das Kuerzel steht spaeter in Adressen und laesst sich nicht
+    // aendern. Etwas, das bleibt, waehlt der, dem es gehoert.
+    assert.match(stueck, /value=\{name\}/);
+    assert.match(stueck, /value=\{kuerzel\}/);
+    assert.ok(
+      !/useState\("Privat/.test(stueck),
+      "der Name ist vorbelegt",
+    );
+    assert.ok(
+      !/useState\("privat/.test(stueck),
+      "das Kürzel ist vorbelegt",
+    );
+  });
+
+  test("es steht dabei, dass das Kürzel bleibt", () => {
+    assert.match(stueck, /lässt sich nicht mehr ändern/);
+  });
+
+  test("es sagt, warum das überhaupt nötig ist", () => {
+    // Ohne den Satz ist "einen Mandanten anlegen" eine Zumutung.
+    assert.match(stueck, /auch für Mitgesellschafter sichtbar/);
+  });
+
+  test("der Knopf bleibt tot, solange die Felder zu kurz sind", () => {
+    assert.match(
+      stueck,
+      /disabled=\{laeuft \|\| name\.trim\(\)\.length < 2 \|\| kuerzel\.trim\(\)\.length < 2\}/,
+    );
+  });
+
+  test("nach dem Anlegen wird alles neu geladen", () => {
+    // Die Route stellt das Sitzungscookie auf den neuen Mandanten um;
+    // jede Seite im Speicher zeigt sonst Daten des alten.
+    assert.match(stueck, /window\.location\.assign\("\/ablage"\)/);
+  });
+});

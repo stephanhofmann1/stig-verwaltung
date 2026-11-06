@@ -2,7 +2,9 @@ import { query } from "@/lib/db";
 import { angemeldeteSitzung } from "@/lib/anmeldung";
 import { redirect } from "next/navigation";
 import { Ablage } from "@/components/Ablage";
+import { MandantAnlegen } from "@/components/MandantAnlegen";
 import { KOSTENARTEN } from "@/lib/kostenarten";
+import { zugaengeFuer } from "@/lib/zugang";
 
 export const dynamic = "force-dynamic";
 
@@ -89,6 +91,9 @@ export default async function AblageSeite() {
   `);
 
   const namen = new Map(KOSTENARTEN.map((k) => [k.schluessel, k.text]));
+  // Gibt es nur einen Zugang, gibt es auch keinen getrennten privaten
+  // Mandanten -- dann steht unten das Angebot, einen anzulegen.
+  const zugaenge = await zugaengeFuer(sitzung);
 
   return (
     <main className="seite">
@@ -100,6 +105,8 @@ export default async function AblageSeite() {
       </p>
 
       <Ablage />
+
+      <MandantAnlegen anzahlZugaenge={zugaenge.length} />
 
       <div className="titelzeile">
         <h2>In der Ablage</h2>
