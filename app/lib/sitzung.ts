@@ -24,6 +24,21 @@ export interface Sitzung {
    * voneinander, nicht Mieter untereinander.
    */
   mietverhaeltnis?: string;
+  /**
+   * Der Mandant, in dem die Benutzerzeile steht -- der Heimatmandant.
+   *
+   * Er ist nicht dasselbe wie `mandant`: Nach einem Wechsel zeigt
+   * `mandant` auf den Mandanten, in dem gerade gearbeitet wird, und
+   * `heimat` darauf, wo das Konto hängt. Nur mit beiden lässt sich
+   * später wieder prüfen, welche Mandanten diesem Konto offenstehen
+   * (zugaenge_fuer in db/035) -- aus `mandant` allein liesse sich das
+   * nicht ableiten, und genau das soll der Browser nicht bestimmen.
+   *
+   * Fehlt das Feld (Cookies von vor dem Umschalter), ist der
+   * Heimatmandant der aktive. Das ist für einen Benutzer mit nur einem
+   * Mandanten derselbe Wert, also kein Verlust.
+   */
+  heimat?: string;
 }
 
 function geheimnis(): string {
@@ -63,7 +78,21 @@ export function baueSitzung(s: Sitzung): string {
   // hier kein Komfort, sondern ein offenes Fenster auf fremden Geraeten.
   const tage = s.rolle === "mieter" ? 1 : GUELTIG_TAGE;
   const ablauf = Date.now() + tage * 86_400_000;
-  const nutzlast = [s.name, ablauf, s.mandant, s.rolle, s.mietverhaeltnis ?? ""].join("|");
+  // Der Name darf kein Trennzeichen enthalten. Sonst verschiebt ein
+  // Name wie "stephan|x|…" alle folgenden Felder und bestimmt damit
+  // Werte, die er nicht bestimmen soll. Die Unterschrift würde stimmen --
+  // sie deckt die Nutzlast, nicht ihre Bedeutung.
+  if (s.name.includes("|")) {
+    throw new Error("Ein Benutzername darf kein | enthalten.");
+  }
+  const nutzlast = [
+    s.name,
+    ablauf,
+    s.mandant,
+    s.rolle,
+    s.mietverhaeltnis ?? "",
+    s.heimat ?? "",
+  ].join("|");
   return `${Buffer.from(nutzlast).toString("base64url")}.${signiere(nutzlast)}`;
 }
 
@@ -85,7 +114,7 @@ export function pruefeSitzung(wert: string | undefined): Sitzung | null {
   const b = Buffer.from(erwartet);
   if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
 
-  const [name, ablauf, mandant, rolle, mv] = nutzlast.split("|");
+  const [name, ablauf, mandant, rolle, mv, heimat] = nutzlast.split("|");
   if (!name || !ablauf || Number(ablauf) < Date.now()) return null;
   // Cookies aus der Zeit vor der Mandantentrennung haben die hinteren
   // Felder nicht. Die sind damit ungueltig — neu anmelden.
@@ -95,7 +124,12 @@ export function pruefeSitzung(wert: string | undefined): Sitzung | null {
   // oder, schlimmer, einer, bei dem irgendwo eine Pruefung ausfaellt.
   if (rolle === "mieter" && !mv) return null;
 
-  return mv ? { name, mandant, rolle, mietverhaeltnis: mv } : { name, mandant, rolle };
+  // Ohne sechstes Feld ist der Heimatmandant der aktive -- so sahen alle
+  // Cookies vor dem Umschalter aus.
+  const daheim = heimat || mandant;
+  return mv
+    ? { name, mandant, rolle, mietverhaeltnis: mv, heimat: daheim }
+    : { name, mandant, rolle, heimat: daheim };
 }
 
 export const COOKIE_NAME = COOKIE;

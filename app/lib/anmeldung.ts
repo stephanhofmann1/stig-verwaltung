@@ -62,7 +62,16 @@ export async function anmelden(
     .query(`SELECT anmeldung_vermerken($1, $2)`, [z.name, z.mandant_id])
     .catch(() => {});
 
-  return { name: z.name, mandant: z.mandant_id, rolle: z.rolle };
+  // Beim Anmelden sind aktiver Mandant und Heimatmandant dasselbe. Der
+  // Wert wird ausdruecklich gesetzt und nicht dem Rueckfall in
+  // pruefeSitzung ueberlassen: Spaeter entscheidet er, von wo aus
+  // geprueft wird, welche Mandanten offenstehen.
+  return {
+    name: z.name,
+    mandant: z.mandant_id,
+    rolle: z.rolle,
+    heimat: z.mandant_id,
+  };
 }
 
 /** Wer ist angemeldet? null, wenn niemand. */

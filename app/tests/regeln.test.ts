@@ -271,7 +271,14 @@ describe("Zugangsschutz", () => {
   };
 
   test("eigene Sitzung wird anerkannt", () => {
-    assert.deepEqual(pruefeSitzung(baueSitzung(probe)), probe);
+    // Seit dem Mandantenumschalter traegt die Sitzung zusaetzlich den
+    // Heimatmandanten. Ohne sechstes Feld im Cookie ist er der aktive --
+    // genau das muss hier herauskommen, sonst sperrt der Umbau alle
+    // bestehenden Cookies aus.
+    assert.deepEqual(pruefeSitzung(baueSitzung(probe)), {
+      ...probe,
+      heimat: probe.mandant,
+    });
   });
 
   test("manipulierte Unterschrift wird abgelehnt", () => {

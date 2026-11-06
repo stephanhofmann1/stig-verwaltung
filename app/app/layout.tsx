@@ -6,7 +6,9 @@ import "./globals.css";
 import { Navi } from "@/components/Navi";
 import { NaviBoden } from "@/components/NaviBoden";
 import { headers } from "next/headers";
-import { angemeldeterBenutzer } from "@/lib/anmeldung";
+import { angemeldeteSitzung } from "@/lib/anmeldung";
+import { zugaengeFuer } from "@/lib/zugang";
+import { MandantWahl } from "@/components/MandantWahl";
 
 /**
  * Titel und Beschreibung stehen im Browsertab, im Lesezeichen und in der
@@ -116,7 +118,20 @@ export const viewport: Viewport = {
 export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const benutzer = await angemeldeterBenutzer();
+  const sitzung = await angemeldeteSitzung();
+  const benutzer = sitzung?.name ?? null;
+
+  /*
+    Welche Mandanten stehen offen? Eine Abfrage je Seitenaufbau, über
+    einen Primärschlüssel und einen Index -- und sie beantwortet die
+    Frage, die in der Kopfzeile steht ("wo bin ich?"). Den Namen des
+    aktiven Mandanten ins Sitzungscookie zu legen wäre billiger, zeigte
+    aber nach einer Umbenennung bis zur nächsten Anmeldung den alten.
+    Für einen Mieterzugang kommt eine leere Liste zurück, und dann
+    bleibt die Kopfzeile, was sie war.
+  */
+  const zugaenge = sitzung ? await zugaengeFuer(sitzung) : [];
+  const aktiv = zugaenge.find((z) => z.mandant === sitzung?.mandant) ?? null;
 
   /*
     Das Schaufenster unter /willkommen trägt dasselbe Gerüst, aber ein
@@ -148,9 +163,14 @@ export default async function RootLayout({
         */}
         <header className="kopf">
           <div className="kopf-innen">
-            <div className="marke">
-              STIG <span>Verwaltung</span>
-            </div>
+            <MandantWahl
+              aktiv={aktiv}
+              zugaenge={zugaenge.map((z) => ({
+                mandant: z.mandant,
+                name: z.name,
+                kuerzel: z.kuerzel,
+              }))}
+            />
             <Navi benutzer={benutzer} />
           </div>
         </header>
