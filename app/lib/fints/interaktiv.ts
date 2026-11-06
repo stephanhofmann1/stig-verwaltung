@@ -23,7 +23,9 @@ export type Schritt =
   | { art: "fertig"; neu: number; bekannt: number; von: string; bis: string;
       gekuerzt: boolean }
   | { art: "tan"; token: string; hinweis: string; medium: string | null }
-  | { art: "fehler"; meldung: string };
+  | { art: "fehler"; meldung: string;
+      /** Die Bank hat geantwortet und abgelehnt -- kein Fehler bei uns. */
+      vonDerBank?: boolean };
 
 function produkt(): { id: string; version: string } {
   const id = process.env.FINTS_PRODUKT_ID;
@@ -158,7 +160,7 @@ export async function starteAbruf(
         Anmeldename?", obwohl die Bank etwas ganz anderes gesagt hatte.
       */
       if (!s.success) {
-        return { art: "fehler", meldung: bankMeldung(s.bankAnswers) };
+        return { art: "fehler", meldung: bankMeldung(s.bankAnswers), vonDerBank: true };
       }
     }
 

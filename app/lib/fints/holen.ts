@@ -1,6 +1,6 @@
 import { query, one, tx } from "../db";
 import { entschluessele, schluesselVorhanden } from "./geheimnis";
-import { alsBuchungen, bankMeldung, wegenZugangsdaten, zeitraum,
+import { alsBuchungen, bankMeldung, sollStilllegen, zeitraum,
          type AbrufErgebnis, type ZugangsDaten,
          type FintsUmsatz } from "./abruf";
 
@@ -138,7 +138,7 @@ export async function hole(z: ZugangsDaten, heute = new Date()): Promise<AbrufEr
         Einrichten auftritt.
       */
       if (!s.success) {
-        return { art: "fehler", meldung: bankMeldung(s.bankAnswers) };
+        return { art: "fehler", meldung: bankMeldung(s.bankAnswers), vonDerBank: true };
       }
     }
 
@@ -228,7 +228,16 @@ export async function vermerke(
       Zahlungen als Rückstand erscheinen. Deshalb die Unterscheidung in
       wegenZugangsdaten().
     */
-    const stillegen = wegenZugangsdaten(e.meldung);
+    /*
+      Nur was von der Bank kommt, kann zur Stilllegung führen.
+
+      Die Prüfung allein am Wortlaut war falsch: "Für diesen Zugang ist
+      keine PIN hinterlegt" entsteht bei uns, bevor überhaupt jemand die
+      Bank anruft, enthält aber das Wort PIN — und legte den Zugang
+      still, als hätte die Bank abgelehnt. Beim Einbau am 06.11.2026 in
+      der Probe aufgefallen.
+    */
+    const stillegen = sollStilllegen(e);
     await query(
       `UPDATE fints_zugang
           SET letzter_fehler = $2,

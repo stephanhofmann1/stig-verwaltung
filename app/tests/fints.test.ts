@@ -4,7 +4,7 @@ import { Buffer } from "node:buffer";
 import { readFileSync } from "node:fs";
 
 import { zeitraum, alsBuchungen, bankMeldung, wegenZugangsdaten,
-         type FintsUmsatz } from "../lib/fints/abruf";
+         sollStilllegen, type FintsUmsatz } from "../lib/fints/abruf";
 import { liesKontoauszug } from "../lib/kontoformate";
 
 /**
@@ -557,7 +557,7 @@ describe("Der Code prueft die Erstanmeldung", () => {
   });
 
   test("ein Fehler an den Zugangsdaten legt den Zugang still", () => {
-    assert.match(HOLEN, /wegenZugangsdaten\(e\.meldung\)/);
+    assert.match(HOLEN, /sollStilllegen\(e\)/);
     assert.match(HOLEN, /aktiv = CASE WHEN/);
   });
 });
@@ -614,5 +614,85 @@ describe("Zugaenge lassen sich pflegen", () => {
       !bisEnde.includes("defaultValue"),
       "Das PIN-Feld traegt einen Vorgabewert",
     );
+  });
+});
+
+describe("Nur die Bank kann einen Zugang stilllegen", () => {
+  /*
+    Nachgetragen am 06.11.2026. Beim Einbau der Stilllegung wurde allein
+    am Wortlaut entschieden, ob ein Fehler an den Zugangsdaten liegt.
+    Das ging schief: "Für diesen Zugang ist keine PIN hinterlegt" ist
+    unser eigener Fehler -- die Bank wurde nie gefragt --, enthaelt aber
+    das Wort PIN und haette den Zugang stillgelegt. Danach holt der
+    naechtliche Lauf keine Zahlungen mehr, und puenktliche Mieter
+    erscheinen im Mahnwesen als saeumig. Seitdem entscheidet ein eigenes
+    Merkmal am Ergebnis, nicht der Text.
+  */
+  const HOLEN = readFileSync(
+    new URL("../lib/fints/holen.ts", import.meta.url), "utf8");
+  const ABRUF = readFileSync(
+    new URL("../app/api/bank/abruf/route.ts", import.meta.url), "utf8");
+
+  test("unsere eigenen Fehler duerfen nicht stilllegen", () => {
+    /*
+      Diese Saetze entstehen, bevor eine Verbindung zustande kommt --
+      zwei davon enthalten das Wort PIN. Ohne vonDerBank haette der
+      Textfilter sie fuer eine Bankablehnung gehalten.
+    */
+    for (const meldung of [
+      "Für diesen Zugang ist keine PIN hinterlegt.",
+      "FINTS_SCHLUESSEL ist nicht gesetzt. Ohne ihn kann die hinterlegte PIN nicht gelesen werden.",
+      "Zugang nicht gefunden.",
+    ]) {
+      assert.equal(
+        sollStilllegen({ meldung }),
+        false,
+        `haette stillgelegt, obwohl die Bank nie gefragt wurde: ${meldung}`,
+      );
+      // Zur Probe, dass der Fall ueberhaupt scharf ist: Mit Herkunft
+      // von der Bank wuerden dieselben Worte sehr wohl stilllegen.
+      if (meldung.includes("PIN")) {
+        assert.equal(sollStilllegen({ meldung, vonDerBank: true }), true);
+      }
+    }
+  });
+
+  test("eine Stoerung von der Bank legt auch nicht still", () => {
+    // vonDerBank allein reicht nicht -- es muss um die Zugangsdaten gehen.
+    assert.equal(
+      sollStilllegen({ meldung: "9050 Nachricht teilweise fehlerhaft", vonDerBank: true }),
+      false,
+    );
+  });
+
+  test("beide Wege pruefen die Herkunft, nicht nur den Text", () => {
+    // holen.ts ist der naechtliche Lauf, abruf/route.ts der Klick von
+    // Hand. Beide schreiben in dieselbe Spalte; faellt einer aus der
+    // Regel, merkt man es erst an einem stummen Zugang.
+    for (const [name, quelle] of [["holen.ts", HOLEN], ["abruf/route.ts", ABRUF]] as const) {
+      assert.match(
+        quelle,
+        /sollStilllegen\(/,
+        `${name}: trifft die Entscheidung selbst statt ueber sollStilllegen`,
+      );
+    }
+  });
+
+  test("der Abruf von Hand merkt sich den Fehler", () => {
+    /*
+      Vorher ging die Meldung nur an den Browser und war beim naechsten
+      Laden weg -- samt Rueckmeldecode der Bank, dem einzigen Hinweis,
+      der beim Einrichten weiterhilft.
+    */
+    assert.match(ABRUF, /letzter_fehler = \$2/);
+    // Und raeumt ihn wieder weg, wenn es klappt.
+    assert.match(ABRUF, /letzter_fehler = NULL/);
+  });
+
+  test("eine Bankablehnung legt weiterhin stumm", () => {
+    // Die Gegenrichtung: Wenn die Bank wirklich ablehnt, muss der Zugang
+    // ruhen, sonst verbraucht der Lauf um 18:00 den naechsten Versuch.
+    assert.ok(wegenZugangsdaten("9931 PIN gesperrt"));
+    assert.match(HOLEN, /bankMeldung\(s\.bankAnswers\), vonDerBank: true/);
   });
 });
