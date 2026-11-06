@@ -4,6 +4,7 @@ import { tag } from "@/lib/formate";
 import { BelegZeile } from "@/components/BelegZeile";
 import { BelegUpload } from "@/components/BelegUpload";
 import { Einlieferung } from "@/components/Einlieferung";
+import { Zuordnungen, type Zuordnung } from "@/components/Zuordnungen";
 import { KOSTENARTEN } from "@/lib/kostenarten";
 
 export const dynamic = "force-dynamic";
@@ -15,6 +16,19 @@ const euro = (w: number | string) =>
 
 export default async function Belege() {
   const vorschlaege = await schlageBelegeVor();
+  // Die letzten Festschreibungen, neueste zuerst. Begrenzt, weil die
+  // Seite sonst mit der Zeit zur Chronik wird.
+  const zuordnungen = await query<Zuordnung>(
+    `SELECT bb.id, bb.betrag::text, bb.sicherheit, bb.begruendung,
+            bu.buchungstag::text, bu.absender, bu.verwendungszweck,
+            bg.id AS beleg_id, bg.dateiname, bg.aussteller, bg.belegnummer,
+            bg.belegdatum::text
+       FROM belegbuchung bb
+       JOIN buchung bu ON bu.id = bb.buchung_id
+       JOIN beleg   bg ON bg.id = bb.beleg_id
+      ORDER BY bb.angelegt_am DESC
+      LIMIT 40`,
+  );
   const belege = await offeneBelege();
   // Für die Zuordnung beim Hochladen: Gießen, Ludwigshafen und Mannheim
   // werden getrennt abgerechnet.
@@ -164,6 +178,23 @@ export default async function Belege() {
           ))}
         </div>
       )}
+
+      {/*
+        Was die Maschine getan hat, steht vor dem, was noch zu tun ist.
+        Der Abgleich schreibt selbsttaetig ins Hauptbuch -- wer das
+        nachsehen will, soll nicht suchen muessen.
+      */}
+      <div className="titelzeile">
+        <h2>Zuletzt automatisch zugeordnet</h2>
+        <span className="zaehler ziffern">{zuordnungen.length}</span>
+      </div>
+      <p className="hinweis">
+        Jede Zeile nennt den Grund, aus dem der Abgleich sie festgeschrieben
+        hat. „Lösen" nimmt die Zuordnung zurück; Bewegung und Beleg stehen
+        danach wieder offen, und der Beleg bekommt einen Vermerk, damit der
+        nächste Lauf ihn nicht gleich wieder anfasst.
+      </p>
+      <Zuordnungen anfang={zuordnungen} />
 
       {abweichend.length > 0 && (
         <>
