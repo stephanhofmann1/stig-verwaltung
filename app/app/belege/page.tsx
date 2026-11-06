@@ -5,6 +5,7 @@ import { BelegZeile } from "@/components/BelegZeile";
 import { BelegUpload } from "@/components/BelegUpload";
 import { Einlieferung } from "@/components/Einlieferung";
 import { Zuordnungen, type Zuordnung } from "@/components/Zuordnungen";
+import { Bestandspruefung } from "@/components/Bestandspruefung";
 import { KOSTENARTEN } from "@/lib/kostenarten";
 
 export const dynamic = "force-dynamic";
@@ -195,6 +196,13 @@ export default async function Belege() {
         nächste Lauf ihn nicht gleich wieder anfasst.
       </p>
       <Zuordnungen anfang={zuordnungen} />
+
+      {/*
+        Die Liste oben zeigt die letzten Zuordnungen. Die Pruefung sieht
+        ALLE an -- auch die, die vor Monaten entstanden sind, als eine
+        Regel noch zu weit griff.
+      */}
+      <Bestandspruefung />
 
       {abweichend.length > 0 && (
         <>
