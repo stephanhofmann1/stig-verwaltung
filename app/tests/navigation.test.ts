@@ -55,10 +55,24 @@ describe("Eine Liste, zwei Navigationen", () => {
 });
 
 describe("Was auf dem Telefon übrig bleibt", () => {
-  test("sieben Zeilen statt zwölf", () => {
+  test("acht Zeilen statt dreizehn", () => {
+    // Diese Zahlen sind eine Huerde, keine Buchhaltung: Der Anlass war
+    // ein Menue, das auf dem Telefon den halben Bildschirm bedeckte.
+    // Wer sie hochsetzt, soll das bemerken und begruenden muessen.
+    //
+    // 06.11.2026: 12 auf 13 erhoeht, fuer /ablage. Die Ablage ist der
+    // Ort, an dem ein Beleg erfasst wird, ohne den Weg ueber den
+    // Kontoauszug -- fuer die Steuer. Sie laesst sich nicht unter
+    // /belege verstecken, weil man sie sonst nicht findet.
+    //
+    // Bei der naechsten Erhoehung ist die Frage nicht mehr "passt noch
+    // eine rein", sondern ob die Navigation nicht dem MANDANTEN folgen
+    // muss: Im privaten Mandanten sind Mietenbuch, Objekte, Einheiten
+    // und Rueckstaende leer, und vier leere Ziele sind schlimmer als
+    // ein langes Menue.
     const sichtbar = inGruppen.filter((w) => !inUnten.includes(w));
-    assert.equal(inGruppen.length, 12);
-    assert.equal(sichtbar.length, 7);
+    assert.equal(inGruppen.length, 13);
+    assert.equal(sichtbar.length, 8);
   });
 
   test("die Regel versteckt genau die Ziele der Fußleiste", () => {
@@ -118,6 +132,16 @@ describe("Die Namen in der Gruppe Geld", () => {
       "punkte: [",
       "\n    ],",
     );
-    assert.deepEqual(geld, ["/konten", "/zahlungen", "/belege", "/mahnwesen"]);
+    // Der Auszug kommt herein, die Zahlung wird zugeordnet, sie bekommt
+    // einen Beleg -- und die Ablage ist der Weg, einen Beleg zu
+    // erfassen, der NICHT ueber den Auszug kommt. Sie steht deshalb
+    // hinter den Belegen und vor den Rueckstaenden.
+    assert.deepEqual(geld, [
+      "/konten",
+      "/zahlungen",
+      "/belege",
+      "/ablage",
+      "/mahnwesen",
+    ]);
   });
 });

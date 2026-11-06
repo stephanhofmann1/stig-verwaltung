@@ -105,6 +105,12 @@ const GRUPPEN: Gruppe[] = [
       { href: "/konten", text: "Kontoauszüge" },
       { href: "/zahlungen", text: "Zahlungen" },
       { href: "/belege", text: "Belege" },
+      // Die Ablage steht neben den Belegen, nicht darin: Auf /belege
+      // geht es um den Abgleich gegen den Auszug -- offene Bewegungen,
+      // Zuordnungen. Hier geht es nur darum, dass ein Beleg ueberhaupt
+      // erfasst ist. Wer die Steuer vorbereitet, will nicht an 360
+      // offenen Bewegungen vorbei.
+      { href: "/ablage", text: "Ablage" },
       { href: "/mahnwesen", text: "Rückstände" },
     ],
   },
