@@ -229,6 +229,54 @@ const NACHLAUF_TAGE = 45;
 const MINDESTABSTAND_TAGE = 5;
 
 /**
+ * Passt die Abbuchung zeitlich ueberhaupt zum Beleg?
+ *
+ * WOFUER
+ *
+ * Regel 2 ("Aussteller erkannt und Betrag stimmt auf den Cent")
+ * schrieb fest, ohne auf das Datum zu sehen. Bei einem einzigen
+ * Kandidaten schien das genug: derselbe Name, derselbe Betrag.
+ *
+ * Am 06.11.2026 zeigte sich, dass es nicht genug ist. Eine Quittung
+ * ueber 4,99 EUR vom 17.03.2026 war zwei Abbuchungen ueber je 4,99 EUR
+ * zugeschlagen worden -- vom 14.01. und vom 27.01.2026, also zwei und
+ * drei Monate VOR dem Belegdatum. Beides ist unmoeglich: Was im Maerz
+ * ausgestellt wurde, kann im Januar nicht bezahlt worden sein.
+ *
+ * WARUM NICHT UEBERALL
+ *
+ * Die Regeln 0 und 1 treffen ueber eine Kennung -- Bestellnummer,
+ * Kundennummer, Belegnummer -- die der Zahlungsempfaenger vergeben
+ * hat und die auf dem Beleg UND in der Abbuchung steht. Dort ist das
+ * Datum gleichgueltig: Wer dieselbe Nummer auf beiden Seiten hat,
+ * braucht keinen Kalender. Eine Jahresabrechnung, die 90 Tage spaeter
+ * bezahlt wird, soll an ihrer Kundennummer erkannt bleiben.
+ *
+ * Ohne Datum auf einer der beiden Seiten laesst sich nichts
+ * ausschliessen; dann gilt das Fenster als eingehalten.
+ */
+export function imZeitfenster(
+  belegdatum: string | null,
+  buchungstag: string | null,
+): boolean {
+  if (!belegdatum || !buchungstag) return true;
+  const t = tageZwischen(belegdatum, buchungstag);
+  return t === null || (t >= -VORLAUF_TAGE && t <= NACHLAUF_TAGE);
+}
+
+/** Wie der zeitliche Widerspruch in Worten heisst. */
+export function zeitlicherWiderspruch(
+  belegdatum: string | null,
+  buchungstag: string | null,
+): string | null {
+  if (imZeitfenster(belegdatum, buchungstag)) return null;
+  const t = tageZwischen(belegdatum!, buchungstag!)!;
+  return t < 0
+    ? `die Abbuchung liegt ${-t} Tage vor dem Belegdatum`
+    : `zwischen Belegdatum und Abbuchung liegen ${t} Tage`;
+}
+
+/**
  * Unter gleich teuren Belegen den einen waehlen, den das Datum ausweist.
  *
  * WOFUER
@@ -361,12 +409,19 @@ export async function schlageBelegeVor(): Promise<BelegVorschlag[]> {
     );
     if (nameUndBetrag.length === 1) {
       const b = nameUndBetrag[0];
+      // Name und Betrag allein genuegen nicht: Das Datum muss moeglich
+      // sein. Sonst bleibt der Treffer ein Vorschlag und nennt den
+      // Widerspruch -- weggeworfen wuerde er die Spur verlieren.
+      const widerspruch = zeitlicherWiderspruch(b.belegdatum, a.buchungstag);
       vorschlaege.push({
         buchung_id: a.id,
         beleg_id: b.id,
         betrag,
-        sicherheit: "sicher",
-        begruendung: "Aussteller erkannt und Betrag stimmt auf den Cent.",
+        sicherheit: widerspruch ? "unsicher" : "sicher",
+        begruendung: widerspruch
+          ? `Aussteller erkannt und Betrag stimmt auf den Cent, aber ` +
+            `${widerspruch} — das passt zeitlich nicht zusammen, bitte prüfen.`
+          : "Aussteller erkannt und Betrag stimmt auf den Cent.",
         beleg_bezeichnung: bezeichne(b),
       });
       continue;

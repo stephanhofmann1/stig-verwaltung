@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 
 import {
   entwirreMehrfachnutzung,
+  imZeitfenster,
+  zeitlicherWiderspruch,
   type BelegVorschlag,
 } from "../lib/belegabgleich";
 
@@ -203,5 +205,42 @@ describe("Ein Beleg, mehrere Abbuchungen", () => {
     );
     assert.equal(v.length, 2);
     assert.equal(v.filter((x) => x.sicherheit === "sicher").length, 2);
+  });
+});
+
+describe("Zeitfenster als Riegel vor Regel 2", () => {
+  test("eine Abbuchung vor dem Belegdatum ist kein sicherer Treffer", () => {
+    // Der echte Fall: Quittung vom 17.03.2026, Abbuchungen vom
+    // 14.01. und 27.01.2026. Was im Maerz ausgestellt wurde, kann im
+    // Januar nicht bezahlt worden sein.
+    assert.equal(imZeitfenster("2026-03-17", "2026-01-14"), false);
+    assert.equal(imZeitfenster("2026-03-17", "2026-01-27"), false);
+    assert.match(
+      zeitlicherWiderspruch("2026-03-17", "2026-01-14")!,
+      /62 Tage vor dem Belegdatum/,
+    );
+  });
+
+  test("zwei Tage Vorlauf bleiben erlaubt", () => {
+    // Ein Abonnement bucht am Monatsersten und datiert die Rechnung
+    // auf den Zweiten.
+    assert.equal(imZeitfenster("2026-03-02", "2026-03-01"), true);
+    assert.equal(imZeitfenster("2026-03-03", "2026-03-01"), true);
+    assert.equal(imZeitfenster("2026-03-04", "2026-03-01"), false);
+  });
+
+  test("45 Tage Nachlauf bleiben erlaubt, 46 nicht", () => {
+    assert.equal(imZeitfenster("2026-01-01", "2026-02-15"), true);
+    assert.equal(imZeitfenster("2026-01-01", "2026-02-16"), false);
+  });
+
+  test("ohne Datum wird nichts ausgeschlossen", () => {
+    assert.equal(imZeitfenster(null, "2026-03-01"), true);
+    assert.equal(imZeitfenster("2026-03-01", null), true);
+    assert.equal(zeitlicherWiderspruch(null, "2026-03-01"), null);
+  });
+
+  test("im Fenster gibt es keinen Widerspruch zu nennen", () => {
+    assert.equal(zeitlicherWiderspruch("2026-03-01", "2026-03-05"), null);
   });
 });
