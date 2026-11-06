@@ -2,6 +2,7 @@ import { query } from "@/lib/db";
 import { schluesselVorhanden } from "@/lib/fints/geheimnis";
 import { BankAbruf } from "@/components/BankAbruf";
 import { BankNeu } from "@/components/BankNeu";
+import { BankZugangPflegen } from "@/components/BankZugangPflegen";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,9 @@ interface Zeile {
   konto: string;
   bank_id: string;
   benutzer: string;
+  url: string;
+  kunden_id: string | null;
+  konto_iban: string | null;
   hat_pin: boolean;
   tan_faellig: boolean;
   tan_hinweis: string | null;
@@ -40,6 +44,7 @@ export default async function Bank() {
   const [zugaenge, konten] = await Promise.all([
     query<Zeile>(`
       SELECT z.id, z.bezeichnung, k.bezeichnung AS konto, z.bank_id, z.benutzer,
+             z.url, z.kunden_id, z.konto_iban,
              (z.pin_verschluesselt IS NOT NULL) AS hat_pin,
              z.tan_faellig, z.tan_hinweis, z.letzter_fehler,
              z.letzter_abruf::text, z.letzter_erfolg::text, z.aktiv
@@ -145,6 +150,16 @@ export default async function Bank() {
                   {z.hat_pin && z.aktiv && (
                     <BankAbruf zugang={z.id} name={z.bezeichnung} />
                   )}
+
+                  <BankZugangPflegen
+                    id={z.id}
+                    bezeichnung={z.bezeichnung}
+                    benutzer={z.benutzer}
+                    url={z.url}
+                    kundenId={z.kunden_id}
+                    kontoIban={z.konto_iban}
+                    ruht={!z.aktiv}
+                  />
                 </td>
               </tr>
             ))}

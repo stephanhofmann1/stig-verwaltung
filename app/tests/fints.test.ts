@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import { Buffer } from "node:buffer";
 import { readFileSync } from "node:fs";
 
-import { zeitraum, alsBuchungen, type FintsUmsatz } from "../lib/fints/abruf";
+import { zeitraum, alsBuchungen, bankMeldung, wegenZugangsdaten,
+         type FintsUmsatz } from "../lib/fints/abruf";
 import { liesKontoauszug } from "../lib/kontoformate";
 
 /**
@@ -234,6 +235,34 @@ describe("Verhalten bei TAN und Fehlern", () => {
   });
 });
 
+/**
+ * Schneidet jeden NextResponse.json(...)-Aufruf vollstaendig heraus.
+ *
+ * Ueber die Klammerbilanz statt per Regex: Die Aufrufe gehen ueber eine
+ * bis acht Zeilen und enthalten verschachtelte Objekte. Jedes
+ * Zeilenmuster erwischt nur einen Teil, und ein Test, der nur zwei
+ * Drittel prueft, meldet Erfolg fuer die ungeprueften.
+ */
+function jsonAufrufe(quelle: string): string[] {
+  const treffer: string[] = [];
+  const marke = "NextResponse.json(";
+  let i = quelle.indexOf(marke);
+  while (i !== -1) {
+    let tiefe = 0;
+    let j = i + marke.length - 1;
+    for (; j < quelle.length; j++) {
+      if (quelle[j] === "(") tiefe++;
+      else if (quelle[j] === ")") {
+        tiefe--;
+        if (tiefe === 0) break;
+      }
+    }
+    treffer.push(quelle.slice(i + marke.length, j));
+    i = quelle.indexOf(marke, j);
+  }
+  return treffer;
+}
+
 describe("Die Einrichtung", () => {
   const route = readFileSync(
     new URL("../app/api/bank/route.ts", import.meta.url), "utf8");
@@ -253,9 +282,35 @@ describe("Die Einrichtung", () => {
   test("die PIN wird nirgends protokolliert oder zurueckgegeben", () => {
     // Die Antwort landet im Browser und womoeglich in einem Protokoll.
     assert.doesNotMatch(route, /console\.[a-z]+\([^)]*pin/i);
-    // In der Antwort steht kein Echo der Eingaben.
-    const antwort = route.slice(route.indexOf("return NextResponse.json({ ok: true"));
-    assert.doesNotMatch(antwort, /pin/i);
+
+    /*
+      Geprueft wird jede einzelne Antwort der Datei, nicht der Text ab
+      der ersten Erfolgsmeldung. Die aeltere Fassung schnitt dort ab und
+      verbot im Rest jedes Vorkommen von "pin" -- das hielt, solange
+      POST die letzte Funktion war, und schlug fehl, sobald PATCH
+      dahinterkam, obwohl der die PIN voellig regulaer verarbeitet.
+
+      Verboten ist der WERT: pin als Bezeichner in einem Objektliteral
+      oder in einer Zeichenkette. Das Wort PIN im Klartext einer
+      Fehlermeldung ("Ohne ihn wird keine PIN gespeichert") ist in
+      Ordnung und soll es bleiben.
+    */
+    const antworten = jsonAufrufe(route);
+    // Gegenprobe auf den Test selbst: Ein Muster, das nur einen Teil der
+    // Aufrufe findet, gibt Sicherheit vor, die es nicht gibt. Ein erster
+    // Versuch mit einem Zeilenmuster erfasste 6 von 15.
+    assert.equal(
+      antworten.length,
+      (route.match(/NextResponse\.json\(/g) ?? []).length,
+      "Der Test erfasst nicht jede Antwort der Datei",
+    );
+    for (const a of antworten) {
+      assert.doesNotMatch(
+        a,
+        /[:{,]\s*pin\b|\$\{\s*pin\b/,
+        `Eine Antwort gibt die PIN zurueck:\n${a}`,
+      );
+    }
   });
 
   test("die PIN wird sofort verschluesselt, nicht im Klartext gespeichert", () => {
@@ -400,5 +455,164 @@ describe("Abruf von Hand und TAN-Eingabe", () => {
     // Und nach dem Speichern wird das Formular geleert, damit die PIN
     // nicht im Browser stehen bleibt.
     assert.match(form, /form\.reset\(\)/);
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * Was die Bank meldet, und was daraus folgt
+ *
+ * Nachgetragen am 06.11.2026, nach einem Einrichtungsversuch, bei dem
+ * die Oberflaeche "Stimmt der Anmeldename?" zeigte, waehrend die Bank
+ * etwas voellig anderes gesagt hatte. Die Meldung war geraten: Der Code
+ * pruefte nach der Erstanmeldung nicht, ob sie ueberhaupt geklappt hat,
+ * sah eine leere Kontenliste und schloss auf den Anmeldenamen.
+ *
+ * Der Schaden daran ist nicht die falsche Meldung, sondern wohin sie
+ * fuehrt: Man dreht am Anmeldenamen und probiert erneut, waehrend die
+ * Bank Fehlversuche zaehlt. Nach drei Versuchen ist der Zugang gesperrt,
+ * auch der im Browser.
+ * ------------------------------------------------------------------ */
+
+describe("Die Meldung der Bank", () => {
+  test("Fehlercodes stehen mit Nummer im Text", () => {
+    // Die Nummer bleibt drin, weil sie die Suche traegt: "9931" findet
+    // die Erklaerung, "Anmeldung fehlgeschlagen" nicht.
+    const m = bankMeldung([
+      { code: 3920, text: "Zugelassene Zwei-Schritt-Verfahren" },
+      { code: 9931, text: "PIN gesperrt" },
+    ]);
+    assert.match(m, /9931/);
+    assert.match(m, /PIN gesperrt/);
+  });
+
+  test("ohne Fehlercode wird trotzdem die Bank genannt, nicht wir", () => {
+    const m = bankMeldung([{ code: 3060, text: "Teilweise ausgefuehrt" }]);
+    assert.match(m, /Bank/);
+    assert.match(m, /3060/);
+  });
+
+  test("ganz ohne Rueckmeldung bleibt eine ehrliche Aussage", () => {
+    assert.match(bankMeldung([]), /ohne einen Grund/);
+    assert.match(bankMeldung(undefined), /ohne einen Grund/);
+  });
+});
+
+describe("Stilllegen oder weiterlaufen lassen", () => {
+  test("Zugangsdaten abgelehnt: der Zugang muss ruhen", () => {
+    for (const m of [
+      "9931 PIN gesperrt",
+      "9942 PIN falsch",
+      "9210 Ungueltige Daten",
+      "9340 Signatur falsch",
+      "Die Benutzerkennung ist nicht zugelassen",
+      "Legitimation fehlgeschlagen",
+    ]) {
+      assert.ok(wegenZugangsdaten(m), `haette stilllegen muessen: ${m}`);
+    }
+  });
+
+  test("Stoerungen duerfen NICHT stilllegen", () => {
+    /*
+      Die wichtigere Haelfte. Ein stillgelegter Zugang, den niemand
+      bemerkt, holt keine Zahlungen mehr -- und dann erscheinen
+      puenktliche Mieter im Mahnwesen als saeumig. Ein Netzfehler ist
+      beim naechsten Lauf vorbei und darf das nicht ausloesen.
+    */
+    for (const m of [
+      "fetch failed",
+      "ETIMEDOUT",
+      "socket hang up",
+      "Die Bank hat den Abruf abgelehnt, ohne einen Grund zu nennen.",
+      "9050 Nachricht teilweise fehlerhaft",
+    ]) {
+      assert.ok(!wegenZugangsdaten(m), `haette laufen lassen muessen: ${m}`);
+    }
+  });
+});
+
+describe("Der Code prueft die Erstanmeldung", () => {
+  const HOLEN = readFileSync(
+    new URL("../lib/fints/holen.ts", import.meta.url), "utf8");
+  const INTERAKTIV = readFileSync(
+    new URL("../lib/fints/interaktiv.ts", import.meta.url), "utf8");
+
+  test("nach synchronize() wird success geprueft, vor der Kontenliste", () => {
+    /*
+      Genau das fehlte. Geprueft wird die Reihenfolge, nicht nur das
+      Vorkommen: Steht die Pruefung hinter dem Griff in die Kontenliste,
+      meldet der Code wieder "Stimmt der Anmeldename?", bevor er die
+      Bank zu Wort kommen laesst.
+    */
+    for (const [name, quelle] of [["holen.ts", HOLEN], ["interaktiv.ts", INTERAKTIV]] as const) {
+      const sync = quelle.indexOf("client.synchronize()");
+      const pruefung = quelle.indexOf("if (!s.success)", sync);
+      const konten = quelle.indexOf("bankAccounts", sync);
+      assert.ok(sync > 0, `${name}: synchronize nicht gefunden`);
+      assert.ok(pruefung > sync, `${name}: success wird nach synchronize nicht geprueft`);
+      assert.ok(
+        pruefung < konten,
+        `${name}: success wird erst nach der Kontenliste geprueft`,
+      );
+    }
+  });
+
+  test("ein Fehler an den Zugangsdaten legt den Zugang still", () => {
+    assert.match(HOLEN, /wegenZugangsdaten\(e\.meldung\)/);
+    assert.match(HOLEN, /aktiv = CASE WHEN/);
+  });
+});
+
+describe("Zugaenge lassen sich pflegen", () => {
+  const ROUTE = readFileSync(
+    new URL("../app/api/bank/route.ts", import.meta.url), "utf8");
+  const PFLEGEN = readFileSync(
+    new URL("../components/BankZugangPflegen.tsx", import.meta.url), "utf8");
+  const SEITE = readFileSync(
+    new URL("../app/bank/page.tsx", import.meta.url), "utf8");
+
+  test("es gibt einen Weg zum Aendern ohne Neuanlage", () => {
+    assert.match(ROUTE, /export async function PATCH/);
+  });
+
+  test("eine leere PIN laesst die gespeicherte in Ruhe", () => {
+    /*
+      Sonst muesste man bei jeder Korrektur am Anmeldenamen die PIN neu
+      eintippen -- und jeder Vertipper dort kostet einen der drei
+      Versuche bis zur Sperrung.
+    */
+    assert.match(ROUTE, /pin \? verschluessele\(pin\) : null/);
+    assert.match(ROUTE, /pin_verschluesselt = COALESCE\(\$6, pin_verschluesselt\)/);
+  });
+
+  test("eine Aenderung weckt den stillgelegten Zugang wieder", () => {
+    const patch = ROUTE.slice(ROUTE.indexOf("export async function PATCH"));
+    assert.match(patch, /aktiv = true/);
+    // Die alte Synchronisation gehoert zu Zugangsdaten, die es nicht
+    // mehr gibt.
+    assert.match(patch, /bank_information = NULL/);
+  });
+
+  test("die Oberflaeche kann aendern und entfernen", () => {
+    assert.match(PFLEGEN, /method: "PATCH"/);
+    assert.match(PFLEGEN, /method: "DELETE"/);
+    assert.match(SEITE, /BankZugangPflegen/);
+  });
+
+  test("das Entfernen fragt nach", () => {
+    // Mit dem Zugang gehen PIN und Abrufstand weg; danach holt der
+    // naechste Abruf 85 Tage und verlangt eine TAN.
+    assert.match(PFLEGEN, /loeschFrage/);
+    assert.match(PFLEGEN, /wirklich entfernen/);
+  });
+
+  test("die PIN wird nicht ins Formular zurueckgeschrieben", () => {
+    // defaultValue an der PIN waere die gespeicherte PIN im HTML der
+    // Seite -- lesbar fuer jeden, der den Quelltext oeffnet.
+    const pinFeld = PFLEGEN.slice(PFLEGEN.indexOf('name="pin"'));
+    const bisEnde = pinFeld.slice(0, pinFeld.indexOf("/>"));
+    assert.ok(
+      !bisEnde.includes("defaultValue"),
+      "Das PIN-Feld traegt einen Vorgabewert",
+    );
   });
 });
