@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { istAktiv, type Punkt } from "./Navi";
+import { istAktiv, UNTEN, type Punkt } from "./Navi";
 
 /**
  * Die Fußnavigation — die Navigation für das Telefon.
@@ -86,6 +86,24 @@ const ZIELE: Punkt[] = [
   { href: "/mahnwesen", text: "Rückstände" },
   { href: "/belege", text: "Belege" },
 ];
+
+/**
+ * Dieselbe Auswahl steht in Navi.tsx als UNTEN -- dort braucht die
+ * Kopfnavigation sie, um genau diese fuenf im eingeklappten Menue
+ * auszulassen. Zwei Listen, die auseinanderlaufen koennen, waeren ein
+ * Ziel, das bei schmaler Breite nirgends mehr erreichbar ist. Darum
+ * prueft dieser Vergleich sie beim Laden gegeneinander.
+ */
+if (process.env.NODE_ENV !== "production") {
+  const hier = ZIELE.map((z) => z.href).join(",");
+  const dort = [...UNTEN].join(",");
+  if (hier !== dort) {
+    throw new Error(
+      `NaviBoden und Navi.UNTEN weichen ab: "${hier}" gegen "${dort}". ` +
+        "Beide Listen muessen dieselben Ziele in derselben Reihenfolge nennen.",
+    );
+  }
+}
 
 /**
  * Die Zeichen.

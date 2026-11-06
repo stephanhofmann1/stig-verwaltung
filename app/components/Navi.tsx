@@ -92,18 +92,29 @@ const GRUPPEN: Gruppe[] = [
     ],
   },
   {
+    // Die Reihenfolge ist der Weg, den das Geld nimmt: Es kommt auf dem
+    // Auszug herein, wird einer Buchung zugeordnet, bekommt einen Beleg,
+    // und was nicht kam, steht in den Rueckstaenden.
+    //
+    // Vorher standen hier "Zahlungen", "Konten" und "Bank"
+    // nebeneinander. Drei Woerter, die nach demselben klingen, und drei
+    // verschiedene Seiten: Kontoauszuege einlesen, Zahlungen zuordnen,
+    // FinTS einrichten. Angezeigt wird jetzt, was man dort tut.
     titel: "Geld",
     punkte: [
+      { href: "/konten", text: "Kontoauszüge" },
       { href: "/zahlungen", text: "Zahlungen" },
-      { href: "/mahnwesen", text: "Rückstände" },
       { href: "/belege", text: "Belege" },
-      { href: "/konten", text: "Konten" },
-      { href: "/bank", text: "Bank" },
+      { href: "/mahnwesen", text: "Rückstände" },
     ],
   },
   {
     titel: "System",
     punkte: [
+      // Die Bankanbindung stand unter Geld, gehoert aber hierher: Sie
+      // wird einmal eingerichtet und danach nie wieder aufgesucht. Unter
+      // Geld stand sie neben vier Seiten, die man taeglich braucht.
+      { href: "/bank", text: "Bankanbindung" },
       { href: "/laeufe", text: "Automatik" },
       // Die Dauerweisungen an die Entwurfserzeugung. Sie stehen unter
       // System und nicht unter Vermietung: Sie betreffen kein einzelnes
@@ -113,6 +124,28 @@ const GRUPPEN: Gruppe[] = [
       { href: "/weisungen", text: "Weisungen" },
     ],
   },
+];
+
+/**
+ * Die fuenf Ziele der Fussleiste (NaviBoden.tsx).
+ *
+ * Sie stehen hier und nicht dort, weil die Kopfnavigation sie kennen
+ * muss: Auf dem Telefon klappte das Menue bisher alle elf Punkte samt
+ * vier Gruppenueberschriften untereinander auf -- gut 600 Pixel, also
+ * der halbe Bildschirm, und fuenf davon standen gleichzeitig unten in
+ * der Leiste. Ein Menue, das die Leiste wiederholt, ist eine Liste zum
+ * Zweitenmal-Lesen.
+ *
+ * Darum blendet globals.css unter 40rem genau diese fuenf im Menue aus.
+ * 40rem ist derselbe Haltepunkt, an dem die Leiste erscheint -- sonst
+ * waere ein Ziel bei irgendeiner Breite nirgends erreichbar.
+ */
+export const UNTEN: string[] = [
+  "/",
+  "/mietenbuch",
+  "/vorgaenge",
+  "/mahnwesen",
+  "/belege",
 ];
 
 /** Kennung fuer aria-controls -- es gibt genau eine Navigation je Seite. */
@@ -246,6 +279,10 @@ export function Navi({ benutzer }: { benutzer: string | null }) {
                         key={p.href}
                         href={p.href}
                         data-aktiv={aktiv ? "ja" : "nein"}
+                        /* Steht dieses Ziel auch unten in der Leiste?
+                           Dann blendet globals.css es unter 40rem hier
+                           aus -- siehe UNTEN oben. */
+                        data-unten={UNTEN.includes(p.href) ? "ja" : "nein"}
                         /* aria-current sagt dasselbe wie die Markierung,
                            nur hoerbar. */
                         aria-current={aktiv ? "page" : undefined}
