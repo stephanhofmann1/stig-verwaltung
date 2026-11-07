@@ -58,6 +58,7 @@ interface Bericht {
   vermerke: Vermerk[];
   wuerde_sich_aendern: number;
   geschrieben: number;
+  betrag_gesperrt: number;
   gesperrt: number;
   beispiele_gesperrt: Array<{ datei: string | null; grund: string }>;
   aenderungen: Aenderung[];
@@ -147,7 +148,7 @@ export function Nachlesen() {
               ? ` · ${bericht.vermerk_bleibt} bleiben strittig`
               : ""}
             {bericht.gesperrt > 0
-              ? ` · ${bericht.gesperrt} schon zugeordnet und darum unangetastet`
+              ? ` · bei ${bericht.gesperrt} bleibt der Betrag gesperrt, weil der Beleg schon zugeordnet ist`
               : ""}
             {bericht.betrag_uneindeutig > 0
               ? ` · ${bericht.betrag_uneindeutig} mit nicht bestimmbarem Betrag`
@@ -196,12 +197,15 @@ export function Nachlesen() {
 
           {bericht.beispiele_gesperrt.length > 0 && (
             <p className="hinweis">
-              Unangetastet, weil schon zugeordnet:{" "}
+              Betrag gesperrt, weil der Beleg schon einer Buchung zugeordnet
+              ist:{" "}
               {bericht.beispiele_gesperrt
                 .map((g) => g.datei ?? "ohne Namen")
                 .join(", ")}
               . Die Zuordnung gilt für den alten Betrag und wird nicht von
-              hinten verändert.
+              hinten verändert — erst die Zuordnung lösen, dann erneut
+              nachlesen. Das Datum wird trotzdem nachgezogen: Es kommt in
+              der Zuordnung nicht vor.
             </p>
           )}
 
