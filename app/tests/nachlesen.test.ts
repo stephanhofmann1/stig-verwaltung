@@ -271,3 +271,49 @@ describe("Die Oberfläche", () => {
     assert.match(stueck, /window\.location\.reload\(\)/);
   });
 });
+
+describe("Der Bericht über die Vermerke", () => {
+  test("jeder Beleg mit Vermerk wird einzeln aufgeführt", () => {
+    // Der Bericht zaehlte nur, was sich aendern WUERDE, und verschwieg
+    // damit ausgerechnet die Faelle, um die es geht: Ein Beleg mit
+    // Vermerk, der schon zugeordnet ist, landet in `gesperrt` und
+    // verliert dort jede Spur seines Vermerks. Am 07.11.2026 meldete
+    // der Lauf deshalb "0 loesen sich auf" bei 19 Vermerken, ohne zu
+    // sagen, warum.
+    assert.match(route, /if \(b\.abweichung !== null\) \{\s*\n\s*vermerke\.push/);
+    assert.match(route, /mit_vermerk: vermerke\.length/);
+  });
+
+  test("er steht VOR den Schranken, nicht hinter ihnen", () => {
+    const i = route.indexOf("vermerke.push");
+    const j = route.indexOf("if (Number(b.zugeordnet) > 0) {");
+    const k = route.indexOf("unveraendert += 1");
+    assert.ok(i > 0 && i < j, "er steht hinter der Zuordnungsschranke");
+    assert.ok(i < k, "er steht hinter der Unverändert-Schranke");
+  });
+
+  test("er benennt die Lage in Worten", () => {
+    for (const lage of [
+      "kein zweiter Zeuge im Vermerktext",
+      "löst sich auf, aber der Beleg ist schon zugeordnet",
+      "bleibt strittig",
+    ]) {
+      assert.ok(route.includes(lage), `"${lage}" fehlt`);
+    }
+  });
+
+  test("er nennt alle drei Lesungen, damit man die Lage prüfen kann", () => {
+    assert.match(route, /alt: b\.abweichung/);
+    assert.match(route, /beifuegung,/);
+    assert.match(route, /neu: \{ betrag: neu\.betrag_brutto, datum: neu\.belegdatum \}/);
+    assert.match(route, /frisch,/);
+  });
+
+  test("er ändert nichts", () => {
+    const abschnitt = route.slice(
+      route.indexOf("if (b.abweichung !== null) {"),
+      route.indexOf("// Auch ein Beleg, dessen Zahlen gleich bleiben"),
+    );
+    assert.ok(!/UPDATE|query\(/.test(abschnitt), "die Liste schreibt");
+  });
+});

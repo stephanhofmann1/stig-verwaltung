@@ -132,6 +132,36 @@ export async function POST(anfrage: Request) {
     vermerk_neu: string | null;
   }> = [];
   const gesperrt: Array<{ datei: string | null; grund: string }> = [];
+
+  /*
+    Jeder Beleg mit Vermerk, einzeln aufgeführt.
+    
+    WOFÜR
+    
+    Der Bericht zählte nur, was sich ändern WÜRDE -- und verschwieg
+    damit ausgerechnet die Fälle, um die es geht. Ein Beleg mit Vermerk,
+    der schon einer Buchung zugeordnet ist, landet in `gesperrt` und
+    verliert dort jede Spur seines Vermerks; einer, dessen Zahlen gleich
+    bleiben, verschwindet in `unveraendert`.
+    
+    Am 07.11.2026 meldete der Lauf deshalb "0 lösen sich auf" bei 19
+    Vermerken im Portal, ohne zu sagen, warum. Ein Bericht, der die
+    offene Frage nicht beantworten kann, ist kein Bericht.
+    
+    Diese Liste ist reines Lesen und ändert nichts.
+  */
+  const vermerke: Array<{
+    beleg_id: string;
+    datei: string | null;
+    zugeordnet: number;
+    alt: string;
+    beifuegung: { betrag: number | null; datum: string | null } | null;
+    neu: { betrag: number | null; datum: string | null };
+    /** null heißt: löst sich auf. Sonst der frische Vergleich. */
+    frisch: string | null;
+    /** Warum er so behandelt wird. */
+    lage: string;
+  }> = [];
   let gelesen = 0;
   let ohneDatei = 0;
   let ohneTextebene = 0;
@@ -193,6 +223,25 @@ export async function POST(anfrage: Request) {
       b.abweichung !== null && beifuegung !== null && frisch === null;
     const vermerkNeuSchreiben =
       b.abweichung !== null && frisch !== null && frisch !== b.abweichung;
+
+    if (b.abweichung !== null) {
+      vermerke.push({
+        beleg_id: b.id,
+        datei: b.dateiname,
+        zugeordnet: Number(b.zugeordnet),
+        alt: b.abweichung,
+        beifuegung,
+        neu: { betrag: neu.betrag_brutto, datum: neu.belegdatum },
+        frisch,
+        lage: !beifuegung
+          ? "kein zweiter Zeuge im Vermerktext"
+          : frisch === null
+            ? Number(b.zugeordnet) > 0
+              ? "löst sich auf, aber der Beleg ist schon zugeordnet"
+              : "löst sich auf"
+            : "bleibt strittig",
+      });
+    }
 
     // Auch ein Beleg, dessen Zahlen gleich bleiben, kann einen Vermerk
     // tragen, der sich jetzt auflöst -- etwa wenn nur das Datum strittig
@@ -276,6 +325,8 @@ export async function POST(anfrage: Request) {
     betrag_uneindeutig: uneindeutig,
     vermerk_loest_sich: vermerkLoest,
     vermerk_bleibt: vermerkBleibt,
+    mit_vermerk: vermerke.length,
+    vermerke,
     wuerde_sich_aendern: aenderungen.length,
     geschrieben,
     gesperrt: gesperrt.length,

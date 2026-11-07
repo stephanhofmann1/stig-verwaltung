@@ -33,6 +33,17 @@ interface Aenderung {
   vermerk_neu: string | null;
 }
 
+interface Vermerk {
+  beleg_id: string;
+  datei: string | null;
+  zugeordnet: number;
+  alt: string;
+  beifuegung: { betrag: number | null; datum: string | null } | null;
+  neu: { betrag: number | null; datum: string | null };
+  frisch: string | null;
+  lage: string;
+}
+
 interface Bericht {
   probelauf: boolean;
   belege: number;
@@ -43,6 +54,8 @@ interface Bericht {
   betrag_uneindeutig: number;
   vermerk_loest_sich: number;
   vermerk_bleibt: number;
+  mit_vermerk: number;
+  vermerke: Vermerk[];
   wuerde_sich_aendern: number;
   geschrieben: number;
   gesperrt: number;
@@ -142,8 +155,44 @@ export function Nachlesen() {
             {bericht.ohne_textebene > 0
               ? ` · ${bericht.ohne_textebene} ohne Textebene`
               : ""}
+            {bericht.mit_vermerk > 0
+              ? ` · ${bericht.mit_vermerk} tragen einen Widerspruchsvermerk`
+              : ""}
             {bericht.probelauf ? " — nichts geschrieben." : ""}
           </p>
+
+          {/*
+            Jeder Beleg mit Vermerk, einzeln. Ohne diese Liste meldet der
+            Lauf "0 lösen sich auf" und sagt nicht, warum -- die Fälle
+            verschwinden in "unverändert" und "schon zugeordnet".
+          */}
+          {bericht.vermerke.length > 0 && (
+            <div className="register">
+              {bericht.vermerke.map((v) => (
+                <div className="posten" key={`v-${v.beleg_id}`}>
+                  <div className="posten-kopf">
+                    <span className="marker">{v.lage}</span>
+                    <a href={`/api/belege/${v.beleg_id}/datei`}>
+                      {v.datei ?? "ohne Namen"}
+                    </a>
+                  </div>
+                  <div className="still">
+                    Vermerk: {v.alt}
+                  </div>
+                  <div className="still">
+                    heute gelesen: {euro(v.neu.betrag)} / {tag(v.neu.datum)} ·
+                    Beifügung:{" "}
+                    {v.beifuegung
+                      ? `${euro(v.beifuegung.betrag)} / ${tag(v.beifuegung.datum)}`
+                      : "nicht aus dem Text lesbar"}
+                  </div>
+                  {v.frisch && (
+                    <div className="hinweis">Bleibt: {v.frisch}</div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
 
           {bericht.beispiele_gesperrt.length > 0 && (
             <p className="hinweis">
