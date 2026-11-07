@@ -64,6 +64,10 @@ services:
       # fehlt er, wird der Bericht nur protokolliert statt den Start zu
       # verhindern. Die Seite "Laeufe" zeigt dann einen Hinweis.
       LAGEBERICHT_AN: ${LAGEBERICHT_AN:-}
+      # Die stille Kopie jeder ausgehenden Mail (BCC). Leer gelassen
+      # nimmt lib/versand.ts LAGEBERICHT_AN -- die Adresse, an die der
+      # Lagebericht geht. Etwas ohne "@" ("aus") schaltet sie ab.
+      VERSAND_KOPIE: ${VERSAND_KOPIE:-}
       # Bankanbindung ueber FinTS. Alle drei ohne :? -- fehlen sie, wird
       # nicht abgerufen, aber die Anwendung startet. Eine fehlende
       # Bankanbindung darf nicht die Mieterverwaltung anhalten.
