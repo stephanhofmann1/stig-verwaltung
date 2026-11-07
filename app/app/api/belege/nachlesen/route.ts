@@ -9,6 +9,7 @@ import {
   zaehleBelegstuecke,
 } from "@/lib/belege";
 import { uebernehmeSichereBelege } from "@/lib/belegabgleich";
+import { liesWiderspruch, widerspruch } from "@/lib/gegenprobe";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -44,6 +45,34 @@ export const maxDuration = 300;
  * Und er ändert nur Betrag und Datum. Kostenart, Objekt,
  * Umlagefähigkeit können von Hand gesetzt worden sein; ein
  * maschineller Lauf überschreibt keine menschliche Entscheidung.
+ *
+ * DER WIDERSPRUCHSVERMERK (ergänzt am 07.11.2026)
+ *
+ * Die Zahlen nachzuziehen genügte nicht. Ein Beleg, bei dem die
+ * Gegenprobe einen Widerspruch gefunden hatte, trägt den in
+ * `abweichung` -- und ein Beleg mit Vermerk wird vom selbsttätigen
+ * Abgleich bewusst nicht angenommen. Dieser Lauf korrigierte also den
+ * Betrag und ließ den Beleg trotzdem liegen.
+ *
+ * Am 07.11.2026 standen 19 solche Vermerke im Portal, und alle 19 waren
+ * nach den heutigen Regeln widerspruchsfrei (nachgemessen an 216 lokal
+ * vorhandenen Amazon-Rechnungen: null Widersprüche). Daran hingen 43
+ * offene Amazon-Zahlungen, die ihre Bestellnummer im Verwendungszweck
+ * tragen -- den verlässlichsten Treffer, den der Abgleich kennt.
+ *
+ * Aufgelöst wird der Vermerk nicht dadurch, dass er verschwindet.
+ * `liesWiderspruch` holt die zugelieferten Werte aus dem Vermerktext
+ * zurück; er ist die einzige Spur davon, denn die Zeile hält die Lesung
+ * des Regelwerks und das Beiblatt der Lieferung liegt nicht in der
+ * Datenbank. Stimmt die neue Lesung mit der Beifügung überein, hat der
+ * Beleg wieder zwei Zeugen und der Vermerk fällt weg. Stimmen sie
+ * weiter nicht, wird er mit dem FRISCHEN Vergleich überschrieben und
+ * bleibt stehen.
+ *
+ * Einen Vermerk ohne zweiten Zeugen löst der Lauf NICHT auf. Ein
+ * Vermerk, den niemand bestätigt, verschwindet sonst nur deshalb, weil
+ * das Regelwerk heute etwas anderes sagt als vorgestern -- und das ist
+ * kein Beweis, sondern eine zweite Meinung.
  */
 interface Wunsch {
   uebernehmen?: unknown;
@@ -76,10 +105,11 @@ export async function POST(anfrage: Request) {
     betrag_brutto: string | null;
     belegdatum: string | null;
     notizen: string | null;
+    abweichung: string | null;
     zugeordnet: string;
   }>(
     `SELECT bg.id, bg.dateiname, bg.ablage_pfad, bg.betrag_brutto::text,
-            bg.belegdatum::text, bg.notizen,
+            bg.belegdatum::text, bg.notizen, bg.abweichung,
             (SELECT count(*) FROM belegbuchung bb WHERE bb.beleg_id = bg.id)::text
               AS zugeordnet
        FROM beleg bg
@@ -96,6 +126,10 @@ export async function POST(anfrage: Request) {
     betrag_neu: number | null;
     datum_alt: string | null;
     datum_neu: string | null;
+    /** Der Widerspruchsvermerk löst sich mit dieser Lesung auf. */
+    vermerk_loest: boolean;
+    /** Er bleibt, wird aber mit dem frischen Vergleich überschrieben. */
+    vermerk_neu: string | null;
   }> = [];
   const gesperrt: Array<{ datei: string | null; grund: string }> = [];
   let gelesen = 0;
@@ -104,6 +138,8 @@ export async function POST(anfrage: Request) {
   let unveraendert = 0;
   let uneindeutig = 0;
   let geschrieben = 0;
+  let vermerkLoest = 0;
+  let vermerkBleibt = 0;
 
   for (const b of belege) {
     let inhalt: Buffer;
@@ -141,7 +177,28 @@ export async function POST(anfrage: Request) {
         Math.round(neu.betrag_brutto * 100) !== Math.round(betragAlt * 100));
     const datumAnders = neu.belegdatum !== null && neu.belegdatum !== datumAlt;
 
-    if (!betragAnders && !datumAnders) {
+    // Loest sich der Widerspruchsvermerk mit der neuen Lesung auf?
+    //
+    // Der zweite Zeuge wird aus dem Vermerk selbst zurueckgelesen. Ohne
+    // ihn bleibt der Vermerk stehen, auch wenn die neue Lesung anders
+    // ausfaellt: Eine zweite Meinung ist kein Beweis.
+    const beifuegung = liesWiderspruch(b.abweichung);
+    const frisch = beifuegung
+      ? widerspruch(
+          { betrag: neu.betrag_brutto, datum: neu.belegdatum },
+          beifuegung,
+        )
+      : null;
+    const vermerkFaelltWeg =
+      b.abweichung !== null && beifuegung !== null && frisch === null;
+    const vermerkNeuSchreiben =
+      b.abweichung !== null && frisch !== null && frisch !== b.abweichung;
+
+    // Auch ein Beleg, dessen Zahlen gleich bleiben, kann einen Vermerk
+    // tragen, der sich jetzt auflöst -- etwa wenn nur das Datum strittig
+    // war und die Beifügung es bestätigt. Ohne diese Ausnahme bliebe er
+    // für den Abgleich gesperrt.
+    if (!betragAnders && !datumAnders && !vermerkFaelltWeg && !vermerkNeuSchreiben) {
       unveraendert += 1;
       continue;
     }
@@ -162,7 +219,12 @@ export async function POST(anfrage: Request) {
       betrag_neu: betragAnders ? neu.betrag_brutto : betragAlt,
       datum_alt: datumAlt,
       datum_neu: datumAnders ? neu.belegdatum : datumAlt,
+      vermerk_loest: vermerkFaelltWeg,
+      vermerk_neu: vermerkNeuSchreiben ? frisch : null,
     });
+
+    if (vermerkFaelltWeg) vermerkLoest += 1;
+    if (vermerkNeuSchreiben) vermerkBleibt += 1;
 
     if (!uebernehmen) continue;
 
@@ -179,13 +241,24 @@ export async function POST(anfrage: Request) {
       `UPDATE beleg
           SET betrag_brutto = COALESCE($2, betrag_brutto),
               belegdatum    = COALESCE($3::date, belegdatum),
+              abweichung    = CASE
+                                WHEN $5::boolean THEN NULL
+                                WHEN $6::text IS NOT NULL THEN $6::text
+                                ELSE abweichung
+                              END,
               notizen = COALESCE(notizen || ' ', '') || $4
         WHERE id = $1`,
       [
         b.id,
         betragAnders ? neu.betrag_brutto : null,
         datumAnders ? neu.belegdatum : null,
-        `Nachgelesen: ${vermerk}.`,
+        `Nachgelesen: ${[vermerk, vermerkFaelltWeg
+          ? `Widerspruch (${b.abweichung}) mit den heutigen Regeln aufgelöst`
+          : null]
+          .filter(Boolean)
+          .join(", ")}.`,
+        vermerkFaelltWeg,
+        vermerkNeuSchreiben ? frisch : null,
       ],
     );
     geschrieben += 1;
@@ -201,6 +274,8 @@ export async function POST(anfrage: Request) {
     ohne_textebene: ohneTextebene,
     unveraendert,
     betrag_uneindeutig: uneindeutig,
+    vermerk_loest_sich: vermerkLoest,
+    vermerk_bleibt: vermerkBleibt,
     wuerde_sich_aendern: aenderungen.length,
     geschrieben,
     gesperrt: gesperrt.length,
