@@ -83,6 +83,47 @@ export function gleichDatum(a: string | null, b: string | null): boolean {
  * Namen stehen im Text, damit spaeter erkennbar ist, welche Zahl woher
  * kam -- ein Widerspruch ohne Herkunft ist nicht aufloesbar.
  */
+/**
+ * Die Beifügungswerte aus einem gespeicherten Widerspruch zurücklesen.
+ *
+ * WOFÜR
+ *
+ * `widerspruch()` schreibt den Vergleich in Worten in `beleg.abweichung`.
+ * Damit ist er für Menschen lesbar -- und er ist ab dann die einzige
+ * Spur der zugelieferten Werte: Die Zeile selbst hält die Lesung des
+ * Regelwerks, nicht die der Beifügung, und das Beiblatt der Lieferung
+ * liegt nicht in der Datenbank.
+ *
+ * Das wird wichtig, sobald das Regelwerk besser wird. Am 07.11.2026
+ * standen 19 Belege mit Vermerk im Portal, und alle 19 waren nach den
+ * heutigen Regeln widerspruchsfrei -- die Vermerke waren eingefrorene
+ * Lesungen von vorgestern. Um einen Beleg neu lesen und den Vermerk
+ * auflösen zu können, braucht man den zweiten Zeugen zurück.
+ *
+ * WARUM EIN RÜCKWEG UND KEINE NEUE SPALTE
+ *
+ * Eine Spalte `zugeliefert` wäre sauberer und ist der Weg für neue
+ * Lieferungen. Sie hilft aber den 19 Belegen nicht, die es schon gibt:
+ * Für die ist dieser Text alles, was von der Beifügung geblieben ist.
+ * Der Rückweg ist nur so verlässlich wie das Format -- und das Format
+ * schreibt `widerspruch()` selbst, zwei Funktionen weiter oben. Ein
+ * Test schickt Werte durch beide Richtungen und vergleicht.
+ */
+export function liesWiderspruch(
+  text: string | null,
+): { betrag: number | null; datum: string | null } | null {
+  if (!text) return null;
+  // "Betrag: Regelwerk 39,99 / Beifügung 128,89"
+  const b = /Betrag:\s*Regelwerk\s*\S+\s*\/\s*Beifügung\s*(ohne|[\d.]+,\d{2})/.exec(text);
+  // "Datum: Regelwerk 2026-09-26 / Beifügung 2026-09-27"
+  const d = /Datum:\s*Regelwerk\s*\S+\s*\/\s*Beifügung\s*(ohne|\d{4}-\d{2}-\d{2})/.exec(text);
+  if (!b && !d) return null;
+  const betrag =
+    b && b[1] !== "ohne" ? Number(b[1].replace(/\./g, "").replace(",", ".")) : null;
+  const datum = d && d[1] !== "ohne" ? d[1] : null;
+  return { betrag, datum };
+}
+
 export function widerspruch(
   eigen: { betrag: number | null; datum: string | null },
   fremd: { betrag: number | null; datum: string | null },
