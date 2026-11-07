@@ -221,31 +221,28 @@ export function EntwurfKarte(p: Props) {
         aria-label="Entwurfstext"
       />
 
-      {/* Die Anhaenge stehen zwischen Text und Knoepfen: Wer gegenliest,
-          soll sie sehen, bevor er auf "Senden" klickt -- und nicht
-          darunter, wo sie beim Ueberfliegen wegfallen. */}
-      <Anhaenge nachrichtId={p.id} aenderbar blockiert={busy || laeuft} />
+      {/*
+        DAS ANWEISUNGSFELD STEHT DIREKT AM TEXT (geaendert 07.11.2026)
 
-      <div className="knopfreihe">
-        <button onClick={senden} disabled={busy || laeuft}>
-          {busy ? "Sendet…" : "Senden"}
-        </button>
-        <button data-art="still" onClick={verwerfen} disabled={busy || laeuft}>
-          Verwerfen
-        </button>
-        {geaendert && !meldung && (
-          <span className="rueckmeldung">Geändert — wird beim Senden übernommen.</span>
-        )}
-        {meldung && (
-          <span className="rueckmeldung" data-art={meldung.art === "fehler" ? "fehler" : undefined}>
-            {meldung.text}
-          </span>
-        )}
-      </div>
+        Vorher stand es unter dem Textfeld, den Anhaengen UND der
+        Knopfreihe, mit der Begruendung: "Der haeufigste Fall bleibt
+        Gegenlesen und Freigeben. Wer etwas aendern will, liest ohnehin
+        weiter."
 
-      {/* Das Anweisungsfeld steht UNTER den Knoepfen und nicht darueber:
-          Der haeufigste Fall bleibt Gegenlesen und Freigeben. Wer etwas
-          aendern will, liest ohnehin weiter. */}
+        Die Benutzung hat das widerlegt. Es war die unsichtbarste Stelle
+        der Karte, und wer nicht weiss, dass das Feld existiert, liest
+        nicht weiter -- der schreibt den Text von Hand um. Damit war
+        genau die Steuerung verborgen, um die es bei diesem Feld geht.
+
+        Jetzt steht es unmittelbar unter dem Entwurfstext, weil es
+        dasselbe tut wie der Text selbst: beide aendern, was gesendet
+        wird. Der eine von Hand, das andere auf Anweisung. Die zwei Wege
+        gehoeren nebeneinander.
+
+        Die Anhaenge bleiben bewusst DAHINTER und damit unmittelbar vor
+        den Knoepfen -- sie sind nicht Teil des Schreibens, sondern die
+        letzte Kontrolle vor dem Senden.
+      */}
       {steuerung && (
         <EntwurfAnweisung
           id={p.id}
@@ -265,6 +262,29 @@ export function EntwurfKarte(p: Props) {
           }}
         />
       )}
+
+      {/* Die Anhaenge stehen unmittelbar vor den Knoepfen: Wer
+          gegenliest, soll sie sehen, bevor er auf "Senden" klickt -- und
+          nicht darunter, wo sie beim Ueberfliegen wegfallen. */}
+      <Anhaenge nachrichtId={p.id} aenderbar blockiert={busy || laeuft} />
+
+      <div className="knopfreihe">
+        <button onClick={senden} disabled={busy || laeuft}>
+          {busy ? "Sendet…" : "Senden"}
+        </button>
+        <button data-art="still" onClick={verwerfen} disabled={busy || laeuft}>
+          Verwerfen
+        </button>
+        {geaendert && !meldung && (
+          <span className="rueckmeldung">Geändert — wird beim Senden übernommen.</span>
+        )}
+        {meldung && (
+          <span className="rueckmeldung" data-art={meldung.art === "fehler" ? "fehler" : undefined}>
+            {meldung.text}
+          </span>
+        )}
+      </div>
+
     </section>
   );
 }

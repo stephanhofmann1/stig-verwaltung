@@ -380,3 +380,34 @@ export function zaehltAlsOffen(ist: Ist): boolean {
 export function ohneAntwortGeschlossen(ist: Ist): boolean {
   return ist.status === "erledigt" && !!(ist.ohne_antwort_grund ?? "").trim();
 }
+
+/**
+ * Teilt die Nachrichten einer Akte in "zu entscheiden" und "Verlauf".
+ *
+ * WARUM DAS EINE EIGENE FUNKTION IST (07.11.2026)
+ *
+ * Zwei Zeilen filter() -- aber die Teilung muss zwei Zusagen halten, die
+ * man an zwei Zeilen in einer Seitenkomponente nicht pruefen kann:
+ *
+ *   1. Nichts geht verloren. Jede Nachricht steht in genau einem der
+ *      beiden Teile.
+ *   2. Nichts steht doppelt. Ein Entwurf, der oben zur Entscheidung
+ *      steht, darf nicht zusaetzlich unten im Verlauf erscheinen --
+ *      sonst stehen zwei Textfelder mit demselben Inhalt auf der Seite
+ *      und es ist nicht zu sehen, welches gesendet wird.
+ *
+ * Die Reihenfolge innerhalb beider Teile bleibt die der Eingabe. Die
+ * Akte sortiert nach angelegt_am; sortiert hier etwas um, stimmt der
+ * Verlauf nicht mehr mit der Zeit.
+ */
+export function teileAkte<T extends { status: string }>(
+  eintraege: readonly T[],
+): { entwuerfe: T[]; verlauf: T[] } {
+  const entwuerfe: T[] = [];
+  const verlauf: T[] = [];
+  for (const e of eintraege) {
+    if (e.status === "entwurf") entwuerfe.push(e);
+    else verlauf.push(e);
+  }
+  return { entwuerfe, verlauf };
+}
