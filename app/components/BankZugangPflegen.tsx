@@ -81,11 +81,12 @@ export function BankZugangPflegen({
       <>
         {ruht && (
           <div className="rueckmeldung" data-art="warn">
-            <strong>Dieser Zugang ruht.</strong> Die Bank hat die
-            Zugangsdaten abgelehnt, deshalb versucht es der nächtliche Lauf
-            nicht erneut — drei Fehlversuche sperren den Bankzugang, auch
-            den im Browser. Korrigieren Sie die Angaben; damit läuft er
-            wieder an.
+            <strong>Dieser Zugang ruht.</strong> Der nächtliche Lauf
+            versucht es nicht erneut — entweder hat die Bank die
+            Zugangsdaten abgelehnt, oder er wurde von Hand angehalten.
+            Drei Fehlversuche sperren den Bankzugang, auch den im
+            Browser. Korrigieren Sie die Angaben; damit läuft er wieder
+            an.
           </div>
         )}
         <button data-art="still" onClick={() => setOffen(true)}>

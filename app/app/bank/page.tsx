@@ -3,6 +3,7 @@ import { schluesselVorhanden } from "@/lib/fints/geheimnis";
 import { BankAbruf } from "@/components/BankAbruf";
 import { BankNeu } from "@/components/BankNeu";
 import { BankZugangPflegen } from "@/components/BankZugangPflegen";
+import { BankRuhen } from "@/components/BankRuhen";
 
 export const dynamic = "force-dynamic";
 
@@ -150,6 +151,19 @@ export default async function Bank() {
                   {z.hat_pin && z.aktiv && (
                     <BankAbruf zugang={z.id} name={z.bezeichnung} />
                   )}
+
+                  {/*
+                    Anhalten muss ohne Umweg über das Bearbeiten gehen.
+                    Wer nicht weiß, woran ein Abruf scheitert, soll ihn
+                    stoppen dürfen, bevor er es herausfindet -- drei
+                    Fehlversuche sind bei den meisten Banken alles, was
+                    man hat.
+                  */}
+                  <BankRuhen
+                    id={z.id}
+                    bezeichnung={z.bezeichnung}
+                    ruht={!z.aktiv}
+                  />
 
                   <BankZugangPflegen
                     id={z.id}
