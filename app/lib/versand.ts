@@ -14,6 +14,71 @@ const ABSENDER =
 const ABSENDER_NAME = process.env.ABSENDER_NAME ?? "STIG Immobilien";
 const MAIL_DOMAIN = ABSENDER.split("@")[1] ?? "stig-immobilien.de";
 
+/**
+ * Die stille Kopie jeder ausgehenden Mail.
+ *
+ * WOFÜR
+ *
+ * Am 07.11.2026 ging eine Antwort an einen Handwerker hinaus, und der
+ * Absender konnte nicht feststellen, ob sie wirklich draußen war: Das
+ * Portal sagte "gesendet", sein Postfach zeigte nichts, und nachsehen
+ * liess sich das nur im Dienstleister-Protokoll. Eine Zustellung, die
+ * man nur in einem Fremdsystem nachvollziehen kann, ist für den
+ * Absender keine.
+ *
+ * WARUM BCC UND NICHT CC
+ *
+ * CC zeigt dem Empfänger die Kopie. Ein Handwerker, der eine Mail von
+ * der Verwaltung bekommt und den Eigentümer sichtbar in Kopie sieht,
+ * liest daraus etwas hinein -- und die private Adresse steht dann in
+ * jedem Postfach und jedem Weiterleitungsverlauf. Die Kopie dient dem
+ * Nachvollziehen, nicht der Mitteilung; BCC genügt dafür und verrät
+ * nichts.
+ *
+ * WARUM NICHT DIE EINGANGSADRESSE
+ *
+ * Eine Kopie an eine Adresse, die ihrerseits in das Portal einliefert
+ * (der Cloudflare-Worker auf STIGIMMO@gmx.de), würde jede ausgehende
+ * Mail als neue eingehende wieder hereinholen. Darum trägt
+ * VERSAND_KOPIE eine Adresse, die NICHT einliefert, und der Absender
+ * selbst wird als Kopieempfänger abgewiesen.
+ *
+ * WARUM LAGEBERICHT_AN ALS RÜCKFALL
+ *
+ * Weil die Kopie sonst eine Einstellung bräuchte, die jemand erst auf
+ * dem Server einträgt -- und bis dahin wäre die Zustellung weiter nicht
+ * nachvollziehbar, also genau das Problem, um das es geht. Unter
+ * LAGEBERICHT_AN steht schon die Adresse, an die das Portal täglich
+ * seinen Lagebericht schickt: die Person, die dieses System betreibt.
+ * Wer eine andere Adresse will, setzt VERSAND_KOPIE. Wer gar keine
+ * Kopie will, setzt dort etwas ohne "@" -- "aus" etwa: Was keine
+ * Adresse ist, wird unten ohnehin abgewiesen, und ein eigener
+ * Sonderfall dafür wäre ein Zweig, den kein Test widerlegen kann.
+ */
+const KOPIE =
+  (process.env.VERSAND_KOPIE ?? "").trim() ||
+  (process.env.LAGEBERICHT_AN ?? "").trim();
+
+/**
+ * Die Adresse der stillen Kopie, oder leer.
+ *
+ * Die eigene Absenderadresse wird abgewiesen: Eine Mail an sich selbst
+ * ist keine Bestätigung, und bei Resend wäre sie zusätzlich ein Weg,
+ * den eigenen Zustellruf zu verfälschen.
+ */
+export function stilleKopie(
+  an: string[] = [],
+  cc: string[] = [],
+): string[] {
+  if (!KOPIE || !KOPIE.includes("@")) return [];
+  const klein = KOPIE.toLowerCase();
+  if (klein === ABSENDER.toLowerCase()) return [];
+  // Steht die Adresse schon offen in An oder CC, braucht es keine
+  // zweite, verdeckte Zustellung derselben Mail.
+  const schon = [...an, ...cc].some((e) => e.toLowerCase() === klein);
+  return schon ? [] : [KOPIE];
+}
+
 /** Erzeugt eine eigene Message-ID im Format <uuid@domain>. */
 export function neueMessageId(): string {
   return `<${crypto.randomUUID()}@${MAIL_DOMAIN}>`;
@@ -181,6 +246,8 @@ export interface VersandErgebnis {
   fehler?: string;
   /** Nichts hat das System verlassen (nur lokal möglich). */
   trocken?: boolean;
+  /** Wohin die stille Kopie ging -- damit man dort nachsehen kann. */
+  stille_kopie?: string[];
 }
 
 export interface Versandentscheidung {
@@ -306,10 +373,15 @@ export async function sendeEntwurf(
       },
     });
     try {
+      const bcc = stilleKopie(n.an_emails, n.cc_emails);
       await transport.sendMail({
         from: `${ABSENDER_NAME} <${ABSENDER}>`,
         to: n.an_emails,
         cc: n.cc_emails.length ? n.cc_emails : undefined,
+        // Dieselbe stille Kopie wie im Resend-Zweig. Trüge sie nur ein
+        // Weg, hinge die Nachvollziehbarkeit daran, welcher Weg gerade
+        // konfiguriert ist.
+        bcc: bcc.length ? bcc : undefined,
         subject: n.betreff,
         text: n.koerper_text,
         messageId,
@@ -337,6 +409,11 @@ export async function sendeEntwurf(
         from: `${ABSENDER_NAME} <${ABSENDER}>`,
         to: n.an_emails,
         cc: n.cc_emails.length ? n.cc_emails : undefined,
+        // Siehe stilleKopie(): derselbe Satz Empfänger wie im
+        // SMTP-Zweig.
+        ...(stilleKopie(n.an_emails, n.cc_emails).length
+          ? { bcc: stilleKopie(n.an_emails, n.cc_emails) }
+          : {}),
         subject: n.betreff,
         text: n.koerper_text,
         ...(nutzlast.length
@@ -371,13 +448,30 @@ export async function sendeEntwurf(
     await c.query(
       `INSERT INTO protokoll (vorgang_id, nachricht_id, ereignis, details)
        VALUES ($1,$2,'freigegeben_und_gesendet',$3::jsonb)`,
-      [n.vorgang_id, nachrichtId, JSON.stringify({ versandweg: weg })],
+      // Die stille Kopie wird mitprotokolliert. Eine verdeckte Zustellung,
+      // von der auch im Protokoll nichts steht, waere eine verdeckte
+      // Zustellung im schlechten Sinn.
+      [
+        n.vorgang_id,
+        nachrichtId,
+        JSON.stringify({
+          versandweg: weg,
+          ...(stilleKopie(n.an_emails, n.cc_emails).length
+            ? { stille_kopie: stilleKopie(n.an_emails, n.cc_emails) }
+            : {}),
+        }),
+      ],
     );
   });
 
   return {
     ok: true,
     message_id: messageId,
+    // Der Aufrufer soll sagen koennen, wohin die Kopie ging -- sonst
+    // weiss der Mensch am Knopf weiterhin nicht, wo er nachsehen kann.
+    ...(stilleKopie(n.an_emails, n.cc_emails).length
+      ? { stille_kopie: stilleKopie(n.an_emails, n.cc_emails) }
+      : {}),
     ...(weg === "trocken" ? { trocken: true } : {}),
   };
 }
