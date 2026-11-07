@@ -176,12 +176,30 @@ export function EntwurfAnweisung(p: Props) {
         )}
       </div>
 
+      {/*
+        NUR EIN SATZ, NICHT VIER (07.11.2026)
+
+        Hier standen vier Zeilen: was alles an das Sprachmodell geht und
+        dass nichts gesendet wird. Seit das Anweisungsfeld direkt unter
+        dem Entwurfstext steht (components/EntwurfKarte.tsx), liegt
+        dieser Absatz zwischen Text und "Senden" -- vier Zeilen Prosa
+        zwischen dem Lesen und dem Freigeben, jedes Mal.
+
+        Stehen bleibt der Satz, der jedes Mal zaehlt: dass hier nichts
+        hinausgeht. Was genau an das Modell geht, erklaert sich einmal
+        und steht deshalb im Aufklappbaren.
+      */}
       <p className="erklaerung">
-        Die Anweisung geht zusammen mit dem bisherigen Entwurf, dem
-        Mailverlauf und den dauerhaften Weisungen an das Sprachmodell. Es
-        entsteht dabei immer nur ein Entwurf — gesendet wird nichts, auch
+        Es entsteht immer nur ein Entwurf — gesendet wird nichts, auch
         nicht, wenn es in der Anweisung steht.
       </p>
+      {/* Kein <details> im <p>: Der Browser bricht den Absatz an der
+          Stelle auf, weil details kein Satzinhalt ist. */}
+      <details className="erklaerung">
+        <summary>Was geht an das Sprachmodell?</summary>
+        Die Anweisung, der bisherige Entwurf, der Mailverlauf des
+        Vorgangs und die dauerhaften Weisungen.
+      </details>
 
       {fassungen.length > 1 && (
         <details className="erklaerung">

@@ -13,6 +13,7 @@ import {
   ohneAntwortGeschlossen,
   pruefeAenderung,
   statusKnopf,
+  teileAkte,
   zaehltAlsOffen,
   type Ist,
 } from "../lib/vorgangstatus";
@@ -696,5 +697,236 @@ describe("ladeFreigabestand zaehlt nur offene Vorgaenge", () => {
       "Ohne das bliebe ein Entwurf in der Freigabe stehen, bei einem " +
         "Vorgang, auf den bewusst nicht geantwortet wird",
     );
+  });
+});
+
+/**
+ * Der Entwurf steht im Blickfeld.
+ *
+ * ANLASS (07.11.2026)
+ *
+ * Stephan hat einen Fall geoeffnet, antworten wollen und das Antwortfeld
+ * nicht gefunden. Er hat es erst durch Scrollen entdeckt. Zwei Gruende
+ * lagen uebereinander:
+ *
+ *   1. Der Entwurf lief in der Zeitleiste mit, also hinter dem ganzen
+ *      Verlauf. Bei einem Fall mit zehn Mails lag er ausserhalb des
+ *      Bildes.
+ *   2. Das Anweisungsfeld ("KI erzeugen") stand in der Karte unter dem
+ *      Textfeld, den Anhaengen UND der Knopfreihe.
+ *
+ * Beides ist geaendert. Dieser Block haelt die Aenderung fest -- nicht
+ * weil eine Anordnung an sich pruefwuerdig waere, sondern weil sie
+ * beim naechsten Umbau still zurueckfallen kann und niemand es merkt,
+ * bis wieder jemand sein Antwortfeld sucht.
+ */
+describe("Die Akte zeigt die Entscheidung vor dem Zusammenhang", () => {
+  const quelle = (p: string) =>
+    readFileSync(new URL(p, import.meta.url), "utf8");
+
+  const n = (status: string, id: string) => ({ status, id });
+
+  describe("teileAkte -- die Teilung selbst", () => {
+    test("Entwuerfe kommen nach oben, alles andere in den Verlauf", () => {
+      const { entwuerfe, verlauf } = teileAkte([
+        n("empfangen", "a"),
+        n("entwurf", "b"),
+        n("gesendet", "c"),
+      ]);
+      assert.deepEqual(entwuerfe.map((x) => x.id), ["b"]);
+      assert.deepEqual(verlauf.map((x) => x.id), ["a", "c"]);
+    });
+
+    test("keine Nachricht verschwindet und keine steht doppelt", () => {
+      // Das ist die eigentliche Zusage. Ein Entwurf, der oben zur
+      // Entscheidung steht und zusaetzlich unten im Verlauf, ergaebe
+      // zwei Textfelder mit demselben Inhalt -- und es waere nicht zu
+      // sehen, welches gesendet wird.
+      const alle = [
+        n("empfangen", "a"),
+        n("entwurf", "b"),
+        n("gesendet", "c"),
+        n("entwurf", "d"),
+        n("empfangen", "e"),
+      ];
+      const { entwuerfe, verlauf } = teileAkte(alle);
+      const zusammen = [...entwuerfe, ...verlauf].map((x) => x.id).sort();
+      assert.deepEqual(zusammen, ["a", "b", "c", "d", "e"]);
+      assert.equal(
+        new Set(zusammen).size,
+        alle.length,
+        "eine Nachricht steht in beiden Teilen",
+      );
+    });
+
+    test("die Reihenfolge innerhalb beider Teile bleibt die der Eingabe", () => {
+      // Die Akte sortiert nach angelegt_am. Wird hier umsortiert,
+      // stimmt der Verlauf nicht mehr mit der Zeit.
+      const { entwuerfe, verlauf } = teileAkte([
+        n("entwurf", "e1"),
+        n("empfangen", "v1"),
+        n("entwurf", "e2"),
+        n("gesendet", "v2"),
+      ]);
+      assert.deepEqual(entwuerfe.map((x) => x.id), ["e1", "e2"]);
+      assert.deepEqual(verlauf.map((x) => x.id), ["v1", "v2"]);
+    });
+
+    test("eine leere Akte gibt zwei leere Listen", () => {
+      const { entwuerfe, verlauf } = teileAkte([]);
+      assert.deepEqual(entwuerfe, []);
+      assert.deepEqual(verlauf, []);
+    });
+
+    test("die Eingabe wird nicht veraendert", () => {
+      const alle = [n("entwurf", "b"), n("empfangen", "a")];
+      teileAkte(alle);
+      assert.deepEqual(alle.map((x) => x.id), ["b", "a"]);
+    });
+  });
+
+  describe("die Seite benutzt die Teilung auch", () => {
+    const seite = quelle("../app/vorgang/[id]/page.tsx");
+
+    test("sie teilt ueber teileAkte und baut die Filter nicht nach", () => {
+      assert.match(seite, /teileAkte\(eintraege\)/);
+      assert.doesNotMatch(
+        seite,
+        /eintraege\.filter/,
+        "Ein zweiter Filter in der Seite waere eine Kopie der Regel, " +
+          "die dann nicht mehr mitgeprueft wird.",
+      );
+    });
+
+    test("der Verlauf rendert verlauf und nicht eintraege", () => {
+      // Das ist der Weg, auf dem der Entwurf wieder doppelt auf der
+      // Seite landen wuerde.
+      assert.match(seite, /verlauf\.map\(/);
+      assert.doesNotMatch(
+        seite,
+        /eintraege\.map\(/,
+        "Rendert der Verlauf wieder alle Eintraege, steht der Entwurf " +
+          "oben UND unten.",
+      );
+    });
+
+    test("Zu entscheiden steht vor dem Verlauf", () => {
+      const oben = seite.indexOf("<h2>Zu entscheiden</h2>");
+      const unten = seite.indexOf("<h2>Verlauf</h2>");
+      assert.ok(oben > 0, "der Abschnitt Zu entscheiden fehlt");
+      assert.ok(unten > 0, "der Abschnitt Verlauf fehlt");
+      assert.ok(
+        oben < unten,
+        "Der Entwurf muss vor dem Verlauf stehen. Genau daran ist am " +
+          "07.11.2026 das Antworten gescheitert: Wer die Akte oeffnet, " +
+          "will antworten, nicht lesen.",
+      );
+    });
+
+    test("die Entwurfskarte steht im Abschnitt Zu entscheiden", () => {
+      const oben = seite.indexOf("<h2>Zu entscheiden</h2>");
+      const unten = seite.indexOf("<h2>Verlauf</h2>");
+      const karte = seite.indexOf("<EntwurfKarte");
+      assert.ok(
+        karte > oben && karte < unten,
+        "Die Karte selbst muss oben stehen, nicht nur die Ueberschrift.",
+      );
+    });
+  });
+
+  describe("in der Karte steht die Anweisung direkt am Text", () => {
+    const karte = quelle("../components/EntwurfKarte.tsx");
+
+    test("das Anweisungsfeld kommt vor der Knopfreihe", () => {
+      const anweisung = karte.indexOf("<EntwurfAnweisung");
+      const knoepfe = karte.indexOf('<div className="knopfreihe">');
+      assert.ok(anweisung > 0, "EntwurfAnweisung fehlt in der Karte");
+      assert.ok(knoepfe > 0, "die Knopfreihe fehlt in der Karte");
+      assert.ok(
+        anweisung < knoepfe,
+        'Das Anweisungsfeld ("KI erzeugen") stand bis zum 07.11.2026 ' +
+          "unter dem Textfeld, den Anhaengen und den Knoepfen -- und war " +
+          "damit die unsichtbarste Stelle der Karte. Wer es nicht kennt, " +
+          "schreibt den Text von Hand um.",
+      );
+    });
+
+    test("es steht unmittelbar unter dem Entwurfstext, vor den Anhaengen", () => {
+      // Das ist die gestalterische Entscheidung: Textfeld und
+      // Anweisungsfeld aendern beide, was gesendet wird -- von Hand und
+      // auf Anweisung. Sie gehoeren nebeneinander. Die Anhaenge sind
+      // nicht Teil des Schreibens, sondern die letzte Kontrolle, und
+      // bleiben darum unmittelbar vor den Knoepfen.
+      const text = karte.indexOf("<textarea");
+      const anweisung = karte.indexOf("<EntwurfAnweisung");
+      const anhaenge = karte.indexOf("<Anhaenge");
+      const knoepfe = karte.indexOf('<div className="knopfreihe">');
+      assert.ok(text > 0 && anhaenge > 0, "Textfeld oder Anhaenge fehlen");
+      assert.ok(
+        text < anweisung && anweisung < anhaenge && anhaenge < knoepfe,
+        "Erwartet: Text -> Anweisung -> Anhaenge -> Knoepfe. Gefunden: " +
+          JSON.stringify({ text, anweisung, anhaenge, knoepfe }),
+      );
+    });
+
+    test("die Knoepfe bleiben das Letzte in der Karte", () => {
+      // "Senden" ist der Abschluss. Steht danach noch ein Feld, ist
+      // wieder unklar, ob man fertig ist.
+      const knoepfe = karte.indexOf('<div className="knopfreihe">');
+      const schluss = karte.lastIndexOf("</section>");
+      const danach = karte.slice(knoepfe, schluss);
+      assert.doesNotMatch(
+        danach,
+        /<(EntwurfAnweisung|Anhaenge|textarea)\b/,
+        "Nach den Knoepfen darf kein Eingabefeld mehr kommen.",
+      );
+    });
+
+    test("die Erklaerung im Anweisungsblock steht nicht als Prosawand im Weg", () => {
+      // Seit das Feld zwischen Text und "Senden" liegt, zaehlt jede
+      // Zeile dort. Vier Zeilen Erklaerung standen jedes Mal zwischen
+      // dem Lesen und dem Freigeben.
+      const a = quelle("../components/EntwurfAnweisung.tsx");
+      const ab = a.indexOf('<p className="erklaerung">');
+      assert.ok(ab > 0, "die Erklaerung fehlt");
+      const absatz = a.slice(ab, a.indexOf("</p>", ab));
+      const zeilen = absatz.split("\n").length;
+      assert.ok(
+        zeilen <= 4,
+        `Der Absatz ist auf ${zeilen} Zeilen gewachsen. Was sich einmal ` +
+          "erklaert, gehoert ins Aufklappbare -- stehen bleibt der Satz, " +
+          "der jedes Mal zaehlt: dass hier nichts hinausgeht.",
+      );
+      assert.match(
+        absatz,
+        /gesendet wird nichts/,
+        "Diese Zusage muss sichtbar bleiben, nicht aufklappbar: Sie ist " +
+          "der Grund, warum man in dieses Feld ueberhaupt etwas schreibt.",
+      );
+    });
+
+    test("kein <details> steckt in einem <p>", () => {
+      // Der Browser bricht den Absatz an der Stelle auf, weil details
+      // kein Satzinhalt ist. React rendert es anstandslos -- zu sehen
+      // ist es erst im Browser.
+      // ohneKommentare, weil die Begruendung dieser Regel selbst ein
+      // <p> im Text nennt -- sonst prueft der Test den Kommentar.
+      const a = ohneKommentare(quelle("../components/EntwurfAnweisung.tsx"));
+      for (const m of a.matchAll(/<p\b[^>]*>([\s\S]*?)<\/p>/g)) {
+        assert.doesNotMatch(m[1], /<details\b/, "details im Absatz");
+      }
+    });
+
+    test("der Kommentar begruendet den heutigen Stand, nicht den alten", () => {
+      // Eine Anordnung stillschweigend umzudrehen und die alte
+      // Begruendung stehen zu lassen, waere schlimmer als beide
+      // Varianten: Der naechste Leser richtet sich nach dem Kommentar.
+      assert.match(karte, /DAS ANWEISUNGSFELD STEHT DIREKT AM TEXT/);
+      assert.doesNotMatch(
+        karte,
+        /Das Anweisungsfeld steht UNTER den Knoepfen und nicht darueber:/,
+        "Die alte Begruendung steht noch da und widerspricht dem Code.",
+      );
+    });
   });
 });

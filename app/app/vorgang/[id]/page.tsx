@@ -5,6 +5,7 @@ import { KATEGORIE_LABEL, STATUS_LABEL } from "@/lib/typen";
 import type { Kategorie, VorgangStatus } from "@/lib/typen";
 import { aktenzeichen, tag, zeitpunkt } from "@/lib/formate";
 import { angemeldeteSitzung } from "@/lib/anmeldung";
+import { teileAkte } from "@/lib/vorgangstatus";
 import { EntwurfKarte } from "@/components/EntwurfKarte";
 import { VorgangSchalter } from "@/components/VorgangSchalter";
 import { Anhaenge } from "@/components/Anhaenge";
@@ -173,6 +174,12 @@ export default async function Vorgangsakte({
     ),
   ]);
 
+  // Entwuerfe und Verlauf getrennt: siehe die Begruendung unten am
+  // Abschnitt "Zu entscheiden". Die Teilung selbst steht in
+  // lib/vorgangstatus.ts, weil sie dort pruefbar ist -- sie muss
+  // halten, dass keine Nachricht verschwindet und keine doppelt steht.
+  const { entwuerfe, verlauf } = teileAkte(eintraege);
+
   const heute = new Date().toISOString().slice(0, 10);
   const frist = kopf.frist ? fristLage(kopf.frist, heute) : null;
 
@@ -204,6 +211,39 @@ export default async function Vorgangsakte({
         </div>
       </div>
 
+      {/*
+        DER ENTWURF STEHT OBEN (07.11.2026)
+
+        Vorher lief er in der Zeitleiste mit, also hinter dem ganzen
+        Verlauf. Chronologisch ist das richtig -- ein Entwurf ist das
+        jüngste Stück der Akte -- und in der Benutzung falsch: Wer die
+        Akte öffnet, will antworten, und musste erst an allen alten
+        Nachrichten vorbeiscrollen, um das Feld überhaupt zu finden.
+
+        Der Verlauf ist Zusammenhang, der Entwurf ist die Entscheidung.
+        Die Entscheidung kommt zuerst; die Chronologie des Verlaufs
+        bleibt darunter unangetastet.
+      */}
+      {entwuerfe.length > 0 && (
+        <section className="abschnitt">
+          <div className="titelzeile">
+            <h2>Zu entscheiden</h2>
+            <span className="zaehler ziffern">{entwuerfe.length}</span>
+          </div>
+          {entwuerfe.map((e) => (
+            <EntwurfKarte
+              key={e.id}
+              id={e.id}
+              betreff={e.betreff}
+              koerper={e.koerper_text}
+              empfaenger={e.an_emails}
+              verfasstVon={e.verfasst_von}
+              notiz={e.agent_notiz}
+            />
+          ))}
+        </section>
+      )}
+
       {eintraege.length === 0 ? (
         // Vorher stand hier ein leeres <div className="verlauf"> -- ein
         // weisser Fleck, der wie ein Ladefehler aussieht. Einen Vorgang
@@ -217,19 +257,14 @@ export default async function Vorgangsakte({
         </div>
       ) : (
         <div className="verlauf">
-          {eintraege.map((e) =>
-            e.status === "entwurf" ? (
-              <EntwurfKarte
-                key={e.id}
-                id={e.id}
-                betreff={e.betreff}
-                koerper={e.koerper_text}
-                empfaenger={e.an_emails}
-                verfasstVon={e.verfasst_von}
-                notiz={e.agent_notiz}
-              />
-            ) : (
-              <article key={e.id} className="eintrag" data-richtung={e.richtung}>
+          {verlauf.length > 0 && entwuerfe.length > 0 && (
+            <div className="titelzeile">
+              <h2>Verlauf</h2>
+              <span className="zaehler ziffern">{verlauf.length}</span>
+            </div>
+          )}
+          {verlauf.map((e) => (
+            <article key={e.id} className="eintrag" data-richtung={e.richtung}>
                 <div className="eintrag-kopf">
                   <span className="absender">
                     {e.richtung === "ein"
@@ -254,10 +289,9 @@ export default async function Vorgangsakte({
                 {/* Nur lesen: Was empfangen oder gesendet wurde, bleibt in
                     der Akte so stehen. Die Route weist das Entfernen auch
                     ab -- hier steht erst gar kein Knopf. */}
-                <Anhaenge nachrichtId={e.id} aenderbar={false} />
-              </article>
-            ),
-          )}
+              <Anhaenge nachrichtId={e.id} aenderbar={false} />
+            </article>
+          ))}
         </div>
       )}
 
