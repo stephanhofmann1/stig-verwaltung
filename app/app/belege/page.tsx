@@ -6,6 +6,7 @@ import { BelegUpload } from "@/components/BelegUpload";
 import { Einlieferung } from "@/components/Einlieferung";
 import { Zuordnungen, type Zuordnung } from "@/components/Zuordnungen";
 import { Bestandspruefung } from "@/components/Bestandspruefung";
+import { Nachlesen } from "@/components/Nachlesen";
 import { KOSTENARTEN } from "@/lib/kostenarten";
 
 export const dynamic = "force-dynamic";
@@ -216,6 +217,13 @@ export default async function Belege() {
             worden. Ein Klick öffnet die Datei — danach ist in Sekunden klar,
             welcher Wert stimmt.
           </p>
+          {/*
+            Oder: das Regelwerk ist seit der Einlieferung besser
+            geworden. Dann ist der Vermerk eine eingefrorene Lesung und
+            loest sich beim Nachlesen von selbst auf -- siehe
+            api/belege/nachlesen.
+          */}
+          <Nachlesen />
           <div className="register">
             {abweichend.map((b) => (
               <a
