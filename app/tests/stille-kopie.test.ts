@@ -233,3 +233,73 @@ describe("Warum BCC und nicht CC", () => {
     assert.match(fliess, /als neue eingehende wieder hereinholen/);
   });
 });
+
+describe("Die Adresse lässt sich auch setzen", () => {
+  const route = readFileSync(
+    new URL("../app/api/mandant/kopie/route.ts", import.meta.url),
+    "utf8",
+  );
+  const stueck = readFileSync(
+    new URL("../components/VersandKopie.tsx", import.meta.url),
+    "utf8",
+  );
+  const seite = readFileSync(
+    new URL("../app/weisungen/page.tsx", import.meta.url),
+    "utf8",
+  );
+
+  test("es gibt überhaupt einen Schreibweg", () => {
+    // db/037 legte die Spalte an und lib/versand.ts liest sie -- aber
+    // niemand konnte sie beschreiben. Eine Spalte ohne Schreibweg ist
+    // halbe Arbeit: Die Adresse blieb NULL und damit bei der
+    // installationsweiten Einstellung, von der sie wegfuehren sollte.
+    assert.match(route, /UPDATE mandant SET versand_kopie = \$1/);
+    assert.match(seite, /<VersandKopie/);
+  });
+
+  test("nur die Verwaltung darf sie setzen", () => {
+    // Wer die Adresse setzen darf, darf mitlesen. Das ist keine
+    // Buchhaltungsaufgabe.
+    assert.match(route, /sitzung\.rolle !== "verwalter"/);
+    assert.match(route, /status: 403/);
+  });
+
+  test("eine Adresse mit Tippfehler wird abgewiesen", () => {
+    // Eine Kopie an eine Adresse mit Tippfehler kommt lautlos nirgends
+    // an -- und genau darum geht es hier nicht.
+    assert.match(route, /\^\[\^@\\s\]\+@\[\^@\\s\]\+\\\.\[\^@\\s\]\+\$/);
+    assert.match(route, /status: 400/);
+  });
+
+  test("leer ist erlaubt und heißt: keine Kopie", () => {
+    assert.match(route, /if \(roh !== "" &&/);
+    assert.match(stueck, /leer lassen schaltet die Kopie ab/);
+  });
+
+  test("das UPDATE braucht kein WHERE, weil die RLS die Grenze hält", () => {
+    assert.match(route, /keinen fremden Mandanten treffen/);
+    assert.ok(
+      !/UPDATE mandant SET versand_kopie = \$1 WHERE/.test(route),
+      "das UPDATE trägt ein WHERE und umgeht damit die Begründung",
+    );
+  });
+
+  test("der Unterschied zwischen leer und nicht gesetzt ist sichtbar", () => {
+    // "Nicht gesetzt" heisst: Es greift die Einstellung der
+    // Installation. "Leer" heisst: ausdruecklich keine Kopie.
+    assert.match(stueck, /nichts — es gilt die Einstellung der Installation/);
+    assert.match(stueck, /ausdrücklich keine Kopie/);
+    assert.match(stueck, /const \[gesetzt, setGesetzt\] = useState\(anfang !== null\)/);
+  });
+
+  test("der Warnhinweis zur Eingangsadresse steht dabei", () => {
+    assert.match(stueck, /sonst käme jede ausgehende Mail als neue eingehende/);
+  });
+
+  test("lesende Zugänge sehen den Stand, bekommen aber kein Formular", () => {
+    // Ein Formular, dessen Knopf immer 403 bekommt, ist schlechter als
+    // keines.
+    assert.match(stueck, /!darfSchreiben \?/);
+    assert.match(stueck, /Geändert wird das von der Verwaltung/);
+  });
+});

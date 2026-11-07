@@ -7,6 +7,7 @@ import {
   type KontaktZeile,
   type WeisungZeile,
 } from "@/components/Weisungen";
+import { VersandKopie } from "@/components/VersandKopie";
 
 export const dynamic = "force-dynamic";
 
@@ -36,7 +37,7 @@ export default async function Weisungsseite() {
   const sitzung = await angemeldeteSitzung();
   const darfSchreiben = sitzung?.rolle === "verwalter";
 
-  const [weisungen, kontakte] = await Promise.all([
+  const [weisungen, kontakte, kopie] = await Promise.all([
     ladeWeisungen() as Promise<WeisungZeile[]>,
     query<KontaktZeile>(
       `SELECT k.id, k.anzeigename, k.rolle
@@ -46,6 +47,11 @@ export default async function Weisungsseite() {
                OR EXISTS (SELECT 1 FROM weisung w WHERE w.kontakt_id = k.id))
         ORDER BY k.anzeigename ASC
         LIMIT 300`,
+    ),
+    // Ohne WHERE: Die Policy aus db/010 gibt nur den eigenen Eintrag
+    // heraus.
+    query<{ versand_kopie: string | null }>(
+      `SELECT versand_kopie FROM mandant`,
     ),
   ]);
 
@@ -104,6 +110,17 @@ export default async function Weisungsseite() {
           )}
         </>
       )}
+
+      {/*
+        Hier steht, wie das Portal nach aussen schreibt: Die Weisungen
+        bestimmen den Inhalt, diese Adresse bestimmt, wer eine verdeckte
+        Kopie davon bekommt. Beides gehoert in denselben Blick -- und
+        eine eigene Einstellungsseite haette das Menue verlaengert.
+      */}
+      <VersandKopie
+        anfang={kopie[0]?.versand_kopie ?? null}
+        darfSchreiben={darfSchreiben}
+      />
 
       <div className="knopfreihe abschnitt">
         <Link href="/cockpit" className="verweis">
