@@ -19,11 +19,27 @@
 --   ein gesperrter Vorgang, ein wartender, ein erledigter
 --
 -- Aufruf:
---   psql -d stig_design -f db/saat-gestaltung.sql
+--   psql -d stig_design -f entwicklung/saat-gestaltung.sql
 
 BEGIN;
 
-SET LOCAL app.mandant = '4bc754ad-0011-491f-841a-a516ef10446a';
+-- Der Mandant wird NACHGESCHLAGEN und nicht hineingeschrieben.
+--
+-- Hier stand bis zum 07.11.2026 eine feste Kennung. Die Migration
+-- db/010_mandant.sql legt den Mandanten aber mit gen_random_uuid() an --
+-- gegen eine frisch aufgesetzte Datenbank passte die feste Kennung also
+-- nie, und die Saat brach bei der ersten Zeile mit einem
+-- Fremdschluesselfehler ab. Wer die Oberflaeche gestalten will, sucht
+-- dann erst einmal einen Fehler in der Saat statt zu gestalten.
+DO $$
+DECLARE m uuid;
+BEGIN
+  SELECT id INTO m FROM mandant ORDER BY angelegt_am LIMIT 1;
+  IF m IS NULL THEN
+    RAISE EXCEPTION 'Kein Mandant vorhanden -- erst die Migrationen einspielen (./migrieren.sh).';
+  END IF;
+  PERFORM set_config('app.mandant', m::text, true);
+END $$;
 
 DELETE FROM nachricht;
 DELETE FROM vorgang;
