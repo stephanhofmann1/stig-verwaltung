@@ -37,10 +37,21 @@ export const maxDuration = 300;
  *
  * WAS ER NIE ANFASST
  *
- * Belege, die schon einer Buchung zugeordnet sind (belegbuchung). Deren
- * Betrag zu ändern würde eine festgeschriebene Zuordnung von hinten
- * verbiegen -- die Zuordnung stimmte für den alten Betrag. Solche Fälle
- * werden gezählt und benannt, nicht geändert.
+ * Den BETRAG eines Belegs, der schon einer Buchung zugeordnet ist
+ * (belegbuchung). Ihn zu ändern würde eine festgeschriebene Zuordnung
+ * von hinten verbiegen -- die Zuordnung stimmte für den alten Betrag.
+ * Solche Fälle werden gezählt und benannt, nicht geändert.
+ *
+ * Das DATUM dagegen schon (seit 07.11.2026). Es stand vorher unter
+ * derselben Sperre, und das war zu grob: Eine Zuordnung hält einen
+ * Betrag, und das Belegdatum kommt darin nicht vor. Es zu berichtigen
+ * verbiegt nichts.
+ *
+ * Der Unterschied ist nicht theoretisch. Von 18 Belegen mit
+ * Widerspruchsvermerk waren 15 reine Datumsabweichungen, alle 15
+ * zugeordnet -- und alle 15 lagen deshalb mit einem falschen Datum und
+ * einem Vermerk in den Büchern, der sie vom Abgleich aussperrte,
+ * obwohl an ihrem Betrag nie etwas zu beanstanden war.
  *
  * Und er ändert nur Betrag und Datum. Kostenart, Objekt,
  * Umlagefähigkeit können von Hand gesetzt worden sein; ein
@@ -200,12 +211,18 @@ export async function POST(anfrage: Request) {
     const betragUneindeutig = stuecke > 1 && !summeKlar;
     if (betragUneindeutig) uneindeutig += 1;
 
-    const betragAnders =
+    const betragWaereAnders =
       !betragUneindeutig &&
       neu.betrag_brutto !== null &&
       (betragAlt === null ||
         Math.round(neu.betrag_brutto * 100) !== Math.round(betragAlt * 100));
     const datumAnders = neu.belegdatum !== null && neu.belegdatum !== datumAlt;
+
+    // Eine festgeschriebene Zuordnung haelt einen BETRAG. Ihn unter ihr
+    // wegzuziehen ist verboten; das Datum zu berichtigen verbiegt
+    // nichts, denn es kommt in der Zuordnung nicht vor.
+    const betragGesperrt = betragWaereAnders && Number(b.zugeordnet) > 0;
+    const betragAnders = betragWaereAnders && !betragGesperrt;
 
     // Loest sich der Widerspruchsvermerk mit der neuen Lesung auf?
     //
@@ -219,8 +236,14 @@ export async function POST(anfrage: Request) {
           beifuegung,
         )
       : null;
+    // Bleibt ein Betrag gesperrt, bleibt auch der Vermerk: In der Zeile
+    // steht dann weiter der alte, falsche Betrag -- und genau davor
+    // warnt der Vermerk zu Recht.
     const vermerkFaelltWeg =
-      b.abweichung !== null && beifuegung !== null && frisch === null;
+      b.abweichung !== null &&
+      beifuegung !== null &&
+      frisch === null &&
+      !betragGesperrt;
     const vermerkNeuSchreiben =
       b.abweichung !== null && frisch !== null && frisch !== b.abweichung;
 
@@ -235,11 +258,11 @@ export async function POST(anfrage: Request) {
         frisch,
         lage: !beifuegung
           ? "kein zweiter Zeuge im Vermerktext"
-          : frisch === null
-            ? Number(b.zugeordnet) > 0
-              ? "löst sich auf, aber der Beleg ist schon zugeordnet"
-              : "löst sich auf"
-            : "bleibt strittig",
+          : frisch !== null
+            ? "bleibt strittig"
+            : betragGesperrt
+              ? "Betrag gesperrt: erst die Zuordnung lösen"
+              : "löst sich auf",
       });
     }
 
@@ -251,14 +274,19 @@ export async function POST(anfrage: Request) {
       unveraendert += 1;
       continue;
     }
-    if (Number(b.zugeordnet) > 0) {
+    if (betragGesperrt) {
       gesperrt.push({
         datei: b.dateiname,
         grund:
-          "Schon einer Buchung zugeordnet. Die Zuordnung gilt für den " +
-          "alten Betrag und wird nicht von hinten verändert.",
+          `Betrag ${betragAlt === null ? "ohne" : betragAlt.toFixed(2)} -> ` +
+          `${neu.betrag_brutto!.toFixed(2)}, aber schon einer Buchung ` +
+          "zugeordnet. Die Zuordnung gilt für den alten Betrag und wird " +
+          "nicht von hinten verändert. Erst die Zuordnung lösen, dann " +
+          "erneut nachlesen.",
       });
-      continue;
+      // Das Datum darf trotzdem nachgezogen werden -- nur wenn es sich
+      // ueberhaupt aendert, sonst gibt es hier nichts zu tun.
+      if (!datumAnders) continue;
     }
 
     aenderungen.push({
@@ -329,6 +357,7 @@ export async function POST(anfrage: Request) {
     vermerke,
     wuerde_sich_aendern: aenderungen.length,
     geschrieben,
+    betrag_gesperrt: gesperrt.length,
     gesperrt: gesperrt.length,
     beispiele_gesperrt: gesperrt.slice(0, 10),
     aenderungen: aenderungen.slice(0, 200),

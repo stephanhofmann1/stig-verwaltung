@@ -114,18 +114,34 @@ describe("Den zweiten Zeugen zurücklesen", () => {
 });
 
 describe("Was der Lauf nie anfasst", () => {
-  test("einen Beleg, der schon einer Buchung zugeordnet ist", () => {
-    // Dessen Betrag zu aendern wuerde eine festgeschriebene Zuordnung
-    // von hinten verbiegen -- die Zuordnung stimmte fuer den alten
-    // Betrag. Diese Regel stand schon in der Route; getestet war sie
-    // nicht.
-    assert.match(route, /if \(Number\(b\.zugeordnet\) > 0\) \{/);
-    assert.match(route, /gesperrt\.push/);
-    const zweig = route.slice(
-      route.indexOf("if (Number(b.zugeordnet) > 0) {"),
-      route.indexOf("aenderungen.push"),
+  test("den BETRAG eines Belegs, der schon einer Buchung zugeordnet ist", () => {
+    // Ihn zu aendern wuerde eine festgeschriebene Zuordnung von hinten
+    // verbiegen -- die Zuordnung stimmte fuer den alten Betrag. Diese
+    // Regel stand schon in der Route; getestet war sie nicht.
+    assert.match(
+      route,
+      /const betragGesperrt = betragWaereAnders && Number\(b\.zugeordnet\) > 0/,
     );
-    assert.ok(!/UPDATE/.test(zweig), "der Zweig schreibt");
+    assert.match(route, /const betragAnders = betragWaereAnders && !betragGesperrt/);
+    assert.match(route, /gesperrt\.push/);
+  });
+
+  test("aber das DATUM darf auch bei einem zugeordneten Beleg nachgezogen werden", () => {
+    // Eine Zuordnung haelt einen Betrag; das Belegdatum kommt darin
+    // nicht vor. Die alte Fassung sperrte beides zusammen -- und liess
+    // damit 15 Belege mit falschem Datum UND einem Vermerk liegen, der
+    // sie vom Abgleich aussperrte, obwohl an ihrem Betrag nie etwas zu
+    // beanstanden war.
+    assert.match(route, /if \(betragGesperrt\) \{/);
+    assert.match(route, /if \(!datumAnders\) continue;/);
+    assert.ok(
+      !/if \(Number\(b\.zugeordnet\) > 0\) \{\s*\n\s*gesperrt/.test(route),
+      "Betrag und Datum hängen noch an derselben Schranke",
+    );
+  });
+
+  test("der gesperrte Fall sagt, was zu tun ist", () => {
+    assert.match(route, /Erst die Zuordnung lösen, dann/);
   });
 
   test("einen Betrag, der nicht bestimmbar ist", () => {
@@ -171,7 +187,7 @@ describe("Der Widerspruchsvermerk", () => {
     // Meinung.
     assert.match(
       route,
-      /b\.abweichung !== null && beifuegung !== null && frisch === null/,
+      /b\.abweichung !== null &&\s*\n\s*beifuegung !== null &&\s*\n\s*frisch === null/,
     );
   });
 
@@ -184,6 +200,12 @@ describe("Der Widerspruchsvermerk", () => {
       route,
       /widerspruch\(\s*\{ betrag: neu\.betrag_brutto, datum: neu\.belegdatum \},\s*beifuegung,/,
     );
+  });
+
+  test("bei gesperrtem Betrag bleibt der Vermerk stehen", () => {
+    // In der Zeile steht dann weiter der alte, falsche Betrag -- und
+    // genau davor warnt der Vermerk zu Recht.
+    assert.match(route, /frisch === null &&\s*\n\s*!betragGesperrt/);
   });
 
   test("bleibt er strittig, wird er frisch geschrieben", () => {
@@ -286,7 +308,7 @@ describe("Der Bericht über die Vermerke", () => {
 
   test("er steht VOR den Schranken, nicht hinter ihnen", () => {
     const i = route.indexOf("vermerke.push");
-    const j = route.indexOf("if (Number(b.zugeordnet) > 0) {");
+    const j = route.indexOf("if (betragGesperrt) {");
     const k = route.indexOf("unveraendert += 1");
     assert.ok(i > 0 && i < j, "er steht hinter der Zuordnungsschranke");
     assert.ok(i < k, "er steht hinter der Unverändert-Schranke");
@@ -295,8 +317,9 @@ describe("Der Bericht über die Vermerke", () => {
   test("er benennt die Lage in Worten", () => {
     for (const lage of [
       "kein zweiter Zeuge im Vermerktext",
-      "löst sich auf, aber der Beleg ist schon zugeordnet",
+      "Betrag gesperrt: erst die Zuordnung lösen",
       "bleibt strittig",
+      "löst sich auf",
     ]) {
       assert.ok(route.includes(lage), `"${lage}" fehlt`);
     }
