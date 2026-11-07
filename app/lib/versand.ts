@@ -39,44 +39,53 @@ const MAIL_DOMAIN = ABSENDER.split("@")[1] ?? "stig-immobilien.de";
  *
  * Eine Kopie an eine Adresse, die ihrerseits in das Portal einliefert
  * (der Cloudflare-Worker auf STIGIMMO@gmx.de), würde jede ausgehende
- * Mail als neue eingehende wieder hereinholen. Darum trägt
- * VERSAND_KOPIE eine Adresse, die NICHT einliefert, und der Absender
- * selbst wird als Kopieempfänger abgewiesen.
+ * Mail als neue eingehende wieder hereinholen.
  *
- * WARUM LAGEBERICHT_AN ALS RÜCKFALL
+ * WO DIE ADRESSE STEHT
  *
- * Weil die Kopie sonst eine Einstellung bräuchte, die jemand erst auf
- * dem Server einträgt -- und bis dahin wäre die Zustellung weiter nicht
- * nachvollziehbar, also genau das Problem, um das es geht. Unter
- * LAGEBERICHT_AN steht schon die Adresse, an die das Portal täglich
- * seinen Lagebericht schickt: die Person, die dieses System betreibt.
- * Wer eine andere Adresse will, setzt VERSAND_KOPIE. Wer gar keine
- * Kopie will, setzt dort etwas ohne "@" -- "aus" etwa: Was keine
- * Adresse ist, wird unten ohnehin abgewiesen, und ein eigener
- * Sonderfall dafür wäre ein Zweig, den kein Test widerlegen kann.
+ * Am Mandanten (mandant.versand_kopie, db/037). Eine Adresse in der
+ * Umgebung gilt für die ganze Installation -- sobald ein zweiter
+ * Mandant Mails verschickt, bekäme der erste eine verdeckte Kopie
+ * davon. Das ist die Art Fehler, die niemandem auffällt: Eine
+ * BCC-Zustellung meldet sich nicht.
+ *
+ * Die Umgebung bleibt als Rückfallebene, damit die bestehende
+ * Installation weiterläuft, ohne dass jemand erst etwas einträgt --
+ * siehe waehleKopie().
  */
-const KOPIE =
+const KOPIE_UMGEBUNG =
   (process.env.VERSAND_KOPIE ?? "").trim() ||
   (process.env.LAGEBERICHT_AN ?? "").trim();
 
 /**
- * Die Adresse der stillen Kopie, oder leer.
+ * Welche Adresse die stille Kopie bekommt.
  *
- * Die eigene Absenderadresse wird abgewiesen: Eine Mail an sich selbst
- * ist keine Bestätigung, und bei Resend wäre sie zusätzlich ein Weg,
- * den eigenen Zustellruf zu verfälschen.
+ * NULL am Mandanten heisst "nicht entschieden" -- dann greift die
+ * Umgebung. Ein leerer String heisst "ausdrücklich keine Kopie" und
+ * überstimmt sie. Ohne diesen Unterschied liesse sich die Kopie für
+ * einen Mandanten nicht abschalten, solange irgendwo eine Umgebung
+ * gesetzt ist.
  */
+export function waehleKopie(
+  amMandanten: string | null | undefined,
+  ausUmgebung: string = KOPIE_UMGEBUNG,
+): string {
+  if (amMandanten === null || amMandanten === undefined) return ausUmgebung;
+  return amMandanten.trim();
+}
+
 export function stilleKopie(
+  kopie: string,
   an: string[] = [],
   cc: string[] = [],
 ): string[] {
-  if (!KOPIE || !KOPIE.includes("@")) return [];
-  const klein = KOPIE.toLowerCase();
+  if (!kopie || !kopie.includes("@")) return [];
+  const klein = kopie.toLowerCase();
   if (klein === ABSENDER.toLowerCase()) return [];
   // Steht die Adresse schon offen in An oder CC, braucht es keine
   // zweite, verdeckte Zustellung derselben Mail.
   const schon = [...an, ...cc].some((e) => e.toLowerCase() === klein);
-  return schon ? [] : [KOPIE];
+  return schon ? [] : [kopie];
 }
 
 /** Erzeugt eine eigene Message-ID im Format <uuid@domain>. */
@@ -310,6 +319,14 @@ export async function sendeEntwurf(
   if (n.status !== "entwurf")
     return { ok: false, fehler: `Status ist "${n.status}", nicht "entwurf"` };
 
+  // Die Kopieadresse dieses Mandanten. Die RLS auf `mandant` gibt nur
+  // den eigenen Eintrag heraus (db/010), darum braucht die Abfrage kein
+  // WHERE -- und kann auch keinen fremden Mandanten treffen.
+  const eigner = await one<{ versand_kopie: string | null }>(
+    `SELECT versand_kopie FROM mandant`,
+  );
+  const kopie = waehleKopie(eigner?.versand_kopie);
+
   const messageId = neueMessageId();
   const key = process.env.RESEND_API_KEY;
   const smtpHost = process.env.SMTP_HOST;
@@ -373,7 +390,7 @@ export async function sendeEntwurf(
       },
     });
     try {
-      const bcc = stilleKopie(n.an_emails, n.cc_emails);
+      const bcc = stilleKopie(kopie, n.an_emails, n.cc_emails);
       await transport.sendMail({
         from: `${ABSENDER_NAME} <${ABSENDER}>`,
         to: n.an_emails,
@@ -411,8 +428,8 @@ export async function sendeEntwurf(
         cc: n.cc_emails.length ? n.cc_emails : undefined,
         // Siehe stilleKopie(): derselbe Satz Empfänger wie im
         // SMTP-Zweig.
-        ...(stilleKopie(n.an_emails, n.cc_emails).length
-          ? { bcc: stilleKopie(n.an_emails, n.cc_emails) }
+        ...(stilleKopie(kopie, n.an_emails, n.cc_emails).length
+          ? { bcc: stilleKopie(kopie, n.an_emails, n.cc_emails) }
           : {}),
         subject: n.betreff,
         text: n.koerper_text,
@@ -456,8 +473,8 @@ export async function sendeEntwurf(
         nachrichtId,
         JSON.stringify({
           versandweg: weg,
-          ...(stilleKopie(n.an_emails, n.cc_emails).length
-            ? { stille_kopie: stilleKopie(n.an_emails, n.cc_emails) }
+          ...(stilleKopie(kopie, n.an_emails, n.cc_emails).length
+            ? { stille_kopie: stilleKopie(kopie, n.an_emails, n.cc_emails) }
             : {}),
         }),
       ],
@@ -469,8 +486,8 @@ export async function sendeEntwurf(
     message_id: messageId,
     // Der Aufrufer soll sagen koennen, wohin die Kopie ging -- sonst
     // weiss der Mensch am Knopf weiterhin nicht, wo er nachsehen kann.
-    ...(stilleKopie(n.an_emails, n.cc_emails).length
-      ? { stille_kopie: stilleKopie(n.an_emails, n.cc_emails) }
+    ...(stilleKopie(kopie, n.an_emails, n.cc_emails).length
+      ? { stille_kopie: stilleKopie(kopie, n.an_emails, n.cc_emails) }
       : {}),
     ...(weg === "trocken" ? { trocken: true } : {}),
   };
