@@ -1,5 +1,6 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 
 import {
   achsenstufen,
@@ -12,6 +13,8 @@ import {
   ringAnteil,
   skala,
   stapel,
+  ZIELBREITE,
+  zeichenbreite,
 } from "../lib/diagramm";
 
 /**
@@ -648,5 +651,124 @@ describe("Skala und Stapel ueber Bestandsgroessen hinweg", () => {
       const letzter = st.segmente[st.segmente.length - 1];
       assert.equal(letzter.versatz + letzter.laenge, 320, `Faktor ${faktor}`);
     }
+  });
+});
+
+/**
+ * Der Massstab der Diagramme.
+ *
+ * ANLASS (08.11.2026)
+ *
+ * Stephan: "Formatierung der Diagramme ... sieht alles schlecht
+ * formatiert aus."
+ *
+ * Nachgemessen im gebauten Portal: Das Histogramm der Mietstruktur hatte
+ * ein viewBox von 204 x 102 und wurde mit width="100%" auf 1144 px
+ * gezogen -- Faktor 5,6. Der Cashflow ueber zwoelf Monate hatte 622 x 162
+ * und denselben Platz -- Faktor 1,8. Striche ueberstehen das
+ * (vector-effect: non-scaling-stroke), Schrift nicht: Die
+ * Achsenbeschriftung ist als 10 px angelegt und erschien als 56 px
+ * beziehungsweise 18 px.
+ *
+ * Das ist der ganze Befund: Nicht die Diagramme waren falsch gezeichnet,
+ * sondern ihr Massstab hing an der Datenmenge. Je weniger Daten, desto
+ * groeber das Bild.
+ */
+describe("Der Massstab haengt nicht mehr an der Datenmenge", () => {
+  test("viele Werte fuellen die Zielbreite", () => {
+    // Zwoelf Monate: 1040/12 = 86,67 je Spur -- unter der Obergrenze 88,
+    // also wird die Zielbreite ausgeschoepft.
+    assert.equal(zeichenbreite(12, 88), ZIELBREITE);
+  });
+
+  test("wenige Werte bekommen keine uebergrossen Spuren", () => {
+    // Ohne Obergrenze waeren es 1040/4 = 260 je Spur. Vier Balken, jeder
+    // ein Viertel der Seite breit -- das ist kein Diagramm mehr.
+    assert.equal(zeichenbreite(4, 88), 352);
+  });
+
+  test("ein einzelner Wert bleibt ein einzelner Balken", () => {
+    assert.equal(zeichenbreite(1, 88), 88);
+  });
+
+  test("die Breite waechst nie ueber die Zielbreite", () => {
+    for (const anzahl of [1, 4, 12, 24, 36, 120, 365]) {
+      assert.ok(
+        zeichenbreite(anzahl, 88) <= ZIELBREITE,
+        `${anzahl} Werte ergaben ${zeichenbreite(anzahl, 88)}`,
+      );
+    }
+  });
+
+  test("die Breite waechst monoton mit der Anzahl", () => {
+    // Sonst sieht ein Diagramm mit mehr Daten kleiner aus als eines mit
+    // weniger -- und der Vergleich zweier Monate nebeneinander luegt.
+    let vorher = 0;
+    for (const anzahl of [1, 2, 3, 4, 6, 12, 24]) {
+      const jetzt = zeichenbreite(anzahl, 88);
+      assert.ok(jetzt >= vorher, `${anzahl}: ${jetzt} < ${vorher}`);
+      vorher = jetzt;
+    }
+  });
+
+  test("keine Werte heisst keine Breite", () => {
+    assert.equal(zeichenbreite(0, 88), 0);
+    assert.equal(zeichenbreite(-3, 88), 0);
+  });
+
+  test("unbrauchbare Angaben ergeben kein NaN im viewBox", () => {
+    // Ein NaN im viewBox laesst das <svg> verschwinden -- lautlos, ohne
+    // Fehler in der Konsole.
+    for (const w of [zeichenbreite(NaN, 88), zeichenbreite(12, NaN), zeichenbreite(12, 0)]) {
+      assert.ok(Number.isFinite(w), `${w} ist keine Zahl`);
+    }
+    // Ohne brauchbare Zielbreite bleibt die alte Rechnung uebrig.
+    assert.equal(zeichenbreite(12, 88, 0), 1056);
+  });
+});
+
+describe("Die Diagramme skalieren ihre Schrift nicht hoch", () => {
+  const QUELLE = readFileSync(
+    new URL("../components/Diagramm.tsx", import.meta.url),
+    "utf8",
+  );
+
+  test("jede Zeichenflaeche hat eine Obergrenze in Pixeln", () => {
+    /*
+      Die Obergrenze ist das Gegenstueck zur Zeichenbreite: Sie sorgt
+      dafuer, dass der Massstab hoechstens 1:1 ist. Ohne sie zieht
+      width="100%" das Bild auf die Spaltenbreite, und die 10px der
+      Achse werden wieder zu 18px oder 56px.
+    */
+    /*
+      Gezaehlt werden die drei Diagramme mit Achsen -- Balken,
+      Stapelbalken und Verlauf. Sie tragen className="diagramm-flaeche"
+      ohne Zusatz und zeichnen in einem viewBox, dessen Breite aus den
+      Daten entsteht. Genau dort entstand der Massstabsfehler.
+
+      Nicht dabei sind Ring, Sparkline und Streifen: Sie tragen eine
+      zweite Klasse, haben ein festes viewBox und sind bewusst Zierat in
+      Zeilenhoehe -- ein Ring in 120x120 auf die Spaltenbreite gezogen
+      ist eine Absicht, keine Panne.
+    */
+    const flaechen = QUELLE.match(/className="diagramm-flaeche"/g) ?? [];
+    const grenzen = QUELLE.match(/maxWidth: `\$\{achsenbreite \+ breite\}px`/g) ?? [];
+    assert.equal(flaechen.length, 3, "Es sollten drei Diagramme mit Achsen sein");
+    assert.equal(
+      grenzen.length,
+      flaechen.length,
+      "Jedes Diagramm mit Achsen braucht die Obergrenze.",
+    );
+  });
+
+  test("die Breite kommt aus zeichenbreite() und nicht aus der Anzahl", () => {
+    assert.doesNotMatch(
+      QUELLE,
+      /const breite = \w+\.length \* spur/,
+      "posten.length * spur war genau die Rechnung, die den Massstab " +
+        "an die Datenmenge gehaengt hat.",
+    );
+    const n = (QUELLE.match(/zeichenbreite\(/g) ?? []).length;
+    assert.equal(n, 3, `zeichenbreite() steht ${n}-mal statt 3-mal`);
   });
 });

@@ -577,3 +577,44 @@ export function reihenPunkte(
     return { x: runde2(i * spur + spur / 2), y: s.y(n) };
   });
 }
+
+/**
+ * Wie breit ein Diagramm gezeichnet wird -- in Benutzereinheiten, also in
+ * denselben Einheiten wie die Schriftgroesse darin.
+ *
+ * WARUM ES DIESE FUNKTION GIBT (08.11.2026)
+ *
+ * Vorher rechnete jede Diagrammkomponente `posten.length * spur`. Die
+ * Zeichenbreite haing damit allein an der Anzahl der Werte: vier Balken
+ * ergaben 176 Einheiten, zwoelf Monate 576. Gezeichnet wurde beides mit
+ * width="100%", also auf die volle Spaltenbreite gezogen -- rund 1144 px.
+ *
+ * Damit war der Massstab zufaellig: vier Balken wurden 5,6-fach
+ * vergroessert, zwoelf Monate 1,8-fach. Striche ueberstehen das
+ * (vector-effect: non-scaling-stroke), Schrift nicht: Die Achsen sind als
+ * 10 px angelegt und erschienen als 56 px bzw. 18 px. Daher sahen die
+ * Diagramme grob und uneinheitlich aus, und zwar je nach Datenmenge
+ * verschieden grob.
+ *
+ * Die Regel jetzt: Ein Diagramm waechst mit den Daten bis zur Zielbreite
+ * und gibt keiner Spur mehr als `spurMax`. Zusammen mit dem max-width am
+ * <svg> (siehe components/Diagramm.tsx) bedeutet das: Der Massstab ist
+ * hoechstens 1. Auf schmalen Geraeten wird verkleinert -- das ist richtig
+ * so, dort schrumpft alles gleichmaessig mit.
+ */
+export const ZIELBREITE = 1040;
+
+export function zeichenbreite(
+  anzahl: number,
+  spurMax: number,
+  ziel: number = ZIELBREITE,
+): number {
+  if (!Number.isFinite(anzahl) || anzahl <= 0) return 0;
+  const max = endlich(spurMax);
+  const z = endlich(ziel);
+  if (max === null || max <= 0) return 0;
+  // Ohne brauchbare Zielbreite bleibt es bei der alten Rechnung: lieber
+  // ein zu schmales Diagramm als ein leeres.
+  if (z === null || z <= 0) return runde2(anzahl * max);
+  return runde2(anzahl * Math.min(max, z / anzahl));
+}

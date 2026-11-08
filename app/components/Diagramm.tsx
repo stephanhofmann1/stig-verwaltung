@@ -1,5 +1,6 @@
 import {
   balkenGruppe,
+  zeichenbreite,
   flaechePfad,
   linienPfad,
   reihenPunkte,
@@ -263,7 +264,7 @@ export interface BalkenPosten {
 export function Balken({
   posten,
   hoehe = 120,
-  spur = 48,
+  spur = 88,
   achsen = 4,
   achsenbreite = 46,
   beschriftung = (w) => String(w),
@@ -280,7 +281,7 @@ export function Balken({
   leerTitel?: string;
   leerSatz?: React.ReactNode;
 }) {
-  const breite = posten.length * spur;
+  const breite = zeichenbreite(posten.length, spur);
   const { felder, skala: s } = balkenGruppe(
     posten.map((p) => p.wert),
     breite,
@@ -300,6 +301,11 @@ export function Balken({
         className="diagramm-flaeche"
         viewBox={`0 0 ${achsenbreite + breite} ${fuss + 6}`}
         width="100%"
+        /* Die Obergrenze ist die Zeichenbreite in Pixeln. Damit ist der
+           Massstab hoechstens 1:1 -- die 10px der Achsenbeschriftung
+           bleiben 10px. Nach unten darf skaliert werden: Auf schmalen
+           Geraeten schrumpft alles gleichmaessig mit. */
+        style={{ maxWidth: `${achsenbreite + breite}px` }}
         preserveAspectRatio="xMidYMid meet"
         role="img"
         aria-label={begleitung.aussage}
@@ -378,7 +384,7 @@ export function Stapelbalken({
   posten,
   gegen,
   hoehe = 120,
-  spur = 48,
+  spur = 88,
   achsen = 4,
   achsenbreite = 46,
   beschriftung = (w) => String(w),
@@ -414,7 +420,7 @@ export function Stapelbalken({
       return s + (n !== null && Number.isFinite(n) && n > 0 ? n : 0);
     }, 0),
   );
-  const breite = posten.length * spur;
+  const breite = zeichenbreite(posten.length, spur);
   // Die Gegenreihe geht negativ in die Skala ein, damit sie Platz unter der
   // Nulllinie bekommt -- sonst waere die Nulllinie der Rand und die Ausgaben
   // haetten keine Hoehe.
@@ -442,6 +448,11 @@ export function Stapelbalken({
         className="diagramm-flaeche"
         viewBox={`0 0 ${achsenbreite + breite} ${fuss + 6}`}
         width="100%"
+        /* Die Obergrenze ist die Zeichenbreite in Pixeln. Damit ist der
+           Massstab hoechstens 1:1 -- die 10px der Achsenbeschriftung
+           bleiben 10px. Nach unten darf skaliert werden: Auf schmalen
+           Geraeten schrumpft alles gleichmaessig mit. */
+        style={{ maxWidth: `${achsenbreite + breite}px` }}
         preserveAspectRatio="xMidYMid meet"
         role="img"
         aria-label={begleitung.aussage}
@@ -550,7 +561,7 @@ export function Verlauf({
   spalten,
   linien,
   hoehe = 140,
-  spur = 48,
+  spur = 88,
   achsen = 4,
   achsenbreite = 46,
   beschriftung = (w) => String(w),
@@ -568,7 +579,7 @@ export function Verlauf({
   leerTitel?: string;
   leerSatz?: React.ReactNode;
 }) {
-  const breite = spalten.length * spur;
+  const breite = zeichenbreite(spalten.length, spur);
   const alle = linien.flatMap((l) => l.werte);
   const s = skala(alle, hoehe, achsen);
 
@@ -585,6 +596,11 @@ export function Verlauf({
         className="diagramm-flaeche"
         viewBox={`0 0 ${achsenbreite + breite} ${fuss + 6}`}
         width="100%"
+        /* Die Obergrenze ist die Zeichenbreite in Pixeln. Damit ist der
+           Massstab hoechstens 1:1 -- die 10px der Achsenbeschriftung
+           bleiben 10px. Nach unten darf skaliert werden: Auf schmalen
+           Geraeten schrumpft alles gleichmaessig mit. */
+        style={{ maxWidth: `${achsenbreite + breite}px` }}
         preserveAspectRatio="xMidYMid meet"
         role="img"
         aria-label={begleitung.aussage}
