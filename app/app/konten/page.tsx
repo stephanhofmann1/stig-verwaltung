@@ -3,6 +3,7 @@ import { KontoNeu } from "@/components/KontoNeu";
 import { AuszugUpload } from "@/components/AuszugUpload";
 import { KontodatenBeginn, type ObjektZeile } from "@/components/KontodatenBeginn";
 import { fehlendeMonate, fasseZusammen } from "@/lib/luecken";
+import { objektSicht } from "@/lib/objektsicht";
 
 export const dynamic = "force-dynamic";
 
@@ -101,8 +102,15 @@ function luecken(k: KontoZeile) {
 }
 
 export default async function Konten() {
+  // Ein Konto gehoert zu einem Haus (konto.objekt_id). Die Wahl im Kopf
+  // gilt deshalb hier unmittelbar -- anders als bei den Arbeitsvorraeten
+  // Belege und Zahlungen, wo ein Filter Arbeit verstecken wuerde.
+  const { gewaehlt } = await objektSicht();
+  const objektId = gewaehlt?.id ?? null;
+
   const [konten, importe, objekte] = await Promise.all([
-    query<KontoZeile>(`
+    query<KontoZeile>(
+      `
       SELECT k.id, k.bezeichnung, k.art, k.iban_kurz, k.notizen,
              o.name AS objekt,
              count(b.id)::text        AS buchungen,
@@ -120,11 +128,15 @@ export default async function Konten() {
         FROM konto k
         LEFT JOIN objekt o  ON o.id = k.objekt_id
         LEFT JOIN buchung b ON b.konto_id = k.id
+       WHERE ($1::uuid IS NULL OR k.objekt_id = $1)
        GROUP BY k.id, k.bezeichnung, k.art, k.iban_kurz, k.notizen, o.name,
                 o.zahlungsdaten_ab
        ORDER BY k.bezeichnung
-    `),
-    query<ImportZeile>(`
+    `,
+      [objektId],
+    ),
+    query<ImportZeile>(
+      `
       SELECT i.id, k.bezeichnung AS konto, i.dateiname, i.format,
              i.zeitraum_von::text, i.zeitraum_bis::text,
              i.gelesen, i.neu, i.bereits_bekannt,
@@ -132,26 +144,33 @@ export default async function Konten() {
              i.zeitpunkt::text
         FROM auszug_import i
         JOIN konto k ON k.id = i.konto_id
+       WHERE ($1::uuid IS NULL OR k.objekt_id = $1)
        ORDER BY i.zeitpunkt DESC
        LIMIT 25
-    `),
-    query<ObjektZeile & { id: string; name: string }>(`
+    `,
+      [objektId],
+    ),
+    query<ObjektZeile & { id: string; name: string }>(
+      `
       SELECT o.id, o.name, o.zahlungsdaten_ab::text,
              min(b.buchungstag)::text AS erste_buchung,
              count(b.id)::text        AS buchungen
         FROM objekt o
         LEFT JOIN konto k   ON k.objekt_id = o.id
         LEFT JOIN buchung b ON b.konto_id  = k.id
+       WHERE ($1::uuid IS NULL OR o.id = $1)
        GROUP BY o.id, o.name, o.zahlungsdaten_ab
        ORDER BY o.name
-    `),
+    `,
+      [objektId],
+    ),
   ]);
 
   const namen = konten.map((k) => k.bezeichnung);
 
   return (
     <main>
-      <h1>Konten</h1>
+      <h1>{gewaehlt ? `Konten — ${gewaehlt.name}` : "Konten"}</h1>
 
       {konten.length === 0 ? (
         <p className="hinweis">
@@ -218,7 +237,7 @@ export default async function Konten() {
 
       <h2 className="abschnitt">Kontoauszug einlesen</h2>
       <p className="hinweis">
-        Erst lesen, dann übernehmen. Bis du auf „Übernehmen" klickst, wird
+        Erst lesen, dann übernehmen. Bis du auf „Übernehmen“ klickst, wird
         nichts gespeichert. Dieselbe Datei mehrfach einzulesen ist gefahrlos
         — doppelte Buchungen fallen über ihren Fingerabdruck heraus.
       </p>

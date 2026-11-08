@@ -14,6 +14,7 @@ import { MietenbuchRaster } from "@/components/MietenbuchRaster";
 import { MietenbuchLegende } from "@/components/MietenbuchLegende";
 import { MietenbuchZeitraum } from "@/components/MietenbuchZeitraum";
 import { MietenbuchFilter } from "@/components/MietenbuchFilter";
+import { objektSicht } from "@/lib/objektsicht";
 
 export const dynamic = "force-dynamic";
 
@@ -88,6 +89,7 @@ export default async function Mietenbuch({
 }) {
   const params = await searchParams;
   const heute = new Date();
+  const { gewaehlt: gewaehltesHaus } = await objektSicht();
   const gewaehlt = gewaehltesJahr(
     typeof params.jahr === "string" ? params.jahr : undefined,
     heute,
@@ -100,12 +102,24 @@ export default async function Mietenbuch({
   // die Angabe "X von Y Einheiten" braucht das Y.
   const alles = await ladeMietenbuch(zeitraum, heute);
 
-  // Geprüft wird gegen die Objekte, die es im Raster wirklich gibt: eine
-  // Kennung aus einem veralteten Verweis filtert damit nicht "nichts".
-  const filter = lesefilter(
-    params,
-    alles.gruppen.map((g) => g.objekt_id),
-  );
+  /*
+    Das Haus kommt aus dem Kopf, nicht aus der Adresse (08.11.2026).
+
+    Bis dahin hatte das Mietenbuch einen eigenen Objektfilter in seiner
+    Leiste. Seit es den Umschalter im Kopf gibt, waeren das zwei Stellen
+    fuer dieselbe Entscheidung gewesen -- und beim Lesen einer Zahl
+    nicht mehr zu sagen, welche gerade gilt.
+
+    Ein altes ?objekt=... in der Adresse wird deshalb bewusst ignoriert:
+    lesefilter() bekommt eine leere Liste bekannter Objekte und liefert
+    dafuer null. Ein veralteter Verweis zeigt dann das, was im Kopf
+    steht -- und nicht stillschweigend etwas anderes als der Umschalter
+    daneben behauptet.
+  */
+  const filter = {
+    ...lesefilter(params, []),
+    objekt: gewaehltesHaus?.id ?? null,
+  };
   const gefiltert = filterGesetzt(filter);
   const raster = filterRaster(alles, filter);
 
@@ -124,7 +138,9 @@ export default async function Mietenbuch({
   return (
     <main>
       <div className="titelzeile">
-        <h1>Mietenbuch</h1>
+        <h1>
+          {gewaehltesHaus ? `Mietenbuch — ${gewaehltesHaus.name}` : "Mietenbuch"}
+        </h1>
         <span className="zaehler">
           {gefiltert
             ? `${einheiten} von ${einheitenGesamt} Einheiten`
@@ -142,10 +158,6 @@ export default async function Mietenbuch({
       {einheitenGesamt > 0 && (
         <MietenbuchFilter
           filter={filter}
-          objekte={alles.gruppen.map((g) => ({
-            id: g.objekt_id,
-            name: g.objekt_name,
-          }))}
           jahr={gewaehlt}
           zeilen={einheiten}
           gesamt={einheitenGesamt}

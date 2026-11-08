@@ -183,14 +183,32 @@ describe("Die Seite und die Spracherkennung", () => {
 
   test("die Trennung macht der Mandant, nicht ein Filter auf objekt_id", () => {
     // Im privaten Mandanten gehoeren alle Belege hierher; die RLS
-    // laesst den einen nie die des anderen sehen. Ein Filter auf "ohne
-    // Objekt" wuerde die noch nicht eingeordneten Belege zeigen --
-    // etwas ganz anderes.
-    assert.ok(
-      !/objekt_id IS NULL/.test(seite),
-      "die Seite filtert auf objekt_id",
-    );
+    // laesst den einen nie die des anderen sehen. Das ist und bleibt
+    // die Trennung -- eine Spalte ist sie nicht.
     assert.match(seite, /Die Trennung macht der MANDANT/);
+  });
+
+  test("die Objektwahl versteckt keine unsortierten Belege", () => {
+    /*
+      GEAENDERT AM 08.11.2026
+
+      Vorher stand hier, die Seite duerfe ueberhaupt nicht auf objekt_id
+      filtern. Seit es den Objektumschalter im Kopf gibt
+      (lib/objektsicht.ts), ist das zu streng: Ein Ausschnitt, den
+      jemand ausdruecklich waehlt, ist etwas anderes als eine Trennung,
+      die ihm aufgezwungen wird.
+
+      Der Kern der alten Pruefung gilt aber weiter und steht jetzt hier:
+      Ein Beleg OHNE Objekt heisst nicht "gehoert einem anderen Haus",
+      sondern "noch nicht eingeordnet". Faellt er beim Umschalten weg,
+      ist die Ablage genau fuer die Belege blind, die noch Arbeit
+      machen -- und niemand merkt es, weil die Seite ja voll aussieht.
+    */
+    assert.match(
+      seite,
+      /\$1::uuid IS NULL OR objekt_id = \$1 OR objekt_id IS NULL/,
+      "Belege ohne Objekt muessen in jeder Objektsicht stehen bleiben.",
+    );
   });
 
   test("die Seite sagt, wie viele Belege nur auf dem eigenen Wort stehen", () => {
