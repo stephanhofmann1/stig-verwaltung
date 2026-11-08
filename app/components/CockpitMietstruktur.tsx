@@ -209,7 +209,12 @@ export function CockpitMietstruktur({ struktur }: { struktur: Mietstruktur }) {
             art: "akzent" as const,
           }))}
           hoehe={80}
-          spur={44}
+          /* spur ist die Obergrenze einer Spur, nicht ihre feste Breite
+             (siehe zeichenbreite() in lib/diagramm.ts). Hier stehen nur
+             wenige Stufen; ohne eine groessere Obergrenze bliebe das
+             Diagramm ein Briefmarkenformat in einer 1100 px breiten
+             Spalte. */
+          spur={120}
           achsen={2}
           achsenbreite={28}
           beschriftung={(w) => String(Math.round(w))}
