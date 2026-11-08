@@ -683,7 +683,21 @@ describe("ladeFreigabestand zaehlt nur offene Vorgaenge", () => {
     // Zahl sieht den Vorgangsstatus nicht an. Deshalb verwirft
     // api/vorgang/[id] beim Schliessen ohne Antwort einen noch offenen
     // Entwurf -- ohne das stuende er weiter in der Zahl.
-    assert.match(block, /FROM nachricht WHERE status = 'entwurf'/);
+    //
+    // Seit dem 08.11.2026 kommt eine Verbindung zum Vorgang dazu, damit
+    // sich die Zahl nach Objekt filtern laesst (lib/objektsicht.ts).
+    // Geprueft wird deshalb die Bedingung und nicht mehr der Wortlaut
+    // der ganzen Zeile: Dass die Zahl an nachricht.status haengt, ist
+    // die Aussage -- woher die Zeilen kommen, nicht.
+    assert.match(block, /FROM nachricht n/);
+    assert.match(block, /n\.status = 'entwurf'/);
+    assert.doesNotMatch(
+      block,
+      /n\.status = 'entwurf'[\s\S]{0,80}v\.status/,
+      "Die Entwurfszahl darf den Vorgangsstatus nicht mitpruefen -- " +
+        "sonst verschwindet ein Entwurf aus der Freigabe, sobald " +
+        "jemand den Vorgang schliesst, statt verworfen zu werden.",
+    );
   });
 
   test("die Route verwirft offene Entwuerfe beim Schliessen ohne Antwort", () => {

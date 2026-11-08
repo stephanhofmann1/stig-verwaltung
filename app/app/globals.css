@@ -586,6 +586,78 @@ details[open] > summary::before { transform: rotate(90deg); }
   letter-spacing: 0;
 }
 
+/* Der Objektumschalter steht neben dem Mandanten -- und sichtbar
+   untergeordnet.
+   ----------------------------------------------------------------------
+   Die beiden beantworten dieselbe Frage auf zwei Ebenen: wessen Zahlen,
+   und von welchem Haus. Der Mandant ist eine Rechtegrenze und trägt
+   deshalb das Gewicht der Marke (fett, in Textgröße). Das Objekt ist
+   eine Sicht: dieselbe Mechanik, aber in der leisen Schrift der
+   Nebenangaben. Wer den Unterschied nicht kennt, soll ihn trotzdem
+   sehen.
+
+   Ein Trennzeichen davor statt eines Rahmens: Es sagt "innerhalb
+   dessen", nicht "daneben". */
+.objektwahl {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.375rem;
+  flex: none;
+  min-width: 0;
+}
+
+.objektwahl::before {
+  content: "›";
+  color: var(--fg-leise);
+  margin-right: 0.125rem;
+}
+
+.objektwahl select {
+  font: inherit;
+  font-size: var(--t-klein, var(--text-n));
+  color: var(--fg-still);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-s);
+  padding: 0.125rem 1.25rem 0.125rem 0.25rem;
+  max-width: 12rem;
+  /* Derselbe eigene Pfeil wie beim Mandanten -- zwei verschiedene Pfeile
+     nebeneinander läsen sich als zwei verschiedene Dinge. */
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--fg-leise) 50%),
+                    linear-gradient(135deg, var(--fg-leise) 50%, transparent 50%);
+  background-position: right 0.5rem center, right 0.25rem center;
+  background-size: 0.3rem 0.3rem, 0.3rem 0.3rem;
+  background-repeat: no-repeat;
+}
+
+.objektwahl select:hover { background-color: var(--flaeche-tief); }
+
+.objektwahl select:focus-visible {
+  outline: 2px solid var(--fg);
+  outline-offset: 2px;
+}
+
+.objektwahl select:disabled { opacity: 0.6; cursor: progress; }
+
+.objektwahl-fehler {
+  font-size: var(--t-mikro);
+  color: var(--warnung, var(--fg-leise));
+}
+
+/* Auf dem Telefon ist in der Kopfzeile kein Platz für beides neben
+   Marke, Menüknopf und Abmelden. Das Objekt rutscht dann in eine eigene
+   Zeile darunter -- es bleibt erreichbar, ohne die Reihe zu sprengen. */
+@media (max-width: 40rem) {
+  .objektwahl {
+    order: 10;
+    flex-basis: 100%;
+    margin-top: 0.25rem;
+  }
+  .objektwahl::before { content: ""; margin-right: 0; }
+  .objektwahl select { margin-left: -0.25rem; }
+}
+
 /* Nur für die Vorlesesoftware: aus dem Bild, aber nicht aus dem Baum.
    display:none oder visibility:hidden nähmen es auch der Vorlesesoftware,
    und ein Auswahlfeld ohne Beschriftung ist dort "Auswahlfeld". */
