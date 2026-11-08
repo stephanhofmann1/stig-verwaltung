@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { query } from "@/lib/db";
+import { objektSicht } from "@/lib/objektsicht";
 import { KATEGORIE_LABEL, STATUS_LABEL, type Kategorie, type VorgangStatus } from "@/lib/typen";
 import { aktenzeichen, seit } from "@/lib/formate";
 
@@ -19,7 +20,10 @@ interface Zeile {
 }
 
 export default async function Vorgaenge() {
-  const zeilen = await query<Zeile>(`
+  const { gewaehlt } = await objektSicht();
+
+  const zeilen = await query<Zeile>(
+    `
     SELECT v.id, v.nummer, v.betreff, v.kategorie, v.status, v.heikel,
            v.geaendert_am,
            k.anzeigename AS kontakt_name,
@@ -31,16 +35,23 @@ export default async function Vorgaenge() {
              AS offene_entwuerfe
       FROM vorgang v
       LEFT JOIN kontakt k ON k.id = v.kontakt_id
+     -- Vorgaenge OHNE Objekt bleiben stehen, wie im Cockpit und in der
+     -- Ablage: "ohne Objekt" heisst nicht "gehoert einem anderen Haus",
+     -- sondern "noch keinem zugeordnet" -- und das ist meist die
+     -- frischeste Post, also die, die am ehesten Arbeit macht.
+     WHERE ($1::uuid IS NULL OR v.objekt_id = $1 OR v.objekt_id IS NULL)
      ORDER BY (v.status = 'erledigt'), v.geaendert_am DESC
      LIMIT 200
-  `);
+  `,
+    [gewaehlt?.id ?? null],
+  );
 
   const offen = zeilen.filter((z) => z.status !== "erledigt").length;
 
   return (
     <>
       <div className="titelzeile">
-        <h1>Vorgänge</h1>
+        <h1>{gewaehlt ? `Vorgänge — ${gewaehlt.name}` : "Vorgänge"}</h1>
         <span className="zaehler ziffern">
           {offen} offen · {zeilen.length} gesamt
         </span>

@@ -7,6 +7,7 @@ import { tag } from "@/lib/formate";
 import { sollGesamt } from "@/lib/sollstellung";
 import { AltdatenImport } from "@/components/AltdatenImport";
 import Link from "next/link";
+import { objektSicht } from "@/lib/objektsicht";
 
 export const dynamic = "force-dynamic";
 
@@ -53,7 +54,13 @@ const euro = (w: string | null) =>
       }).format(Number(w));
 
 export default async function Stammdaten() {
-  const einheiten = await query<EinheitZeile>(`
+  // Dieselbe Wahl wie ueberall (components/ObjektWahl.tsx). Gerade hier
+  // zaehlt sie: 37 Einheiten ueber drei Haeuser sind eine Liste, 28 in
+  // einem Haus sind eine Uebersicht.
+  const { gewaehlt } = await objektSicht();
+
+  const einheiten = await query<EinheitZeile>(
+    `
     SELECT e.id, e.bezeichnung, e.etage, e.art, o.name AS objekt,
            k.anzeigename AS mieter, mv.id AS mietverhaeltnis_id,
            mv.beginn::text, mv.ende::text,
@@ -74,8 +81,11 @@ export default async function Stammdaten() {
              ORDER BY m.beginn DESC LIMIT 1) mv ON true
       LEFT JOIN kontakt k ON k.id = mv.kontakt_id
      WHERE e.art <> 'gemeinschaft'
+       AND ($1::uuid IS NULL OR o.id = $1)
      ORDER BY o.name, e.bezeichnung
-  `);
+  `,
+    [gewaehlt?.id ?? null],
+  );
 
   const frei = einheiten.filter((e) => !e.mieter);
   const vermietet = einheiten.filter((e) => e.mieter);
@@ -83,7 +93,11 @@ export default async function Stammdaten() {
   return (
     <>
       <div className="titelzeile">
-        <h1>Einheiten und Mietverhältnisse</h1>
+        <h1>
+          {gewaehlt
+            ? `Einheiten und Mietverhältnisse — ${gewaehlt.name}`
+            : "Einheiten und Mietverhältnisse"}
+        </h1>
         <span className="zaehler ziffern">
           {vermietet.length} vermietet · {frei.length} ohne Mietverhältnis
         </span>
