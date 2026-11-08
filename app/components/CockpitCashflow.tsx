@@ -9,7 +9,12 @@ import {
 } from "@/components/CockpitKarte";
 
 /**
- * Cashflow der letzten zwoelf Monate.
+ * Cashflow der letzten Monate -- wie viele, sagt die Reihe.
+ *
+ * Die Zahl stand bis zum 08.11.2026 als "12" im Titel. Seit der
+ * Zeitraum waehlbar ist (app/cockpit/page.tsx), waere das eine falsche
+ * Auskunft: Das Diagramm zeigte 24 Balken und die Ueberschrift sagte
+ * zwoelf. Sie kommt jetzt aus reihe.length.
  *
  * Die Karte zeichnet nicht mehr selbst: Skala, Stapel und Beschriftung
  * kommen aus dem Baukasten (components/Diagramm.tsx) und aus lib/diagramm.ts.
@@ -39,13 +44,13 @@ export function CockpitCashflow({ reihe }: { reihe: CashflowBalken[] }) {
 
   return (
     <CockpitKarte
-      titel="Cashflow, 12 Monate"
+      titel={`Cashflow, ${reihe.length} Monate`}
       zaehler={
         leer ? "keine Buchungen" : `${euro(summeEin)} ein, ${euro(summeAus)} aus`
       }
       hinweis={
         leer ? (
-          "Für die letzten zwölf Monate liegen keine Buchungen vor."
+          `Für die letzten ${reihe.length} Monate liegen keine Buchungen vor.`
         ) : (
           <>
             Aus <code>buchung</code>: Eingänge und Ausgaben je Monat.
@@ -72,7 +77,7 @@ export function CockpitCashflow({ reihe }: { reihe: CashflowBalken[] }) {
       {leer ? (
         <div className="leer">
           <strong>Nichts zu zeichnen</strong>
-          Sobald Kontoumsätze eingelesen sind, stehen hier zwölf Monatsbalken.
+          Sobald Kontoumsätze eingelesen sind, stehen hier {reihe.length} Monatsbalken.
         </div>
       ) : (
         <Stapelbalken
@@ -99,14 +104,14 @@ export function CockpitCashflow({ reihe }: { reihe: CashflowBalken[] }) {
           hinweis={
             <>
               Oben Einnahmen (voll: zugeordnete Miete, blass: sonstige), unten
-              Ausgaben als Umriss. Höchster Balken {euroGenau(max)}. In zwölf
-              Monaten {euroGenau(summeMiete)} zugeordnete Miete und{" "}
+              Ausgaben als Umriss. Höchster Balken {euroGenau(max)}. In{" "}
+              {reihe.length} Monaten {euroGenau(summeMiete)} zugeordnete Miete und{" "}
               {euroGenau(summeEin - summeMiete)} sonstige Eingänge.
             </>
           }
           tabelleTitel="Zahlen je Monat"
           tabelle={
-            /* Dieselbe Tabelle wie bisher: zwölf Zeilen sind kein Lagebild,
+            /* Dieselbe Tabelle wie bisher: ein Dutzend Zeilen sind kein Lagebild,
                aber ohne sie ist die Zahl nach dem Zeichnen verloren. */
             <table>
               <caption>

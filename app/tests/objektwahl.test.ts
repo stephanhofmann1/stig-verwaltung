@@ -1,6 +1,7 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { nurImporte } from "./quelltext";
 
 import { ALLE, KEKS_ALTER, KEKS_OBJEKT, waehleObjekt } from "../lib/objektwahl";
 
@@ -162,16 +163,16 @@ describe("Die Objektsicht fasst die Sitzung nicht an", () => {
     */
     // Geprueft werden die Importzeilen, nicht der Fliesstext: Die
     // Begruendung dieser Regel nennt die verbotenen Namen selbst.
-    const importe = (quelltext: string) =>
-      quelltext.split("\n").filter((z) => /^\s*import\b/.test(z)).join("\n");
+    // nurImporte steht in tests/quelltext.ts, zusammen mit der
+    // Geschichte dieses dreimal gemachten Fehlers.
     for (const verboten of ["next/headers", "@/lib/db", '"pg"']) {
       assert.ok(
-        !importe(WAHL).includes(verboten),
+        !nurImporte(WAHL).includes(verboten),
         `lib/objektwahl.ts importiert ${verboten}`,
       );
     }
     assert.ok(
-      !importe(quelle("../components/ObjektWahl.tsx")).includes("@/lib/objektsicht"),
+      !nurImporte(quelle("../components/ObjektWahl.tsx")).includes("@/lib/objektsicht"),
       "Die Clientkomponente importiert aus der Serverdatei.",
     );
   });
@@ -207,7 +208,7 @@ describe("Das Cockpit nennt seinen Ausschnitt", () => {
   test("die Zahlen kommen gefiltert aus einer Quelle", () => {
     // ladeCockpit() bekommt das Objekt; nirgends wird daneben noch
     // einmal gerechnet.
-    assert.match(SEITE, /ladeCockpit\(new Date\(\), gewaehlt\?\.id \?\? null\)/);
+    assert.match(SEITE, /ladeCockpit\(new Date\(\), gewaehlt\?\.id \?\? null, monate\)/);
   });
 });
 
@@ -256,7 +257,10 @@ describe("Die Abfragen haben eine Fassung", () => {
   });
 
   test("ladeCockpit nimmt das Objekt entgegen", () => {
-    assert.match(KENNZAHLEN, /objekt: string \| null = null,\n\): Promise<CockpitDaten>/);
+    assert.match(
+      KENNZAHLEN,
+      /objekt: string \| null = null,\n  monate: number = 12,\n\): Promise<CockpitDaten>/,
+    );
   });
 
   test("die Laeufe bleiben ungefiltert -- und das steht da", () => {

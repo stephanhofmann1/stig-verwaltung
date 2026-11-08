@@ -1,5 +1,6 @@
 import {
   balkenGruppe,
+  beschriftungsschritt,
   zeichenbreite,
   flaechePfad,
   linienPfad,
@@ -191,50 +192,112 @@ function Fussbeschriftung({
   /** Indizes, deren Beschriftung blass bleibt -- dort fehlt die Aussage. */
   leise?: boolean[];
 }) {
+  /*
+    NICHT JEDE SPALTE BEKOMMT IHREN NAMEN (08.11.2026)
+
+    Seit der Zeitraum waehlbar ist, koennen 36 Spalten nebeneinander
+    stehen. Bei 1040 Einheiten Zeichenbreite sind das 29 Einheiten je
+    Spalte -- "Maerz 24" braucht gut 40. Vorher lief die Beschriftung
+    ineinander: "Dez. 23Jan. 24Feb. 24Maerz 24". Lesbar war daran
+    nichts, und das war genau die Klage ueber die Formatierung.
+
+    Also wird ausgeduennt: Es wird jede n-te beschriftet, wobei n sich
+    aus dem Abstand der Spaltenmitten ergibt. Beschriftet wird von
+    hinten (der juengste Monat traegt immer seinen Namen), weil die
+    rechte Kante die ist, nach der man sucht.
+
+    Die uebersprungenen Monate sind nicht verloren: Der Zeigerhinweis
+    nennt sie, und die Begleittabelle fuehrt jeden einzeln auf.
+  */
+  const abstand =
+    mitten.length > 1 ? Math.abs((mitten[1] ?? 0) - (mitten[0] ?? 0)) : 0;
+  const schritt = beschriftungsschritt(abstand);
+
   return (
     <g className="diagramm-achse" style={farbe("leise")} aria-hidden="true">
-      {namen.map((name, i) => (
-        <text
-          key={`${name}-${i}`}
-          x={achsenbreite + (mitten[i] ?? 0)}
-          y={y}
-          textAnchor="middle"
-          fontSize="9"
-          fill="currentColor"
-          fillOpacity={leise?.[i] ? 0.45 : 0.8}
-        >
-          {name}
-        </text>
-      ))}
+      {namen.map((name, i) => {
+        // Von hinten gezaehlt: Der letzte Monat traegt immer seinen Namen.
+        if ((namen.length - 1 - i) % schritt !== 0) return null;
+        return (
+          <text
+            key={`${name}-${i}`}
+            x={achsenbreite + (mitten[i] ?? 0)}
+            y={y}
+            textAnchor="middle"
+            fontSize="9"
+            fill="currentColor"
+            fillOpacity={leise?.[i] ? 0.45 : 0.8}
+          >
+            {name}
+          </text>
+        );
+      })}
     </g>
   );
 }
 
-/** Legende mit Farbtupfer. Eine Deckung allein ist kein Begriff. */
+/**
+ * Legende mit Farbtupfer -- und, wenn es mehr als eine Reihe gibt, zum
+ * Ein- und Ausblenden.
+ *
+ * WARUM DAS OHNE JAVASCRIPT GEHT (08.11.2026)
+ *
+ * Stephan wollte die Diagramme "klickbar und dynamischer", darunter
+ * "Reihen ein- und ausblenden". Der nahe Weg waere gewesen, den ganzen
+ * Baukasten auf Clientkomponenten umzustellen. Das haette drei Dinge
+ * gekostet: Die Diagramme kaemen erst nach dem Laden des Skripts, die
+ * Beschriftungsfunktionen (beschriftung={(w) => ...}) liessen sich nicht
+ * mehr von der Serverseite hereingeben, und die vier Zusagen oben --
+ * Vorlesbarkeit, Zeigerhinweis, Begleittabelle, keine Farbe im Markup --
+ * muessten alle neu bewiesen werden.
+ *
+ * Es geht einfacher: ein echtes Kontrollkaestchen je Reihe, und das
+ * Ausblenden erledigt CSS ueber :has() (globals.css). Das ist von sich
+ * aus bedienbar mit der Tastatur, es funktioniert ohne Skript, und es
+ * aendert an den Zusagen nichts.
+ *
+ * Die Nummer statt des Namens als Haken: CSS kann zwei Merkmale nicht
+ * miteinander vergleichen. Mit einer festen Nummer je Reihe stehen in
+ * globals.css sechs feste Regeln -- mechanisch, aber ehrlich.
+ */
 export function Legende({
   teile,
+  schaltbar = false,
 }: {
   teile: Array<{ name: string; art?: Diagrammart; deckung?: number }>;
+  /** Kontrollkaestchen statt reiner Tupfer. Erst ab zwei Reihen sinnvoll. */
+  schaltbar?: boolean;
 }) {
+  const tupfer = (t: { art?: Diagrammart; deckung?: number }) => (
+    <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true" focusable="false">
+      <rect width="10" height="10" fill="currentColor" fillOpacity={t.deckung ?? 0.85} />
+    </svg>
+  );
+
+  // Ohne zweite Reihe gibt es nichts abzuschalten: Ein Kaestchen, das nur
+  // das Einzige ausblenden kann, was zu sehen ist, ist keine Hilfe.
+  if (!schaltbar || teile.length < 2) {
+    return (
+      <ul className="diagramm-legende">
+        {teile.map((t) => (
+          <li key={t.name} className="diagramm-marke" style={farbe(t.art)}>
+            {tupfer(t)}
+            <span>{t.name}</span>
+          </li>
+        ))}
+      </ul>
+    );
+  }
+
   return (
-    <ul className="diagramm-legende">
-      {teile.map((t) => (
+    <ul className="diagramm-legende" data-schaltbar="ja">
+      {teile.map((t, i) => (
         <li key={t.name} className="diagramm-marke" style={farbe(t.art)}>
-          <svg
-            width="10"
-            height="10"
-            viewBox="0 0 10 10"
-            aria-hidden="true"
-            focusable="false"
-          >
-            <rect
-              width="10"
-              height="10"
-              fill="currentColor"
-              fillOpacity={t.deckung ?? 0.85}
-            />
-          </svg>
-          <span>{t.name}</span>
+          <label>
+            <input type="checkbox" defaultChecked data-nr={i + 1} />
+            {tupfer(t)}
+            <span>{t.name}</span>
+          </label>
         </li>
       ))}
     </ul>
@@ -337,7 +400,16 @@ export function Balken({
             );
           }
           return (
-            <g key={`${p.name}-${i}`} style={farbe(p.art)}>
+            /* tabindex: Wer mit der Tastatur geht, soll denselben Wert
+               sehen wie beim Ueberfahren. Ohne das ist die Zahl nur mit
+               der Maus zu haben -- und die Begleittabelle unten waere
+               der einzige Weg. */
+            <g
+              key={`${p.name}-${i}`}
+              className="diagramm-saeule"
+              tabIndex={0}
+              style={farbe(p.art)}
+            >
               <title>{p.titel}</title>
               <rect
                 x={achsenbreite + f.x}
@@ -347,6 +419,16 @@ export function Balken({
                 fill="currentColor"
                 fillOpacity={f.negativ ? 0.35 : 0.85}
               />
+              {/* Der Wert steht ueber dem Balken, bei negativen darunter:
+                  sonst laege er im Balken und waere je nach Hoehe mal
+                  lesbar, mal nicht. */}
+              <text
+                className="diagramm-wert"
+                x={achsenbreite + f.mitte}
+                y={f.negativ ? f.y + f.hoehe + 11 : f.y - 4}
+              >
+                {beschriftung(p.wert ?? 0)}
+              </text>
             </g>
           );
         })}
@@ -467,11 +549,13 @@ export function Stapelbalken({
           const feld = felder[i];
           const gestapelt = stapel(p.teile, feld.hoehe);
           return (
-            <g key={`${p.name}-${i}`}>
+            <g key={`${p.name}-${i}`} className="diagramm-saeule" tabIndex={0}>
               <title>{p.titel}</title>
               {gestapelt.segmente.map((seg, k) => (
                 <rect
                   key={`${seg.name}-${k}`}
+                  // Dieselbe Nummer wie das Kaestchen in der Legende.
+                  data-nr={k + 1}
                   x={achsenbreite + feld.x}
                   // Von unten nach oben stapeln: der erste Posten sitzt auf
                   // der Nulllinie, wie in der Legende gelesen.
@@ -483,6 +567,19 @@ export function Stapelbalken({
                   style={farbe(p.teile[k]?.art)}
                 />
               ))}
+              {/* Die Summe des Stapels, nicht die Einzelsegmente: Was
+                  ein Monat insgesamt war, ist die Frage, mit der man
+                  ueber einen Balken faehrt. Die Aufteilung steht in der
+                  Legende und in der Begleittabelle. */}
+              <text
+                className="diagramm-wert"
+                x={achsenbreite + feld.mitte}
+                y={s.nulllinie - feld.hoehe - 4}
+              >
+                {beschriftung(
+                  p.teile.reduce((summe, teil) => summe + (teil.wert ?? 0), 0),
+                )}
+              </text>
             </g>
           );
         })}
@@ -496,7 +593,16 @@ export function Stapelbalken({
           const laenge = s.laenge(-w);
           if (!(laenge > 0)) return null;
           return (
-            <g key={`gegen-${i}`} style={farbe(gegen.art ?? "leise")}>
+            /* Die Nummer zaehlt hinter den Stapelsegmenten weiter: In
+               der Legende steht die Gegenreihe als letzter Eintrag, und
+               ihr Kaestchen muss dieselbe Nummer tragen. Ohne das waere
+               es ein Schalter, der nichts tut -- und das ist schlimmer
+               als keiner. */
+            <g
+              key={`gegen-${i}`}
+              data-nr={(posten[0]?.teile.length ?? 0) + 1}
+              style={farbe(gegen.art ?? "leise")}
+            >
               <title>{`${posten[i]?.name ?? ""}: ${gegen.name}`}</title>
               <rect
                 x={achsenbreite + feld.x}
@@ -518,7 +624,7 @@ export function Stapelbalken({
           y={fuss}
         />
       </svg>
-      {legende && <Legende teile={legende} />}
+      {legende && <Legende schaltbar teile={legende} />}
     </Huelle>
   );
 }
@@ -629,13 +735,16 @@ export function Verlauf({
           ) : null,
         )}
 
-        {linien.map((l) => {
+        {linien.map((l, nr) => {
           const punkte = reihenPunkte(l.werte, breite, s);
           const verschoben = punkte.map((p) =>
             p === null ? null : { x: p.x + achsenbreite, y: p.y },
           );
           return (
-            <g key={l.name} style={farbe(l.art)}>
+            /* data-nr verbindet die Reihe mit ihrem Kaestchen in der
+               Legende. Der Abgleich steht als feste Regel in
+               globals.css -- CSS kann zwei Merkmale nicht vergleichen. */
+            <g key={l.name} data-nr={nr + 1} style={farbe(l.art)}>
               {l.flaeche && (
                 <path
                   d={flaechePfad(verschoben, s.nulllinie)}
@@ -684,6 +793,7 @@ export function Verlauf({
         />
       </svg>
       <Legende
+        schaltbar
         teile={linien.map((l) => ({ name: l.name, art: l.art, deckung: 0.9 }))}
       />
     </Huelle>

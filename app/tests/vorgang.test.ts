@@ -1,5 +1,6 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
+import { ohneKommentare } from "./quelltext";
 import { readFileSync } from "node:fs";
 
 import {
@@ -350,12 +351,6 @@ describe("Die Entscheidungslogik bleibt ohne Datenbank pruefbar", () => {
  * /entwurf es braucht und diese nicht. Ein Test, der die Erklaerung
  * verbietet, erzwingt kommentarlosen Code.
  */
-function ohneKommentare(quelle: string): string {
-  return quelle
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .replace(/^[ \t]*\/\/.*$/gm, "");
-}
-
 describe("Die neue Schnittstelle ist abgesichert", () => {
   const route = ohneKommentare(
     readFileSync(
