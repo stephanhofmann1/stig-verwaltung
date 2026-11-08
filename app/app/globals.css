@@ -2108,6 +2108,134 @@ p.hinweis.abschnitt { margin-top: var(--abstand-7); }
    schwarzes. */
 .diagramm-marke > span { color: var(--fg-leise); }
 
+/* Reihen ein- und ausblenden -- ohne JavaScript.
+   ----------------------------------------------------------------------
+   Stephan am 08.11.2026 zu den Diagrammen: "klickbar und dynamischer",
+   darunter "Reihen ein- und ausblenden".
+
+   Die Legende trägt dann echte Kontrollkästchen (components/Diagramm.tsx),
+   und das Ausblenden macht :has(). Damit bleibt der Baukasten
+   serverseitig: Die Diagramme stehen beim ersten Bild da, die
+   Beschriftungsfunktionen lassen sich weiter von der Seite hereingeben,
+   und die vier Zusagen des Baukastens (Vorlesbarkeit, Zeigerhinweis,
+   Begleittabelle, keine Farbe im Markup) bleiben unangetastet. Mit der
+   Tastatur bedienbar ist es von selbst — es sind echte Kästchen.
+
+   Sechs feste Regeln statt einer allgemeinen: CSS kann zwei Merkmale
+   nicht miteinander vergleichen (data-nr am Kästchen gegen data-nr an der
+   Reihe). Mechanisch, aber ehrlich — und sechs Reihen sind in diesen
+   Diagrammen die Obergrenze des Lesbaren.
+
+   Das Kästchen selbst ist klein und steht vor dem Farbtupfer; der ganze
+   Eintrag ist ein <label>, also auch am Wort anklickbar. */
+.diagramm-legende[data-schaltbar="ja"] label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--abstand-2);
+  cursor: pointer;
+}
+.diagramm-legende[data-schaltbar="ja"] input {
+  accent-color: currentColor;
+  margin: 0;
+  width: 0.8rem;
+  height: 0.8rem;
+  flex: 0 0 auto;
+}
+/* Eine abgeschaltete Reihe bleibt in der Legende sichtbar, nur blasser --
+   sonst wüsste niemand mehr, dass es sie gibt. */
+.diagramm-legende[data-schaltbar="ja"] li:has(input:not(:checked)) {
+  opacity: 0.45;
+}
+/* Der eigene Tupfer der Legende entfällt hier: Das <svg> im Label ist
+   schon einer, zwei nebeneinander wären zwei Marken je Eintrag. */
+.diagramm-legende[data-schaltbar="ja"] .diagramm-marke::before {
+  content: none;
+}
+
+.diagramm:has(.diagramm-legende input[data-nr="1"]:not(:checked)) svg [data-nr="1"],
+.diagramm:has(.diagramm-legende input[data-nr="2"]:not(:checked)) svg [data-nr="2"],
+.diagramm:has(.diagramm-legende input[data-nr="3"]:not(:checked)) svg [data-nr="3"],
+.diagramm:has(.diagramm-legende input[data-nr="4"]:not(:checked)) svg [data-nr="4"],
+.diagramm:has(.diagramm-legende input[data-nr="5"]:not(:checked)) svg [data-nr="5"],
+.diagramm:has(.diagramm-legende input[data-nr="6"]:not(:checked)) svg [data-nr="6"] {
+  display: none;
+}
+
+/* Die Zeitraumwahl über den Verlaufsdiagrammen.
+   ----------------------------------------------------------------------
+   Verweise und keine Knöpfe: Es ist eine andere Adresse, keine Handlung.
+   Der aktive Zeitraum ist markiert wie ein Navigationspunkt — dieselbe
+   Sprache wie in der Hauptnavigation, damit man nicht zweimal lernen
+   muss, was „hier stehe ich“ heißt. */
+.zeitraumwahl {
+  margin-top: var(--abstand-6);
+  margin-bottom: calc(-1 * var(--abstand-3));
+}
+.zeitraumwahl nav {
+  display: inline-flex;
+  gap: var(--abstand-1);
+}
+.zeitraumwahl a {
+  font-size: var(--t-klein);
+  color: var(--fg-leise);
+  text-decoration: none;
+  padding: 0.125rem 0.5rem;
+  border-radius: var(--radius-s);
+  border: 1px solid transparent;
+}
+.zeitraumwahl a:hover { background: var(--flaeche-tief); color: var(--fg); }
+.zeitraumwahl a[data-aktiv="ja"] {
+  color: var(--fg);
+  border-color: var(--linie-stark);
+  background: var(--flaeche);
+}
+
+/* Der Wert beim Überfahren.
+   ----------------------------------------------------------------------
+   Der <title> im SVG nennt den Betrag schon — aber als Hinweis des
+   Betriebssystems, mit einer Sekunde Verzögerung und am Mauszeiger.
+   Stephan wollte "Werte beim Überfahren ... direkt am Balken".
+
+   Also ein <text> im Diagramm selbst, das normalerweise nicht zu sehen
+   ist. Kein JavaScript, keine zweite Zeichnung: dieselbe Zahl, die auch
+   in der Begleittabelle steht.
+
+   :focus-within gehört dazu und ist nicht Zierat: Wer mit der Tastatur
+   durch die Balken geht, soll denselben Wert sehen wie beim Überfahren.
+   Deshalb ist die Balkengruppe fokussierbar (tabindex im Markup). */
+.diagramm-wert {
+  opacity: 0;
+  fill: var(--fg);
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-anchor: middle;
+  pointer-events: none;
+  paint-order: stroke;
+  stroke: var(--flaeche);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+  transition: opacity 0.08s ease-out;
+}
+.diagramm-saeule:hover .diagramm-wert,
+.diagramm-saeule:focus-visible .diagramm-wert,
+.diagramm-saeule:focus-within .diagramm-wert {
+  opacity: 1;
+}
+/* Die überfahrene Säule hebt sich ab, damit klar ist, welcher Wert
+   gemeint ist — ein Wert ohne erkennbaren Bezug ist eine Zahl im Raum. */
+.diagramm-saeule:hover rect,
+.diagramm-saeule:focus-within rect {
+  fill-opacity: 1;
+}
+.diagramm-saeule:focus-visible {
+  outline: 2px solid var(--fg);
+  outline-offset: 1px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .diagramm-wert { transition: none; }
+}
+
 .diagramm-leer {
   border: 1px dashed var(--linie-stark);
   padding: var(--abstand-4);

@@ -631,6 +631,7 @@ async function ladeMonat(
 async function ladeCashflow(
   heute: Date,
   objekt: string | null,
+  monate = 12,
 ): Promise<CashflowBalken[]> {
   const zeilen = await query<{
     monat: string;
@@ -650,14 +651,14 @@ async function ladeCashflow(
             SELECT buchung_id, SUM(betrag) AS zu FROM zuordnung GROUP BY buchung_id
       ) z ON z.buchung_id = b.id
      WHERE b.buchungstag >= (date_trunc('month', CURRENT_DATE)
-                             - interval '11 months')::date
+                             - make_interval(months => $2::int - 1))::date
        AND ($1::uuid IS NULL OR k.objekt_id = $1)
      GROUP BY 1
      ORDER BY 1
   `,
-    [objekt],
+    [objekt, monate],
   );
-  return cashflowReihe(zeilen, heute);
+  return cashflowReihe(zeilen, heute, monate);
 }
 
 async function ladeLaeufe(): Promise<LaufZeile[]> {
@@ -865,9 +866,34 @@ async function ladeFreigabestand(objekt: string | null): Promise<{
  * Objekte gilt -- unter der Ueberschrift eines Hauses eine Zahl zu
  * zeigen, die ein anderes mitmeint, waere eine falsche Auskunft.
  */
+/**
+ * Die waehlbaren Zeitraeume der Verlaufsdiagramme, in Monaten.
+ *
+ * Drei und nicht beliebig viele: Jeder Wert ist eine eigene Abfrage ueber
+ * den ganzen Buchungsbestand. Ein freies Feld lade ein, 600 Monate
+ * einzutippen, und ein Schieberegler loeste bei jeder Bewegung eine
+ * Abfrage aus. Drei Knoepfe beantworten die Frage, die wirklich gestellt
+ * wird: das laufende Jahr, zwei Jahre zum Vergleich, drei fuer den
+ * Trend.
+ */
+export const ZEITRAEUME = [12, 24, 36] as const;
+
+/**
+ * Wie viele Monate zeigen die Verlaufsdiagramme?
+ *
+ * Aus der Adresszeile (?monate=24). Alles, was nicht in ZEITRAEUME
+ * steht, wird zu 12 -- ein veralteter Verweis oder ein Tippfehler soll
+ * ein Cockpit ergeben, kein leeres Diagramm und keinen Fehler.
+ */
+export function liesMonate(roh: string | string[] | undefined): number {
+  const wert = Number(Array.isArray(roh) ? roh[0] : roh);
+  return (ZEITRAEUME as readonly number[]).includes(wert) ? wert : 12;
+}
+
 export async function ladeCockpit(
   heute = new Date(),
   objekt: string | null = null,
+  monate: number = 12,
 ): Promise<CockpitDaten> {
   const [
     fristen,
@@ -906,8 +932,12 @@ export async function ladeCockpit(
       () => verfuegbarkeit(objekt),
       { stand: isoTag(heute), einheiten: [] },
     ),
-    behutsam("Cashflow", () => ladeCashflow(heute, objekt), [] as CashflowBalken[]),
-    behutsam("Soll/Ist-Verlauf", () => ladeSollIst(heute, objekt), [] as SollIstPunkt[]),
+    behutsam("Cashflow", () => ladeCashflow(heute, objekt, monate), [] as CashflowBalken[]),
+    behutsam(
+      "Soll/Ist-Verlauf",
+      () => ladeSollIst(heute, objekt, monate),
+      [] as SollIstPunkt[],
+    ),
     behutsam("Mietstruktur", () => ladeMietstruktur(objekt), LEER_MIETSTRUKTUR),
     // Die Laeufe gelten fuer den Mandanten, nicht fuer ein Haus.
     behutsam("Läufe", ladeLaeufe, [] as LaufZeile[]),
@@ -1190,6 +1220,7 @@ export function sollIstLage(reihe: SollIstPunkt[], schwelle = 1): SollIstLage {
 async function ladeSollIst(
   heute: Date,
   objekt: string | null,
+  monate = 12,
 ): Promise<SollIstPunkt[]> {
   const zeilen = await query<{
     monat: string;
@@ -1215,7 +1246,7 @@ async function ladeSollIst(
                GROUP BY zz.sollstellung_id
         ) z ON z.sollstellung_id = s.id
        WHERE s.monat >= (date_trunc('month', CURRENT_DATE)
-                         - interval '11 months')::date
+                         - make_interval(months => $2::int - 1))::date
          AND s.monat <= date_trunc('month', CURRENT_DATE)::date
          AND ($1::uuid IS NULL OR o.id = $1)
     )
@@ -1229,7 +1260,7 @@ async function ladeSollIst(
      GROUP BY monat
      ORDER BY monat
   `,
-    [objekt],
+    [objekt, monate],
   );
 
   return sollIstReihe(
@@ -1240,6 +1271,7 @@ async function ladeSollIst(
       ist: Number(z.ist),
     })),
     heute,
+    monate,
   );
 }
 

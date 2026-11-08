@@ -1,6 +1,8 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { ohneKommentare } from "./quelltext";
+import { ZEITRAEUME, liesMonate } from "../lib/kennzahlen";
 
 import {
   achsenstufen,
@@ -14,6 +16,7 @@ import {
   skala,
   stapel,
   ZIELBREITE,
+  beschriftungsschritt,
   zeichenbreite,
 } from "../lib/diagramm";
 
@@ -728,10 +731,13 @@ describe("Der Massstab haengt nicht mehr an der Datenmenge", () => {
 });
 
 describe("Die Diagramme skalieren ihre Schrift nicht hoch", () => {
-  const QUELLE = readFileSync(
+  const ROH = readFileSync(
     new URL("../components/Diagramm.tsx", import.meta.url),
     "utf8",
   );
+  // Ohne Kommentare: Die Begruendung, warum "use client" hier nicht
+  // steht, nennt die Zeichenkette selbst. Siehe tests/quelltext.ts.
+  const QUELLE = ohneKommentare(ROH);
 
   test("jede Zeichenflaeche hat eine Obergrenze in Pixeln", () => {
     /*
@@ -770,5 +776,148 @@ describe("Die Diagramme skalieren ihre Schrift nicht hoch", () => {
     );
     const n = (QUELLE.match(/zeichenbreite\(/g) ?? []).length;
     assert.equal(n, 3, `zeichenbreite() steht ${n}-mal statt 3-mal`);
+  });
+});
+
+/**
+ * Die Diagramme werden bedienbar.
+ *
+ * ANLASS (08.11.2026)
+ *
+ * Stephan: "Generell wuerde ich mir diese Diagramme auch klickbar und
+ * dynamischer wuenschen." Gewuenscht waren vier Dinge: Werte beim
+ * Ueberfahren, Reihen ein- und ausblenden, den Zeitraum umstellen, und
+ * vom Monat in die Liste springen.
+ *
+ * Drei davon stehen hier. Der nahe Weg waere gewesen, den Baukasten auf
+ * Clientkomponenten umzustellen -- das haette die Diagramme erst nach
+ * dem Laden des Skripts erscheinen lassen, die Beschriftungsfunktionen
+ * unmoeglich gemacht (Funktionen lassen sich nicht ueber die Grenze
+ * geben) und alle vier Zusagen des Baukastens neu zu beweisen verlangt.
+ * Stattdessen: echte Kontrollkaestchen, CSS :has() und die Adresszeile.
+ */
+describe("Die Beschriftung laeuft nicht mehr ineinander", () => {
+  test("bei viel Platz bekommt jede Spalte ihren Namen", () => {
+    assert.equal(beschriftungsschritt(88), 1);
+    assert.equal(beschriftungsschritt(40), 1);
+  });
+
+  test("bei wenig Platz wird ausgeduennt", () => {
+    // 36 Monate auf 1040 Einheiten: 28,9 je Spalte, noetig sind 40.
+    assert.equal(beschriftungsschritt(1040 / 36), 2);
+    // 60 Spalten: 17,3 je Spalte.
+    assert.equal(beschriftungsschritt(1040 / 60), 3);
+  });
+
+  test("der Schritt ist nie kleiner als eins", () => {
+    for (const a of [0, -5, 0.0001, NaN, Infinity]) {
+      const schritt = beschriftungsschritt(a);
+      assert.ok(
+        Number.isFinite(schritt) && schritt >= 1,
+        `Abstand ${a} ergab ${schritt}`,
+      );
+    }
+  });
+
+  test("ein unbrauchbarer Platzbedarf ergibt keine Ausduennung", () => {
+    // Lieber alles beschriften als nichts: Eine leere Achse sieht aus
+    // wie ein kaputtes Diagramm.
+    assert.equal(beschriftungsschritt(29, 0), 1);
+    assert.equal(beschriftungsschritt(29, NaN), 1);
+  });
+});
+
+describe("Der Zeitraum kommt aus der Adresszeile", () => {
+  test("die erlaubten Zeitraeume sind drei", () => {
+    // Jeder Wert ist eine eigene Abfrage ueber den ganzen
+    // Buchungsbestand. Ein freies Feld luede ein, 600 Monate
+    // einzutippen.
+    assert.deepEqual([...ZEITRAEUME], [12, 24, 36]);
+  });
+
+  test("ein erlaubter Wert wird uebernommen", () => {
+    assert.equal(liesMonate("24"), 24);
+    assert.equal(liesMonate("36"), 36);
+    assert.equal(liesMonate("12"), 12);
+  });
+
+  test("alles andere wird zu zwoelf", () => {
+    // Ein veralteter Verweis oder ein Tippfehler soll ein Cockpit
+    // ergeben, kein leeres Diagramm und keinen Fehler.
+    for (const roh of [undefined, "", "abc", "99", "0", "-24", "12.5", "1e3"]) {
+      assert.equal(liesMonate(roh), 12, String(roh));
+    }
+  });
+
+  test("ein doppelter Parameter nimmt den ersten", () => {
+    assert.equal(liesMonate(["24", "36"]), 24);
+    assert.equal(liesMonate([]), 12);
+  });
+});
+
+describe("Die Bedienung kommt ohne JavaScript aus", () => {
+  const ROH = readFileSync(
+    new URL("../components/Diagramm.tsx", import.meta.url),
+    "utf8",
+  );
+  // Ohne Kommentare: Die Begruendung, warum "use client" hier nicht
+  // steht, nennt die Zeichenkette selbst. Siehe tests/quelltext.ts.
+  const QUELLE = ohneKommentare(ROH);
+  const CSS = readFileSync(
+    new URL("../app/globals.css", import.meta.url),
+    "utf8",
+  );
+
+  test("der Baukasten bleibt serverseitig", () => {
+    /*
+      Die Zeile, an der alles haengt. Mit "use client" kaemen die
+      Diagramme erst nach dem Skript, und beschriftung={(w) => ...}
+      liesse sich nicht mehr von der Seite hereingeben -- Funktionen
+      ueberschreiten die Grenze nicht.
+    */
+    assert.ok(
+      !QUELLE.startsWith('"use client"'),
+      "Diagramm.tsx ist eine Clientkomponente geworden.",
+    );
+    for (const haken of ["useState", "useEffect", "onClick=", "onMouseOver="]) {
+      assert.ok(!QUELLE.includes(haken), `Diagramm.tsx benutzt ${haken}`);
+    }
+  });
+
+  test("die Legende schaltet mit echten Kontrollkaestchen", () => {
+    // Echte Kaestchen sind von selbst mit der Tastatur bedienbar und
+    // werden von der Vorlesesoftware als das angesagt, was sie sind.
+    assert.match(QUELLE, /<input type="checkbox" defaultChecked data-nr=\{i \+ 1\} \/>/);
+    assert.match(QUELLE, /data-schaltbar="ja"/);
+  });
+
+  test("CSS verbindet Kaestchen und Reihe", () => {
+    // Sechs feste Regeln, weil CSS zwei Merkmale nicht vergleichen kann.
+    const regeln = CSS.match(/input\[data-nr="\d"\]:not\(:checked\)\) svg \[data-nr="\d"\]/g) ?? [];
+    assert.equal(regeln.length, 6, `${regeln.length} statt 6 Regeln`);
+  });
+
+  test("die Gegenreihe traegt die naechste Nummer", () => {
+    /*
+      Die Ausgaben im Cashflow werden als Gegenreihe gezeichnet, stehen
+      aber als dritter Eintrag in der Legende. Ohne eigene Nummer waere
+      ihr Kaestchen ein Schalter, der nichts tut -- und das ist
+      schlimmer als keiner. Genau das war am 08.11.2026 der Fall.
+    */
+    assert.match(QUELLE, /data-nr=\{\(posten\[0\]\?\.teile\.length \?\? 0\) \+ 1\}/);
+  });
+
+  test("jede Saeule zeigt ihren Wert und ist mit der Tastatur erreichbar", () => {
+    assert.match(QUELLE, /className="diagramm-saeule"\n\s+tabIndex=\{0\}/);
+    assert.match(QUELLE, /className="diagramm-saeule" tabIndex=\{0\}/);
+    assert.match(QUELLE, /className="diagramm-wert"/);
+    // Ohne :focus-within sieht nur die Maus den Wert.
+    assert.match(CSS, /\.diagramm-saeule:focus-within \.diagramm-wert/);
+  });
+
+  test("der Zeigerhinweis bleibt trotzdem stehen", () => {
+    // Der sichtbare Wert ist eine Zahl; der <title> ist ein ganzer Satz
+    // und das, was die Vorlesesoftware liest.
+    assert.ok((QUELLE.match(/<title>/g) ?? []).length >= 4);
   });
 });
