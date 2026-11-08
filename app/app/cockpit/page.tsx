@@ -1,4 +1,5 @@
 import { ladeCockpit, spitze } from "@/lib/kennzahlen";
+import { objektSicht } from "@/lib/objektsicht";
 import { CockpitFristen } from "@/components/CockpitFristen";
 import { CockpitMonat } from "@/components/CockpitMonat";
 import { CockpitRueckstaende } from "@/components/CockpitRueckstaende";
@@ -56,7 +57,20 @@ export const dynamic = "force-dynamic";
  * dass jemand nachrechnet.
  */
 export default async function Cockpit() {
-  const d = await ladeCockpit();
+  /*
+    Das Cockpit zeigt ein Haus, wenn eines gewaehlt ist.
+
+    Stephan am 08.11.2026: "Die Gesamtschau interessiert in den wenigsten
+    Faellen. Ich behandle die Objekte gerne separat und interessiere mich
+    auch fuer jedes Objekt einzeln fuer die KPI, das Cockpit, Dashboard,
+    Cashflow." Drei Haeuser in einem Mandanten, und bis dahin ein
+    einziges Cockpit, das sie zusammenrechnete.
+
+    Gewaehlt wird im Kopf (components/ObjektWahl.tsx), gemerkt in einem
+    Cookie, geprueft in lib/objektsicht.ts. Hier wird nur gelesen.
+  */
+  const { gewaehlt } = await objektSicht();
+  const d = await ladeCockpit(new Date(), gewaehlt?.id ?? null);
 
   /**
    * Hat eine Abfrage geworfen?
@@ -82,9 +96,59 @@ export default async function Cockpit() {
   return (
     <>
       <div className="titelzeile">
-        <h1>Cockpit</h1>
+        {/* Der Name des Hauses steht in der Ueberschrift und nicht nur im
+            Umschalter oben: Wer einen Ausdruck oder ein Bildschirmfoto
+            weitergibt, muss darauf sehen koennen, wovon die Zahlen
+            handeln. Eine Zahl ohne Bezugsgroesse ist keine Auskunft. */}
+        <h1>{gewaehlt ? `Cockpit — ${gewaehlt.name}` : "Cockpit"}</h1>
         <span className="zaehler">Stand {datum(d.heute)}</span>
       </div>
+
+      {/* Was sich NICHT nach Objekt trennen laesst, steht hier einmal und
+          nicht an jeder einzelnen Karte.
+
+          Die Laeufe der Automatik gelten fuer den Mandanten: Einen
+          "Bankabruf des Hauses Westanlage" gibt es nicht. Dasselbe gilt
+          fuer die Freigabe des Mahnwesens -- ein Schalter fuer alles.
+
+          Das zu verschweigen waere der eigentliche Fehler: Unter der
+          Ueberschrift eines Hauses eine Zahl zu zeigen, die ein anderes
+          mitmeint, ist eine falsche Auskunft, auch wenn die Zahl
+          stimmt. */}
+      {/* Ein Satz sichtbar, der Rest aufklappbar.
+
+          Die Ausnahmen muessen dastehen -- unter der Ueberschrift eines
+          Hauses eine Zahl zu zeigen, die ein anderes mitmeint, ist eine
+          falsche Auskunft, auch wenn die Zahl stimmt. Aber vier Zeilen
+          Prosa ueber den Zahlen liest beim dritten Mal niemand mehr,
+          und dann steht dort eine Wand statt eines Hinweises.
+
+          Sichtbar bleibt der Satz, der jedes Mal gilt: Die Teile
+          summieren sich nicht ueberall zum Ganzen. Warum, erklaert sich
+          einmal. */}
+      {gewaehlt && (
+        <details className="erklaerung">
+          <summary>
+            Nicht alles lässt sich einem Haus zuordnen — die Objekte
+            summieren sich nicht überall zur Gesamtschau
+          </summary>
+          <p>
+            <strong>Automatik</strong> und die Freigabe des Mahnwesens
+            gelten für alle Objekte zusammen: Einen Bankabruf eines
+            einzelnen Hauses gibt es nicht.
+          </p>
+          <p>
+            Vorgänge und Fristen, die noch keinem Haus zugeordnet sind,
+            stehen in <em>jeder</em> Objektsicht. Sie gehören nicht einem
+            anderen Haus, sondern keinem — und blieben sonst unsichtbar.
+          </p>
+          <p>
+            Beim Cashflow zählen die Buchungen der Konten dieses Hauses.
+            Umsätze auf einem Konto ohne Objekt erscheinen hier nicht:
+            Sie einem Haus zuzuschlagen wäre geraten.
+          </p>
+        </details>
+      )}
 
       {/* Fehlgeschlagene Abfragen werden genannt, nicht verschwiegen: Eine
           Karte, die still eine Null zeigt, weil ihre Abfrage geworfen hat,

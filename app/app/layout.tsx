@@ -8,6 +8,8 @@ import { NaviBoden } from "@/components/NaviBoden";
 import { angemeldeteSitzung } from "@/lib/anmeldung";
 import { zugaengeFuer } from "@/lib/zugang";
 import { MandantWahl } from "@/components/MandantWahl";
+import { ObjektWahl } from "@/components/ObjektWahl";
+import { objektSicht } from "@/lib/objektsicht";
 
 /**
  * Titel und Beschreibung stehen im Browsertab, im Lesezeichen und in der
@@ -133,6 +135,19 @@ export default async function RootLayout({
   const aktiv = zugaenge.find((z) => z.mandant === sitzung?.mandant) ?? null;
 
   /*
+    Die Objektsicht steht neben dem Mandanten, weil beide dieselbe Frage
+    auf zwei Ebenen beantworten: wessen Zahlen, und von welchem Haus.
+
+    Ein Mieterzugang waehlt nichts -- er sieht genau eine Wohnung. Und
+    ohne Anmeldung gibt es nichts zu lesen; objektSicht() fragt die
+    Datenbank, und die Zeilensicherheit braucht eine Sitzung.
+  */
+  const sicht =
+    sitzung && sitzung.rolle !== "mieter"
+      ? await objektSicht().catch(() => ({ objekte: [], gewaehlt: null }))
+      : { objekte: [], gewaehlt: null };
+
+  /*
     Das Schaufenster unter /willkommen trägt dasselbe Gerüst, aber ein
     anderes Maß: keine Navigationsschiene an der Seite, keine
     Spaltenbreite, volle Seite.
@@ -175,6 +190,7 @@ export default async function RootLayout({
                 kuerzel: z.kuerzel,
               }))}
             />
+            <ObjektWahl objekte={sicht.objekte} gewaehlt={sicht.gewaehlt} />
             <Navi benutzer={benutzer} />
           </div>
         </header>

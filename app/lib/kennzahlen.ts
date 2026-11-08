@@ -539,13 +539,20 @@ async function behutsam<T>(
   }
 }
 
-async function ladeFristen(heute: Date): Promise<FristLage[]> {
-  const zeilen = await query<FristZeile>(`
+async function ladeFristen(heute: Date, objekt: string | null): Promise<FristLage[]> {
+  const zeilen = await query<FristZeile>(
+    `
     SELECT bezeichnung, faellig_am::text, grundlage, betrag::text, haengt_an
       FROM frist
      WHERE erledigt_am IS NULL
+       -- Eine Frist ohne Objekt gilt fuer den ganzen Mandanten (etwa eine
+       -- Steuererklaerung). Sie bleibt also auch in der Objektsicht
+       -- stehen: Sie betrifft dieses Haus mit.
+       AND ($1::uuid IS NULL OR objekt_id = $1 OR objekt_id IS NULL)
      ORDER BY faellig_am
-  `);
+  `,
+    [objekt],
+  );
   return fristenLage(zeilen, heute);
 }
 
@@ -562,8 +569,12 @@ interface MonatsZeile extends StandZeile {
  * gehoert dazu: Solange gar keine Umsaetze eingelesen sind, ist JEDER Monat
  * unabgeglichen und nicht offen.
  */
-async function ladeMonat(heute: Date): Promise<{ monat: string; geld: MonatsGeld }> {
-  const zeilen = await query<MonatsZeile>(`
+async function ladeMonat(
+  heute: Date,
+  objekt: string | null,
+): Promise<{ monat: string; geld: MonatsGeld }> {
+  const zeilen = await query<MonatsZeile>(
+    `
     SELECT s.mietverhaeltnis_id,
            s.monat::text,
            s.betrag::text  AS soll,
@@ -585,7 +596,10 @@ async function ladeMonat(heute: Date): Promise<{ monat: string; geld: MonatsGeld
              GROUP BY zz.sollstellung_id
       ) z ON z.sollstellung_id = s.id
      WHERE s.monat = date_trunc('month', CURRENT_DATE)::date
-  `);
+       AND ($1::uuid IS NULL OR o.id = $1)
+  `,
+    [objekt],
+  );
 
   const posten: MonatsPosten[] = zeilen.map((z) => {
     const [j, m] = z.monat.split("-").map(Number);
@@ -601,27 +615,48 @@ async function ladeMonat(heute: Date): Promise<{ monat: string; geld: MonatsGeld
   return { monat: monatsErster(heute), geld: monatsGeld(posten) };
 }
 
-async function ladeCashflow(heute: Date): Promise<CashflowBalken[]> {
+/**
+ * Der Cashflow -- und warum er ueber das Konto gefiltert wird.
+ *
+ * Eine Buchung haengt an einem Konto, und das Konto an einem Objekt
+ * (konto.objekt_id). Das ist der einzige belastbare Weg: Ueber die
+ * Zuordnung kaeme man nur an die Mieteingaenge heran, nie an die
+ * Ausgaben -- und ein Cashflow ohne Ausgaben ist kein Cashflow.
+ *
+ * Buchungen auf einem Konto ohne Objekt (etwa ein gemeinsames
+ * Geschaeftskonto) erscheinen in der Objektsicht NICHT. Sie einem Haus
+ * zuzuschlagen waere geraten; sie stillschweigend mitzuzaehlen hiesse,
+ * unter der Ueberschrift eines Hauses das Geld eines anderen zu zeigen.
+ */
+async function ladeCashflow(
+  heute: Date,
+  objekt: string | null,
+): Promise<CashflowBalken[]> {
   const zeilen = await query<{
     monat: string;
     ein: number;
     aus: number;
     miete: number;
-  }>(`
+  }>(
+    `
     SELECT to_char(date_trunc('month', b.buchungstag), 'YYYY-MM') AS monat,
            SUM(CASE WHEN b.betrag > 0 THEN  b.betrag ELSE 0 END)::float8 AS ein,
            SUM(CASE WHEN b.betrag < 0 THEN -b.betrag ELSE 0 END)::float8 AS aus,
            SUM(CASE WHEN b.betrag > 0 THEN COALESCE(z.zu, 0) ELSE 0 END)::float8
                                                                    AS miete
       FROM buchung b
+      JOIN konto k ON k.id = b.konto_id
       LEFT JOIN (
             SELECT buchung_id, SUM(betrag) AS zu FROM zuordnung GROUP BY buchung_id
       ) z ON z.buchung_id = b.id
      WHERE b.buchungstag >= (date_trunc('month', CURRENT_DATE)
                              - interval '11 months')::date
+       AND ($1::uuid IS NULL OR k.objekt_id = $1)
      GROUP BY 1
      ORDER BY 1
-  `);
+  `,
+    [objekt],
+  );
   return cashflowReihe(zeilen, heute);
 }
 
@@ -693,17 +728,22 @@ export function teileEingaenge(
   };
 }
 
-async function ladeUnzugeordnet(): Promise<UnzugeordnetLage> {
+async function ladeUnzugeordnet(objekt: string | null): Promise<UnzugeordnetLage> {
   const [zeilen, grenze] = await Promise.all([
-    query<{ rest: number }>(`
+    query<{ rest: number }>(
+      `
       SELECT (b.betrag - COALESCE(z.zu, 0))::float8 AS rest
         FROM buchung b
+        JOIN konto k ON k.id = b.konto_id
         LEFT JOIN (
               SELECT buchung_id, SUM(betrag) AS zu FROM zuordnung GROUP BY buchung_id
         ) z ON z.buchung_id = b.id
        WHERE b.betrag > 0
          AND b.betrag > COALESCE(z.zu, 0)
-    `),
+         AND ($1::uuid IS NULL OR k.objekt_id = $1)
+    `,
+      [objekt],
+    ),
     hoechsteMonatsmiete(),
   ]);
   return teileEingaenge(
@@ -770,28 +810,65 @@ const LEER_RUECKSTAND: RueckstandsLage = {
  * Gezaehlt wird in der Datenbank, nicht in der Komponente: Die Liste
  * holt hoechstens 50 Vorgaenge, die Zahl muss alle meinen.
  */
-async function ladeFreigabestand(): Promise<{
+/**
+ * Entwuerfe und unbeantwortete Vorgaenge.
+ *
+ * Ein Vorgang kann an einem Objekt haengen (vorgang.objekt_id), muss
+ * aber nicht -- eine Steuerfrage haengt an keinem Haus. Beim Filtern
+ * bleiben solche Vorgaenge drin, aus demselben Grund wie bei den
+ * Fristen: Sie sind nicht einem anderen Haus zugeordnet, sondern gar
+ * keinem, und damit auch die Sache dieses Hauses.
+ */
+async function ladeFreigabestand(objekt: string | null): Promise<{
   entwuerfe: number;
   unbeantwortet: number;
 }> {
   const [e, u] = await Promise.all([
     query<{ n: number }>(
-      `SELECT count(*)::int AS n FROM nachricht WHERE status = 'entwurf'`,
+      `SELECT count(*)::int AS n
+         FROM nachricht n
+         JOIN vorgang v ON v.id = n.vorgang_id
+        WHERE n.status = 'entwurf'
+          AND ($1::uuid IS NULL OR v.objekt_id = $1 OR v.objekt_id IS NULL)`,
+      [objekt],
     ),
     query<{ n: number }>(
       `SELECT count(*)::int AS n
          FROM vorgang v
         WHERE v.status = 'offen'
+          AND ($1::uuid IS NULL OR v.objekt_id = $1 OR v.objekt_id IS NULL)
           AND NOT EXISTS (
             SELECT 1 FROM nachricht n
              WHERE n.vorgang_id = v.id
                AND n.status IN ('entwurf','gesendet'))`,
+      [objekt],
     ),
   ]);
   return { entwuerfe: e[0]?.n ?? 0, unbeantwortet: u[0]?.n ?? 0 };
 }
 
-export async function ladeCockpit(heute = new Date()): Promise<CockpitDaten> {
+/**
+ * Alle Zahlen des Cockpits -- fuer ein Objekt oder fuer alle.
+ *
+ * `objekt` ist die Kennung des betrachteten Hauses oder null fuer die
+ * Gesamtschau (lib/objektsicht.ts). Jede Abfrage traegt denselben
+ * Platzhalter: ($1::uuid IS NULL OR ... = $1). Eine Fassung statt zwei --
+ * zwei Fassungen derselben Abfrage laufen auseinander, und dann zeigt
+ * die Gesamtschau etwas anderes als die Summe ihrer Teile.
+ *
+ * Was NICHT nach Objekt getrennt wird, und warum:
+ *   - Die Laeufe der Automatik. Der Nachtlauf laeuft fuer den Mandanten,
+ *     nicht fuer ein Haus. Ein "Bankabruf des Hauses Westanlage" gibt es
+ *     nicht.
+ *   - Die Freigabe des Mahnwesens. Ein Schalter fuer den ganzen Mandanten.
+ * Beides steht im Cockpit darum mit dem Hinweis, dass es fuer alle
+ * Objekte gilt -- unter der Ueberschrift eines Hauses eine Zahl zu
+ * zeigen, die ein anderes mitmeint, waere eine falsche Auskunft.
+ */
+export async function ladeCockpit(
+  heute = new Date(),
+  objekt: string | null = null,
+): Promise<CockpitDaten> {
   const [
     fristen,
     monat,
@@ -805,8 +882,8 @@ export async function ladeCockpit(heute = new Date()): Promise<CockpitDaten> {
     unzugeordnet,
     freigaben,
   ] = await Promise.all([
-    behutsam("Fristen", () => ladeFristen(heute), [] as FristLage[]),
-    behutsam("Laufender Monat", () => ladeMonat(heute), {
+    behutsam("Fristen", () => ladeFristen(heute, objekt), [] as FristLage[]),
+    behutsam("Laufender Monat", () => ladeMonat(heute, objekt), {
       monat: monatsErster(heute),
       geld: LEER_MONAT,
     }),
@@ -817,7 +894,7 @@ export async function ladeCockpit(heute = new Date()): Promise<CockpitDaten> {
       "Rückstände",
       async () => {
         const zurueck = await zurueckgestellteIds(heute);
-        return (await mahnstand(heute)).filter(
+        return (await mahnstand(heute, objekt)).filter(
           (r) => !zurueck.has(r.mietverhaeltnis_id),
         );
       },
@@ -826,15 +903,16 @@ export async function ladeCockpit(heute = new Date()): Promise<CockpitDaten> {
     behutsam("Mahnfreigabe", freigabe, null),
     behutsam<{ stand: string; einheiten: EinheitLage[] }>(
       "Leerstand",
-      verfuegbarkeit,
+      () => verfuegbarkeit(objekt),
       { stand: isoTag(heute), einheiten: [] },
     ),
-    behutsam("Cashflow", () => ladeCashflow(heute), [] as CashflowBalken[]),
-    behutsam("Soll/Ist-Verlauf", () => ladeSollIst(heute), [] as SollIstPunkt[]),
-    behutsam("Mietstruktur", ladeMietstruktur, LEER_MIETSTRUKTUR),
+    behutsam("Cashflow", () => ladeCashflow(heute, objekt), [] as CashflowBalken[]),
+    behutsam("Soll/Ist-Verlauf", () => ladeSollIst(heute, objekt), [] as SollIstPunkt[]),
+    behutsam("Mietstruktur", () => ladeMietstruktur(objekt), LEER_MIETSTRUKTUR),
+    // Die Laeufe gelten fuer den Mandanten, nicht fuer ein Haus.
     behutsam("Läufe", ladeLaeufe, [] as LaufZeile[]),
-    behutsam("Zahlungseingänge", ladeUnzugeordnet, teileEingaenge([], 0)),
-    behutsam("Freigaben", ladeFreigabestand, { entwuerfe: 0, unbeantwortet: 0 }),
+    behutsam("Zahlungseingänge", () => ladeUnzugeordnet(objekt), teileEingaenge([], 0)),
+    behutsam("Freigaben", () => ladeFreigabestand(objekt), { entwuerfe: 0, unbeantwortet: 0 }),
   ]);
 
   return {
@@ -1109,13 +1187,17 @@ export function sollIstLage(reihe: SollIstPunkt[], schwelle = 1): SollIstLage {
  * Sie wird nicht nachgebaut, sondern uebernommen -- zwei Fassungen davon
  * laufen auseinander, und dann mahnt die eine, was die andere entschuldigt.
  */
-async function ladeSollIst(heute: Date): Promise<SollIstPunkt[]> {
+async function ladeSollIst(
+  heute: Date,
+  objekt: string | null,
+): Promise<SollIstPunkt[]> {
   const zeilen = await query<{
     monat: string;
     soll: number;
     soll_ohne_daten: number;
     ist: number;
-  }>(`
+  }>(
+    `
     WITH posten AS (
       SELECT to_char(s.monat, 'YYYY-MM')   AS monat,
              s.betrag::float8              AS soll,
@@ -1135,6 +1217,7 @@ async function ladeSollIst(heute: Date): Promise<SollIstPunkt[]> {
        WHERE s.monat >= (date_trunc('month', CURRENT_DATE)
                          - interval '11 months')::date
          AND s.monat <= date_trunc('month', CURRENT_DATE)::date
+         AND ($1::uuid IS NULL OR o.id = $1)
     )
     SELECT monat,
            SUM(soll)::float8 AS soll,
@@ -1145,7 +1228,9 @@ async function ladeSollIst(heute: Date): Promise<SollIstPunkt[]> {
       FROM posten
      GROUP BY monat
      ORDER BY monat
-  `);
+  `,
+    [objekt],
+  );
 
   return sollIstReihe(
     zeilen.map((z) => ({
@@ -1394,7 +1479,7 @@ export const LEER_MIETSTRUKTUR: Mietstruktur = {
  * Spalten kommen erst aus db/017, und dieselbe Vorsicht steht schon in
  * lib/rueckstaende.ts.
  */
-async function ladeMietstruktur(): Promise<Mietstruktur> {
+async function ladeMietstruktur(objekt: string | null): Promise<Mietstruktur> {
   const zeilen = await query<{
     mietverhaeltnis_id: string;
     monat: string;
@@ -1402,11 +1487,19 @@ async function ladeMietstruktur(): Promise<Mietstruktur> {
     kaltmiete: number | null;
     nebenkosten: number | null;
     vertragssumme: number | null;
-  }>(`
+  }>(
+    `
     WITH ziel AS (
-      SELECT MAX(monat) AS monat
-        FROM sollstellung
-       WHERE monat <= date_trunc('month', CURRENT_DATE)::date
+      /* Der Zielmonat wird im Ausschnitt gesucht, nicht im Ganzen: Sonst
+         koennte ein Haus, fuer das der Nachtlauf schon gestellt hat,
+         den Monat eines anderen bestimmen -- und dessen Karte waere
+         leer, obwohl Sollstellungen vorliegen. */
+      SELECT MAX(s2.monat) AS monat
+        FROM sollstellung s2
+        JOIN mietverhaeltnis mv2 ON mv2.id = s2.mietverhaeltnis_id
+        JOIN einheit e2 ON e2.id = mv2.einheit_id
+       WHERE s2.monat <= date_trunc('month', CURRENT_DATE)::date
+         AND ($1::uuid IS NULL OR e2.objekt_id = $1)
     )
     SELECT s.mietverhaeltnis_id,
            to_char(s.monat, 'YYYY-MM') AS monat,
@@ -1417,6 +1510,7 @@ async function ladeMietstruktur(): Promise<Mietstruktur> {
       FROM sollstellung s
       JOIN ziel ON ziel.monat = s.monat
       JOIN mietverhaeltnis mv ON mv.id = s.mietverhaeltnis_id
+      JOIN einheit e ON e.id = mv.einheit_id
       CROSS JOIN LATERAL (
         SELECT p.kaltmiete,
                p.nebenkosten,
@@ -1449,8 +1543,11 @@ async function ladeMietstruktur(): Promise<Mietstruktur> {
           ) p
       ) v
      WHERE s.betrag > 0
+       AND ($1::uuid IS NULL OR e.objekt_id = $1)
      ORDER BY s.betrag DESC
-  `);
+  `,
+    [objekt],
+  );
 
   return mietstruktur(
     zeilen.map((z) => ({

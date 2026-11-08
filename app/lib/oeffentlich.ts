@@ -157,7 +157,17 @@ export function leiteStatusAb(
   return { status, freiAb, hinweis };
 }
 
-export async function verfuegbarkeit(): Promise<{
+/**
+ * Die Belegungslage -- fuer ein Objekt oder fuer alle.
+ *
+ * `objekt` ist freiwillig und null die Vorgabe: Dieselbe Funktion
+ * beantwortet die oeffentliche Verfuegbarkeitsabfrage der Website (dort
+ * ueber alle Objekte) und den Leerstand im Cockpit (dort ggf. fuer ein
+ * Haus). Eine zweite, fast gleiche Abfrage daneben waere genau die Art
+ * Dopplung, bei der spaeter die Website ein Zimmer anbietet, das das
+ * Cockpit als belegt fuehrt.
+ */
+export async function verfuegbarkeit(objekt: string | null = null): Promise<{
   stand: string;
   einheiten: OeffentlicheEinheit[];
 }> {
@@ -233,7 +243,10 @@ export async function verfuegbarkeit(): Promise<{
         -- wuerde dasselbe Angebot doppelt zaehlen. Sie wirkt ueber
         -- eltern_id weiter, nur eben nicht als eigene Karte.
         AND NOT EXISTS (SELECT 1 FROM einheit kind WHERE kind.eltern_id = e.id)
+
+        AND ($1::uuid IS NULL OR o.id = $1)
       ORDER BY o.name, e.etage NULLS FIRST, e.bezeichnung`,
+    [objekt],
   );
 
   const heute = new Date();

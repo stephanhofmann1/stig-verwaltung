@@ -57,8 +57,9 @@ async function monatsmieten(): Promise<Map<string, number>> {
  * und die Zeile dann aus dem Ergebnis fiele -- es wäre also genau der
  * ungedeckte Fall, der verschwindet.
  */
-async function offenePosten(): Promise<OffenerPosten[]> {
-  return query<OffenerPosten>(`
+async function offenePosten(objekt: string | null): Promise<OffenerPosten[]> {
+  return query<OffenerPosten>(
+    `
     SELECT s.mietverhaeltnis_id,
            k.anzeigename                AS kontakt_name,
            COALESCE(e.schluessel, e.bezeichnung) AS einheit,
@@ -79,8 +80,11 @@ async function offenePosten(): Promise<OffenerPosten[]> {
              GROUP BY sollstellung_id
       ) z ON z.sollstellung_id = s.id
      WHERE s.betrag > 0
+       AND ($1::uuid IS NULL OR o.id = $1)
      ORDER BY k.anzeigename, s.monat
-  `);
+  `,
+    [objekt],
+  );
 }
 
 /**
@@ -105,7 +109,21 @@ export async function hoechsteMonatsmiete(): Promise<number> {
   return hoch;
 }
 
-export async function mahnstand(heute = new Date()): Promise<Rueckstand[]> {
-  const [posten, mieten] = await Promise.all([offenePosten(), monatsmieten()]);
+/**
+ * Der Mahnstand -- fuer ein Objekt oder fuer alle.
+ *
+ * `objekt` null heisst Gesamtschau (lib/objektsicht.ts). Gefiltert wird
+ * nur bei den offenen Posten: `monatsmieten()` liefert eine Zuordnung
+ * Mietverhaeltnis -> Monatsmiete, aus der nur gelesen wird, was in den
+ * Posten vorkommt. Eine zweite Filterung waere Arbeit ohne Wirkung.
+ */
+export async function mahnstand(
+  heute = new Date(),
+  objekt: string | null = null,
+): Promise<Rueckstand[]> {
+  const [posten, mieten] = await Promise.all([
+    offenePosten(objekt),
+    monatsmieten(),
+  ]);
   return rueckstaende(posten, mieten, heute);
 }
