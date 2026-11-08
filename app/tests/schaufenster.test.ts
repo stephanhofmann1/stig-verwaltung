@@ -375,9 +375,76 @@ describe("Das Schaufenster kennt den Angemeldeten", () => {
   });
 
   test("der Kopf wird auf jedem anderen Weg entfernt", () => {
-    // Sonst koennte ihn jemand von aussen mitschicken. Dasselbe gilt
-    // schon fuer x-schaufenster.
+    // Sonst koennte ihn jemand von aussen mitschicken.
     assert.match(PROXY, /kopfzeilen\.delete\("x-angemeldet"\)/);
+  });
+
+  /*
+    DAS GRUNDGERUEST DARF NICHT AUS EINEM ANFRAGEKOPF KOMMEN (08.11.2026)
+
+    Das Schaufenster traegt ein anderes Geruest als die Arbeitsflaeche:
+    keine Navigationsschiene, keine Spaltenbreite, volle Seite.
+    Geschaltet wurde das ueber ein data-seite="schaufenster" am <body>,
+    das app/layout.tsx aus einem Anfragekopf von proxy.ts setzte.
+
+    Der Fehler daran ist nicht der Kopf, sondern der Ort: Ein
+    Wurzel-Layout rendert genau einmal, beim Laden der Seite. Bei einem
+    Wechsel im Browser rendert Next nur die Seite darunter neu. Wer vom
+    Schaufenster auf "Zur Verwaltung" klickte, nahm das Merkmal also mit
+    in die Verwaltung -- die Navigationsschiene blieb aus, das Menue
+    stand quer ueber der Seite, und keine Menueauswahl half. Erst ein
+    Neuladen im Browser raeumte es weg, weil dann das Layout neu
+    entsteht. Stephan ist am 08.11.2026 genau so darauf gestossen.
+
+    Jetzt fragt app/schaufenster.css den Baum: body:has(.schaufenster).
+    Das gilt nach jedem Wechsel. Die drei Pruefungen hier halten die
+    Kette zusammen -- die Regel, den fehlenden Umweg und, am wichtigsten,
+    dass die Seite den Haken ueberhaupt traegt.
+  */
+  describe("das Grundgeruest haengt an der Seite, nicht an der Anfrage", () => {
+    const CSS = readFileSync(join(HIER, "../app/schaufenster.css"), "utf8");
+    const LAYOUT = readFileSync(join(HIER, "../app/layout.tsx"), "utf8");
+
+    test("die Regeln haengen an body:has(.schaufenster)", () => {
+      assert.match(CSS, /body:has\(\.schaufenster\) \.rahmen \{/);
+      assert.doesNotMatch(
+        CSS,
+        /body\[data-seite=/,
+        "Ein Merkmal am <body> kann nur das Wurzel-Layout setzen -- und " +
+          "das rendert nur beim Laden der Seite, nicht beim Wechsel.",
+      );
+    });
+
+    test("das Wurzel-Layout entscheidet nichts ueber das Geruest", () => {
+      assert.doesNotMatch(
+        LAYOUT,
+        /<body[^>]+data-seite/,
+        "Das Wurzel-Layout rendert einmal; was es an den <body> schreibt, " +
+          "bleibt beim Seitenwechsel stehen.",
+      );
+      assert.doesNotMatch(LAYOUT, /x-schaufenster/);
+      assert.doesNotMatch(
+        PROXY,
+        /kopfzeilen\.set\("x-schaufenster"/,
+        "Der Kopf wird nicht mehr gelesen; ihn weiter zu setzen waere " +
+          "eine zweite, tote Quelle fuer dieselbe Entscheidung.",
+      );
+    });
+
+    test("die Seite traegt den Haken, an dem die Regeln haengen", () => {
+      /*
+        Die eigentliche Kopplung. Faellt diese Klasse weg oder wird sie
+        umbenannt, greift keine einzige Regel in schaufenster.css mehr --
+        und zwar lautlos: Die Seite erscheint dann in der Spaltenbreite
+        der Arbeitsflaeche, mit Navigationsschiene. Kein Fehler, kein
+        Absturz, nur eine falsche Seite.
+      */
+      assert.match(
+        SEITE,
+        /<div className="schaufenster">/,
+        "app/schaufenster.css haengt an genau dieser Klasse.",
+      );
+    });
   });
 
   test("Angemeldete sehen den Weg ins Cockpit, nicht zur Anmeldung", () => {

@@ -41,19 +41,35 @@
    nichts zu navigieren, und die Baender sollen ueber die volle Breite
    laufen.
 
-   Geschaltet wird ueber body[data-seite="schaufenster"], gesetzt in
-   app/layout.tsx aus einem Anfragekopf, den proxy.ts mitgibt. Die
-   hoehere Spezifitaet dieser Regeln ist Absicht -- diese Datei wird per
-   @import VOR globals.css eingebunden und kaeme sonst nicht dagegen an. */
+   Geschaltet wird ueber body:has(.schaufenster) -- also daran, dass die
+   Schaufensterseite selbst gerendert ist. Die hoehere Spezifitaet dieser
+   Regeln ist Absicht: Diese Datei wird per @import VOR globals.css
+   eingebunden und kaeme sonst nicht dagegen an.
 
-body[data-seite="schaufenster"] .rahmen {
+   WARUM NICHT MEHR UEBER EIN MERKMAL AM BODY (geaendert 08.11.2026)
+
+   Vorher stand hier ein Merkmal am body, data-seite. Es setzte
+   app/layout.tsx aus einem Anfragekopf von proxy.ts. Das Wurzel-Layout
+   wird aber genau einmal gerendert, beim Laden der Seite -- bei einem
+   Wechsel im Browser (Link, Zurueck-Taste) rendert Next nur die Seite
+   darunter neu. Wer vom Schaufenster auf "Zur Verwaltung" klickte, nahm
+   das Merkmal also mit in die Verwaltung: Die Navigationsschiene blieb
+   aus, das Menue stand quer ueber der Seite, und keine Menueauswahl half
+   -- erst ein Neuladen im Browser, weil dann das Layout neu entsteht.
+
+   Ein Anfragekopf beschreibt die Anfrage, nicht den Zustand der Seite.
+   Sobald beides auseinanderlaufen kann, ist es die falsche Quelle. Der
+   Selektor hier fragt den Baum und liegt damit immer richtig, ohne
+   Anfragekopf, ohne Merkmal und ohne JavaScript. */
+
+body:has(.schaufenster) .rahmen {
   max-width: none;
   margin: 0;
   padding: 0;
 }
 
 @media (min-width: 1100px) {
-  body[data-seite="schaufenster"] .kopf {
+  body:has(.schaufenster) .kopf {
     position: sticky;
     inset: auto;
     top: 0;
@@ -63,7 +79,7 @@ body[data-seite="schaufenster"] .rahmen {
     overflow: visible;
     backdrop-filter: saturate(140%) blur(8px);
   }
-  body[data-seite="schaufenster"] .kopf-innen {
+  body:has(.schaufenster) .kopf-innen {
     max-width: 76rem;
     margin: 0 auto;
     min-height: var(--kopf-hoehe);
@@ -75,10 +91,10 @@ body[data-seite="schaufenster"] .rahmen {
   /* In der Schiene traegt die Wortmarke die Groesse einer Ueberschrift.
      In einer Kopfzeile waere das zu viel -- dort ist sie Absender, nicht
      Titel. */
-  body[data-seite="schaufenster"] .marke {
+  body:has(.schaufenster) .marke {
     font-size: var(--t-grund);
   }
-  body[data-seite="schaufenster"] .rahmen {
+  body:has(.schaufenster) .rahmen {
     margin-left: 0;
   }
 }
