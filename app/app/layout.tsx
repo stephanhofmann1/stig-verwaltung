@@ -5,7 +5,6 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Navi } from "@/components/Navi";
 import { NaviBoden } from "@/components/NaviBoden";
-import { headers } from "next/headers";
 import { angemeldeteSitzung } from "@/lib/anmeldung";
 import { zugaengeFuer } from "@/lib/zugang";
 import { MandantWahl } from "@/components/MandantWahl";
@@ -136,16 +135,21 @@ export default async function RootLayout({
   /*
     Das Schaufenster unter /willkommen trägt dasselbe Gerüst, aber ein
     anderes Maß: keine Navigationsschiene an der Seite, keine
-    Spaltenbreite, volle Seite. Den Pfad kennt eine Server-Komponente
-    nicht; proxy.ts gibt ihn als Anfragekopf mit. Was daraus folgt,
-    steht als Regelsatz in app/schaufenster.css -- hier wird nur
-    geschaltet.
+    Spaltenbreite, volle Seite.
+
+    Hier steht dafür nichts mehr. Bis zum 08.11.2026 setzte diese Datei
+    ein data-seite="schaufenster" an den <body>, aus einem Anfragekopf
+    von proxy.ts. Das war falsch am Ort: Ein Wurzel-Layout rendert genau
+    einmal, beim Laden der Seite. Wer vom Schaufenster in die Verwaltung
+    klickte, nahm das Merkmal mit -- die Navigationsschiene blieb aus,
+    bis man neu lud. app/schaufenster.css fragt jetzt selbst, ob die
+    Schaufensterseite im Baum steht (body:has(.schaufenster)); das gilt
+    nach jedem Wechsel, nicht nur nach dem ersten.
   */
-  const schaufenster = (await headers()).get("x-schaufenster") === "ja";
 
   return (
     <html lang="de">
-      <body data-seite={schaufenster ? "schaufenster" : undefined}>
+      <body>
         {/*
           Die Kopfzeile ist eine Reihe aus vier Dingen, nicht aus zwei.
 

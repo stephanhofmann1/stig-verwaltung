@@ -122,20 +122,18 @@ export function proxy(req: NextRequest) {
 
   if (OFFEN.some((p) => pfad === p || pfad.startsWith(p))) {
     /*
-      Das Schaufenster bekommt ein anderes Grundgerüst als die
-      Arbeitsfläche: keine Navigationsschiene, keine Spaltenbreite,
-      volle Seite. Das Layout ist eine Server-Komponente und kennt den
-      Pfad nicht von sich aus -- Next bietet dafür keine Schnittstelle.
-      Es über einen Anfragekopf mitzugeben, ist der vorgesehene Weg.
+      Hier stand bis zum 08.11.2026 zusätzlich ein x-schaufenster, aus
+      dem app/layout.tsx das Grundgerüst der Seite ableitete. Das ist
+      entfallen: Ein Wurzel-Layout rendert nur beim Laden der Seite, das
+      Merkmal blieb also beim Wechsel in die Verwaltung stehen.
+      app/schaufenster.css erkennt die Schaufensterseite jetzt im Baum.
 
-      Nur hier gesetzt, nicht im Browser lesbar und ohne Wirkung auf
-      irgendetwas anderes: Wer den Kopf von außen mitschickt, erreicht
-      damit nichts, denn für jeden anderen Pfad wird er unten
-      überschrieben.
+      x-angemeldet bleibt. Es entscheidet nur über eine Beschriftung auf
+      genau dieser Seite und wird mit ihr zusammen gerendert -- es kann
+      nicht veralten wie ein Merkmal am Grundgerüst.
     */
     if (pfad === "/willkommen") {
       const kopfzeilen = new Headers(req.headers);
-      kopfzeilen.set("x-schaufenster", "ja");
       /*
         Ob jemand angemeldet ist, entscheidet nur über eine Beschriftung:
         "Zur Verwaltung" statt "Anmelden". Die Auskunft kommt von hier
@@ -151,7 +149,6 @@ export function proxy(req: NextRequest) {
       return NextResponse.next({ request: { headers: kopfzeilen } });
     }
     const kopfzeilen = new Headers(req.headers);
-    kopfzeilen.delete("x-schaufenster");
     kopfzeilen.delete("x-angemeldet");
     return NextResponse.next({ request: { headers: kopfzeilen } });
   }
@@ -205,13 +202,13 @@ export function proxy(req: NextRequest) {
   }
 
   /*
-    Auch auf dem geschützten Weg wird der Kopf entfernt. Sonst könnte
-    ihn jemand von außen mitschicken und bekäme die Verwaltung ohne
-    Navigation zu sehen -- harmlos, aber verwirrend, und eine Zusage,
-    die hier niemand gemacht hat.
+    Auf dem geschützten Weg wird x-angemeldet entfernt. Sonst könnte es
+    jemand von außen mitschicken; es entscheidet zwar nur über eine
+    Beschriftung, aber ein Kopf, den der Browser setzen darf, ist keine
+    Auskunft, auf die sich etwas stützen sollte.
   */
   const kopfzeilen = new Headers(req.headers);
-  kopfzeilen.delete("x-schaufenster");
+  kopfzeilen.delete("x-angemeldet");
   return NextResponse.next({ request: { headers: kopfzeilen } });
 }
 
