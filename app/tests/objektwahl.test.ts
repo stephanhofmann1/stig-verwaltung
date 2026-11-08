@@ -294,6 +294,8 @@ describe("Die Seiten folgen dem Objekt", () => {
     ["konten", "Konten"],
     ["ablage", "Ablage"],
     ["mietenbuch", "Mietenbuch"],
+    ["stammdaten", "Einheiten und Mietverhältnisse"],
+    ["vorgaenge", "Vorgänge"],
   ] as const) {
     test(`/${pfad} liest die Objektwahl und nennt das Haus`, () => {
       const q = seite(pfad);
@@ -302,6 +304,31 @@ describe("Die Seiten folgen dem Objekt", () => {
         q.includes(`${ueberschrift} — $`),
         `/${pfad} nennt das Haus nicht in der Ueberschrift`,
       );
+      /*
+        Und die Wahl muss auch etwas bewirken. Ohne diese Zeile blieb
+        eine Mutationsprobe am 08.11.2026 gruen, die den Filter aus der
+        Einheitenliste entfernt hat: Die Ueberschrift nannte das Haus,
+        die Liste zeigte alle. Eine Ueberschrift, die mehr behauptet als
+        die Daten darunter, ist schlimmer als keine.
+
+        Zwei Seiten filtern nicht im eigenen SQL, und das ist richtig
+        so: /mahnwesen geht ueber mahnstand(heute, objekt) -- die
+        Abfrage steht in lib/rueckstaende.ts und wird dort geprueft.
+        /mietenbuch laedt bewusst das ganze Buch und filtert danach im
+        Speicher, weil die Angabe "X von Y Einheiten" das Y braucht.
+      */
+      if (pfad === "mahnwesen") {
+        assert.match(q, /mahnstand\(heute, gewaehlt\?\.id \?\? null\)/);
+      } else if (pfad === "mietenbuch") {
+        assert.match(q, /objekt: gewaehltesHaus\?\.id \?\? null/);
+        assert.match(q, /filterRaster\(alles, filter\)/);
+      } else {
+        assert.match(
+          q,
+          /\$\d::uuid IS NULL OR/,
+          `/${pfad} nennt das Haus, filtert aber nicht danach`,
+        );
+      }
     });
   }
 
@@ -314,6 +341,20 @@ describe("Die Seiten folgen dem Objekt", () => {
         `/${pfad} filtert nach Objekt -- das versteckt offene Arbeit.`,
       );
     }
+  });
+
+  test("Vorgaenge ohne Objekt bleiben in jeder Sicht stehen", () => {
+    /*
+      Dieselbe Regel wie in der Ablage und im Cockpit: "ohne Objekt"
+      heisst nicht "gehoert einem anderen Haus", sondern "noch keinem
+      zugeordnet". Bei Vorgaengen ist das meist die frischeste Post --
+      also die, die am ehesten Arbeit macht. Faellt sie beim Umschalten
+      weg, ist die Liste genau dort blind, wo sie gebraucht wird.
+    */
+    assert.match(
+      seite("vorgaenge"),
+      /\$1::uuid IS NULL OR v\.objekt_id = \$1 OR v\.objekt_id IS NULL/,
+    );
   });
 
   test("das Mietenbuch hat keinen zweiten Objektfilter mehr", () => {
