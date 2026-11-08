@@ -269,3 +269,70 @@ describe("Die Abfragen haben eine Fassung", () => {
     assert.match(KENNZAHLEN, /Die Laeufe gelten fuer den Mandanten/);
   });
 });
+
+/**
+ * Welche Seiten dem Umschalter folgen -- und welche nicht.
+ *
+ * ENTSCHIEDEN AM 08.11.2026
+ *
+ * Stephan auf die Frage, wie der doppelte Objektfilter im Mietenbuch
+ * aufzuloesen sei: "Umschalter steuert alles." Das Mietenbuch hat
+ * seinen eigenen Objektfilter deshalb verloren.
+ *
+ * Nicht alle Seiten folgen. Belege und Zahlungen sind Arbeitsvorraete,
+ * keine Lagebilder: Dort steht, was noch zuzuordnen ist. Ein Filter
+ * wuerde dort Arbeit verstecken, und zwar unsichtbar -- die Liste saehe
+ * vollstaendig aus. Dass sie nicht folgen, ist eine Entscheidung und
+ * kein Vergessen; darum steht sie hier.
+ */
+describe("Die Seiten folgen dem Objekt", () => {
+  const seite = (p: string) =>
+    readFileSync(new URL(`../app/${p}/page.tsx`, import.meta.url), "utf8");
+
+  for (const [pfad, ueberschrift] of [
+    ["mahnwesen", "Rückstände"],
+    ["konten", "Konten"],
+    ["ablage", "Ablage"],
+    ["mietenbuch", "Mietenbuch"],
+  ] as const) {
+    test(`/${pfad} liest die Objektwahl und nennt das Haus`, () => {
+      const q = seite(pfad);
+      assert.match(q, /objektSicht\(\)/, `/${pfad} liest die Wahl nicht`);
+      assert.ok(
+        q.includes(`${ueberschrift} — $`),
+        `/${pfad} nennt das Haus nicht in der Ueberschrift`,
+      );
+    });
+  }
+
+  test("die Arbeitsvorraete folgen bewusst nicht", () => {
+    // Belege und Zahlungen zeigen, was noch zu tun ist. Ein Filter
+    // waere dort kein Ausschnitt, sondern eine Luecke.
+    for (const pfad of ["belege", "zahlungen"]) {
+      assert.ok(
+        !seite(pfad).includes("objektSicht()"),
+        `/${pfad} filtert nach Objekt -- das versteckt offene Arbeit.`,
+      );
+    }
+  });
+
+  test("das Mietenbuch hat keinen zweiten Objektfilter mehr", () => {
+    const filter = readFileSync(
+      new URL("../components/MietenbuchFilter.tsx", import.meta.url),
+      "utf8",
+    );
+    assert.ok(
+      !filter.includes('<select name="objekt"'),
+      "Zwei Stellen fuer dieselbe Entscheidung: Beim Lesen einer Zahl " +
+        "waere nicht mehr zu sagen, welche gerade gilt.",
+    );
+    // Und die Seite nimmt das Haus wirklich aus dem Kopf.
+    assert.match(seite("mietenbuch"), /objekt: gewaehltesHaus\?\.id \?\? null/);
+  });
+
+  test("ein altes ?objekt= in der Adresse wird nicht mehr beachtet", () => {
+    // Sonst zeigte ein veralteter Verweis stillschweigend etwas
+    // anderes, als der Umschalter daneben behauptet.
+    assert.match(seite("mietenbuch"), /lesefilter\(params, \[\]\)/);
+  });
+});

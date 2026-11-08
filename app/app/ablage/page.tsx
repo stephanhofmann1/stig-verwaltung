@@ -5,6 +5,7 @@ import { Ablage } from "@/components/Ablage";
 import { MandantAnlegen } from "@/components/MandantAnlegen";
 import { KOSTENARTEN } from "@/lib/kostenarten";
 import { zugaengeFuer } from "@/lib/zugang";
+import { objektSicht } from "@/lib/objektsicht";
 
 export const dynamic = "force-dynamic";
 
@@ -54,6 +55,8 @@ export default async function AblageSeite() {
   if (!sitzung) redirect("/anmelden");
   if (sitzung.rolle === "mieter") redirect("/mieter");
 
+  const { gewaehlt } = await objektSicht();
+
   const belege = await query<{
     id: string;
     art: string;
@@ -65,20 +68,32 @@ export default async function AblageSeite() {
     kostenart: string | null;
     abweichung: string | null;
     erstellt_von: string | null;
-  }>(`
+  }>(
+    `
     SELECT id, art, aussteller, zweck, belegdatum::text, betrag_brutto::text,
            dateiname, kostenart, abweichung, erstellt_von
       FROM beleg
-     -- Kein Filter auf objekt_id: Die Trennung macht der MANDANT, nicht
-     -- eine Spalte. Im privaten Mandanten gehoeren alle Belege hierher;
-     -- im Mandanten der eGbR sind es deren eigene, und die RLS laesst
-     -- den einen nie die des anderen sehen (db/035, lib/zugang.ts).
-     -- Ein Filter auf "ohne Objekt" wuerde stattdessen die noch nicht
-     -- eingeordneten Belege zeigen -- etwas ganz anderes.
+     -- Die Trennung macht der MANDANT, nicht eine Spalte: Im privaten
+     -- Mandanten gehoeren alle Belege hierher, im Mandanten der eGbR
+     -- sind es deren eigene, und die RLS laesst den einen nie die des
+     -- anderen sehen (db/035, lib/zugang.ts).
+     --
+     -- Seit dem 08.11.2026 kommt die Objektwahl aus dem Kopf dazu
+     -- (lib/objektsicht.ts). Sie ist etwas anderes als die Trennung:
+     -- ein Ausschnitt, den jemand sehen WILL.
+     --
+     -- Belege OHNE Objekt bleiben dabei stehen. Das ist der Punkt, der
+     -- schon vorher hier stand und weiter gilt: "ohne Objekt" heisst
+     -- nicht "gehoert einem anderen Haus", sondern "noch nicht
+     -- eingeordnet". Wuerden sie beim Umschalten verschwinden, waere
+     -- die Ablage genau fuer die Belege blind, die noch Arbeit machen.
      WHERE richtung = 'eingang'
+       AND ($1::uuid IS NULL OR objekt_id = $1 OR objekt_id IS NULL)
      ORDER BY belegdatum DESC NULLS LAST, angelegt_am DESC
      LIMIT 60
-  `);
+  `,
+    [gewaehlt?.id ?? null],
+  );
 
   const [{ anzahl, summe }] = await query<{ anzahl: string; summe: string | null }>(`
     SELECT count(*)::text AS anzahl, sum(abs(betrag_brutto))::text AS summe
@@ -97,7 +112,7 @@ export default async function AblageSeite() {
 
   return (
     <main className="seite">
-      <h1>Ablage</h1>
+      <h1>{gewaehlt ? `Ablage — ${gewaehlt.name}` : "Ablage"}</h1>
       <p className="hinweis">
         Belege erfassen und einordnen — für die Steuer. Datei hochladen,
         einen Satz dazu sagen, und der Beleg liegt eingeordnet in der

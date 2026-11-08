@@ -1,5 +1,6 @@
 import { query } from "@/lib/db";
 import { mahnstand } from "@/lib/rueckstaende";
+import { objektSicht } from "@/lib/objektsicht";
 import { mahnbereitschaft } from "@/lib/mahnfreigabe";
 import { angemeldeteSitzung } from "@/lib/anmeldung";
 import type { Rueckstand, Stufe } from "@/lib/mahnstufen";
@@ -113,12 +114,15 @@ function alsZeile(r: Rueckstand): ZeileDaten {
 
 export default async function Mahnwesen() {
   const heute = new Date();
+  // Dieselbe Wahl wie im Cockpit (components/ObjektWahl.tsx). Hier
+  // gelesen und nicht erneut entschieden.
+  const { gewaehlt } = await objektSicht();
   const sitzung = await angemeldeteSitzung();
   const rolle = sitzung?.rolle ?? null;
 
   const [stand, bereitschaft, alleEntscheidungen, verlauf, deckung] =
     await Promise.all([
-      mahnstand(heute),
+      mahnstand(heute, gewaehlt?.id ?? null),
       mahnbereitschaft(),
       leseEntscheidungen(),
       entscheidungsVerlauf(25),
@@ -148,7 +152,10 @@ export default async function Mahnwesen() {
   return (
     <main>
       <div className="titelzeile">
-        <h1>Rückstände</h1>
+        {/* Der Hausname gehoert in die Ueberschrift: Diese Seite endet in
+            einem Mahnschreiben. Wer dabei das falsche Haus im Kopf hat,
+            schreibt den falschen Mieter an. */}
+        <h1>{gewaehlt ? `Rückstände — ${gewaehlt.name}` : "Rückstände"}</h1>
         <span className="zaehler">
           {stand.length === 0
             ? "keine Rückstände"
