@@ -15,6 +15,7 @@ import { MietenbuchLegende } from "@/components/MietenbuchLegende";
 import { MietenbuchZeitraum } from "@/components/MietenbuchZeitraum";
 import { MietenbuchFilter } from "@/components/MietenbuchFilter";
 import { objektSicht } from "@/lib/objektsicht";
+import { liesMonat } from "@/lib/monatssicht";
 
 export const dynamic = "force-dynamic";
 
@@ -90,6 +91,10 @@ export default async function Mietenbuch({
   const params = await searchParams;
   const heute = new Date();
   const { gewaehlt: gewaehltesHaus } = await objektSicht();
+  /* Der Monat, auf den jemand im Cockpit geklickt hat. Er filtert
+     nichts -- er markiert nur die Spalte. Ein Mietenbuch mit genau einer
+     Monatsspalte waere kein Mietenbuch mehr. */
+  const hervor = liesMonat(params.monat);
   const gewaehlt = gewaehltesJahr(
     typeof params.jahr === "string" ? params.jahr : undefined,
     heute,
@@ -272,7 +277,7 @@ export default async function Mietenbuch({
             </p>
           )}
 
-          <MietenbuchRaster raster={raster} laufend={laufend} />
+          <MietenbuchRaster raster={raster} laufend={laufend} hervor={hervor} />
           <MietenbuchLegende
             ausschnitt={
               gefiltert

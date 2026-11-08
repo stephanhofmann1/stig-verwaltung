@@ -85,6 +85,11 @@ export function CockpitVerlauf({ reihe }: { reihe: SollIstPunkt[] }) {
   const spalten = reihe.map((p) => ({
     name: monatKurz(p.monat),
     luecke: p.luecke,
+    /* Der Klick fuehrt ins Mietenbuch -- dorthin, wo Soll und Ist je
+       Mietverhaeltnis stehen. Das Jahr bestimmt den Zeitraum, der
+       Monat markiert die Spalte. Das Haus kommt dort aus dem Kopf, wie
+       ueberall. */
+    href: `/mietenbuch?jahr=${p.monat.slice(0, 4)}&monat=${p.monat.slice(0, 7)}`,
     titel: p.luecke
       ? p.grund === "nichts_gestellt"
         ? `${monatsName(p.monat)}: keine Sollstellung — es war nichts zu zahlen`

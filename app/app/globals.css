@@ -2161,6 +2161,41 @@ p.hinweis.abschnitt { margin-top: var(--abstand-7); }
   display: none;
 }
 
+/* Eine anklickbare Säule.
+   ----------------------------------------------------------------------
+   Im SVG ist das ein gewöhnliches <a>, kein next/link: Es führt zu einer
+   anderen Abfrage, nicht zu einem anderen Zustand — und der Baukasten
+   bleibt damit frei von Clientcode.
+
+   Der Zeiger und die Hervorhebung sagen, dass hier etwas passiert; ohne
+   das sähe eine anklickbare Säule aus wie jede andere. */
+.diagramm-saeule[data-verweis="ja"] { cursor: pointer; }
+.diagramm-saeule[data-verweis="ja"]:hover rect,
+.diagramm-saeule[data-verweis="ja"]:focus-visible rect {
+  fill-opacity: 1;
+}
+.diagramm-saeule[data-verweis="ja"]:focus-visible {
+  outline: 2px solid var(--fg);
+  outline-offset: 1px;
+}
+
+/* Eine anklickbare Spalte im Verlaufsdiagramm.
+   ----------------------------------------------------------------------
+   Die Greiffläche ist durchsichtig; beim Überfahren legt sie einen
+   blassen Schleier über die Spalte. Ohne das wäre nicht zu sehen,
+   welcher Monat gemeint ist — und ein Klick ins Leere fühlt sich an wie
+   ein Fehler. */
+.diagramm-spalte[data-verweis="ja"] { cursor: pointer; }
+.diagramm-spalte[data-verweis="ja"]:hover rect,
+.diagramm-spalte[data-verweis="ja"]:focus-visible rect {
+  fill: currentColor;
+  fill-opacity: 0.07;
+}
+.diagramm-spalte[data-verweis="ja"]:focus-visible {
+  outline: 2px solid var(--fg);
+  outline-offset: -1px;
+}
+
 /* Die Zeitraumwahl über den Verlaufsdiagrammen.
    ----------------------------------------------------------------------
    Verweise und keine Knöpfe: Es ist eine andere Adresse, keine Handlung.

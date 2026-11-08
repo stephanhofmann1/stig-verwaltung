@@ -4,6 +4,10 @@ import { AuszugUpload } from "@/components/AuszugUpload";
 import { KontodatenBeginn, type ObjektZeile } from "@/components/KontodatenBeginn";
 import { fehlendeMonate, fasseZusammen } from "@/lib/luecken";
 import { objektSicht } from "@/lib/objektsicht";
+import { liesMonat, monatsName } from "@/lib/monatssicht";
+import { euroGenau } from "@/components/CockpitKarte";
+import { tag } from "@/lib/formate";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
@@ -101,12 +105,23 @@ function luecken(k: KontoZeile) {
   );
 }
 
-export default async function Konten() {
+export default async function Konten({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   // Ein Konto gehoert zu einem Haus (konto.objekt_id). Die Wahl im Kopf
   // gilt deshalb hier unmittelbar -- anders als bei den Arbeitsvorraeten
   // Belege und Zahlungen, wo ein Filter Arbeit verstecken wuerde.
   const { gewaehlt } = await objektSicht();
   const objektId = gewaehlt?.id ?? null;
+
+  /*
+    Ein Monat aus der Adresszeile -- das Ziel des Klicks auf einen
+    Cashflow-Balken im Cockpit. Ohne ?monat= bleibt die Seite, was sie
+    war: die Uebersicht ueber Konten und Einlesungen.
+  */
+  const monat = liesMonat((await searchParams).monat);
 
   const [konten, importe, objekte] = await Promise.all([
     query<KontoZeile>(
@@ -168,9 +183,118 @@ export default async function Konten() {
 
   const namen = konten.map((k) => k.bezeichnung);
 
+  /*
+    Die Buchungen des gewaehlten Monats.
+
+    Erst abgefragt, wenn ein Monat gewaehlt ist: Ohne ihn waere es die
+    Liste aller Buchungen ueberhaupt -- Zehntausende Zeilen, die niemand
+    bestellt hat.
+
+    Die Obergrenze von 500 ist ein Schutz und kein Filter. Wird sie
+    erreicht, steht das unter der Liste; eine stillschweigend
+    abgeschnittene Liste waere eine falsche Auskunft.
+  */
+  const buchungen = monat
+    ? await query<{
+        id: string;
+        buchungstag: string;
+        betrag: string;
+        absender: string | null;
+        verwendungszweck: string | null;
+        konto: string;
+      }>(
+        `SELECT b.id, b.buchungstag::text, b.betrag::text, b.absender,
+                b.verwendungszweck, k.bezeichnung AS konto
+           FROM buchung b
+           JOIN konto k ON k.id = b.konto_id
+          WHERE to_char(b.buchungstag, 'YYYY-MM') = $1
+            AND ($2::uuid IS NULL OR k.objekt_id = $2)
+          ORDER BY b.buchungstag, b.betrag DESC
+          LIMIT 500`,
+        [monat, objektId],
+      )
+    : [];
+
+  const summeEin = buchungen
+    .map((b) => Number(b.betrag))
+    .filter((w) => w > 0)
+    .reduce((a, w) => a + w, 0);
+  const summeAus = buchungen
+    .map((b) => Number(b.betrag))
+    .filter((w) => w < 0)
+    .reduce((a, w) => a - w, 0);
+
   return (
     <main>
       <h1>{gewaehlt ? `Konten — ${gewaehlt.name}` : "Konten"}</h1>
+
+      {monat && (
+        <section className="abschnitt">
+          <div className="titelzeile">
+            <h2>Buchungen im {monatsName(monat)}</h2>
+            <span className="zaehler">
+              {buchungen.length === 0
+                ? "keine Buchung"
+                : `${euroGenau(summeEin)} ein · ${euroGenau(summeAus)} aus`}
+            </span>
+          </div>
+
+          {/* Der Weg zurueck steht oben und nicht unten: Wer von einem
+              Balken herkommt, will nach dem Lesen zurueck zum Bild. */}
+          <p className="erklaerung">
+            <Link href="/cockpit">← zurück zum Cockpit</Link>
+            {" · "}
+            <Link href="/konten">alle Konten ohne Monatsfilter</Link>
+          </p>
+
+          {buchungen.length === 0 ? (
+            <p className="hinweis">
+              Für diesen Monat liegen keine Buchungen vor
+              {gewaehlt ? ` (${gewaehlt.name})` : ""}. Entweder ist der
+              Auszug noch nicht eingelesen, oder in diesem Monat ist
+              nichts gelaufen — welches von beidem, sagt die Lückenangabe
+              beim Konto weiter unten.
+            </p>
+          ) : (
+            <>
+              <table className="tabelle">
+                <thead>
+                  <tr>
+                    <th>Tag</th>
+                    <th>Konto</th>
+                    <th>Absender</th>
+                    <th>Verwendungszweck</th>
+                    <th className="rechts">Betrag</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {buchungen.map((b) => (
+                    <tr key={b.id}>
+                      <td className="ziffern">{tag(b.buchungstag)}</td>
+                      <td>{b.konto}</td>
+                      <td>{b.absender ?? "—"}</td>
+                      <td>{b.verwendungszweck ?? "—"}</td>
+                      <td
+                        className="ziffern rechts"
+                        data-art={Number(b.betrag) < 0 ? "aus" : "ein"}
+                      >
+                        {euroGenau(Number(b.betrag))}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {buchungen.length === 500 && (
+                <p className="hinweis" data-art="warn">
+                  Es werden höchstens 500 Buchungen gezeigt. In diesem
+                  Monat sind es mindestens so viele — die Summen oben
+                  zählen deshalb nur, was hier steht.
+                </p>
+              )}
+            </>
+          )}
+        </section>
+      )}
 
       {konten.length === 0 ? (
         <p className="hinweis">
