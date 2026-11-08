@@ -448,10 +448,57 @@ export function Balken({
 // Stapelbalken
 // ---------------------------------------------------------------------------
 
+/**
+ * Die Huelle einer Saeule: mit Verweis ein <a>, ohne einer eine Gruppe.
+ *
+ * Warum nicht immer ein <a>? Ein Verweis ohne Ziel ist fuer die
+ * Vorlesesoftware ein Versprechen, das niemand einloest, und mit der
+ * Tastatur eine Station, an der nichts passiert.
+ *
+ * tabIndex nur im Fall ohne Verweis: Ein <a href> ist von selbst
+ * erreichbar; ein zusaetzliches tabIndex machte daraus zwei Stationen.
+ */
+function SaeuleHuelle({
+  href,
+  titel,
+  children,
+}: {
+  href?: string;
+  titel: string;
+  children: React.ReactNode;
+}) {
+  if (href) {
+    return (
+      <a href={href} className="diagramm-saeule" data-verweis="ja">
+        <title>{titel}</title>
+        {children}
+      </a>
+    );
+  }
+  return (
+    <g className="diagramm-saeule" tabIndex={0}>
+      <title>{titel}</title>
+      {children}
+    </g>
+  );
+}
+
 export interface StapelPosten {
   name: string;
   titel: string;
   teile: Array<{ name: string; wert: number | null; art?: Diagrammart }>;
+  /**
+   * Wohin ein Klick auf diese Saeule fuehrt.
+   *
+   * Der Verweis steht am Posten und nicht als Funktion am Diagramm: Der
+   * Baukasten weiss nicht, was ein Monat ist, und soll es nicht wissen
+   * muessen. Wer die Daten hat, kennt auch das Ziel.
+   *
+   * Ein gewoehnliches <a> im SVG und kein next/link: Es ist ein Verweis
+   * auf eine andere Abfrage, kein Zustandswechsel -- und der Baukasten
+   * bleibt damit frei von Clientkode.
+   */
+  href?: string;
 }
 
 /**
@@ -549,8 +596,7 @@ export function Stapelbalken({
           const feld = felder[i];
           const gestapelt = stapel(p.teile, feld.hoehe);
           return (
-            <g key={`${p.name}-${i}`} className="diagramm-saeule" tabIndex={0}>
-              <title>{p.titel}</title>
+            <SaeuleHuelle key={`${p.name}-${i}`} href={p.href} titel={p.titel}>
               {gestapelt.segmente.map((seg, k) => (
                 <rect
                   key={`${seg.name}-${k}`}
@@ -580,7 +626,7 @@ export function Stapelbalken({
                   p.teile.reduce((summe, teil) => summe + (teil.wert ?? 0), 0),
                 )}
               </text>
-            </g>
+            </SaeuleHuelle>
           );
         })}
 
@@ -640,6 +686,13 @@ export interface VerlaufSpalte {
   luecke?: boolean;
   /** Der Zeigerhinweis der Spalte -- bei einer Luecke ihr Grund. */
   titel?: string;
+  /**
+   * Wohin ein Klick auf diese Spalte fuehrt.
+   *
+   * Wie bei den Saeulen: Der Verweis steht an den Daten, nicht im
+   * Baukasten. Das Diagramm weiss nicht, was ein Monat ist.
+   */
+  href?: string;
 }
 
 export interface VerlaufLinie {
@@ -780,6 +833,48 @@ export function Verlauf({
                   </g>
                 ),
               )}
+            </g>
+          );
+        })}
+
+        {/*
+          Die Greifflaeche je Spalte, GANZ OBEN.
+
+          Sie liegt ueber den Linien und faengt damit jeden Klick in der
+          Spalte -- auch den genau auf einen Punkt. Das kostet die
+          Zeigerhinweise der einzelnen Punkte, und das ist ein guter
+          Tausch: Der Hinweis der Spalte (hier unten als <title>) nennt
+          Soll, Ist und Offen zusammen, die Punkte nannten je einen Wert.
+
+          fill="transparent" statt fillOpacity={0}: Eine Flaeche mit
+          Deckung 0 gilt als unsichtbar und faengt je nach Browser gar
+          nichts.
+        */}
+        {spalten.map((sp, i) => {
+          const greifflaeche = (
+            <rect
+              x={achsenbreite + i * spur}
+              y={0}
+              width={spur}
+              height={hoehe}
+              fill="transparent"
+            />
+          );
+          const hinweis = <title>{sp.titel ?? sp.name}</title>;
+          return sp.href ? (
+            <a
+              key={`griff-${i}`}
+              href={sp.href}
+              className="diagramm-spalte"
+              data-verweis="ja"
+            >
+              {hinweis}
+              {greifflaeche}
+            </a>
+          ) : (
+            <g key={`griff-${i}`} className="diagramm-spalte">
+              {hinweis}
+              {greifflaeche}
             </g>
           );
         })}

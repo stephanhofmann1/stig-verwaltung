@@ -551,10 +551,20 @@ function ObjektBlock({
   g,
   monate,
   laufend,
+  hervor,
 }: {
   g: Gruppe;
   monate: string[];
   laufend: string;
+  /**
+   * Der Monat, auf den jemand von aussen gezeigt hat ("JJJJ-MM").
+   *
+   * Kommt aus dem Klick auf eine Spalte im Soll-/Ist-Verlauf des
+   * Cockpits. Ohne Markierung landet man in einem Raster aus zwoelf
+   * gleich aussehenden Spalten und sucht den Monat, wegen dem man
+   * gekommen ist.
+   */
+  hervor?: string | null;
 }) {
   const spannweite = monate.length + 4;
   const kautionen = g.zeilen.reduce((s, z) => s + (z.kaution ?? 0), 0);
@@ -597,6 +607,9 @@ function ObjektBlock({
               data-status={c.status}
               data-grund={c.leer_grund ?? undefined}
               data-jetzt={c.monat === laufend ? "ja" : undefined}
+              data-hervor={
+                hervor && c.monat.slice(0, 7) === hervor ? "ja" : undefined
+              }
             >
               <ZellInhalt z={c} einheit={z.bezeichnung} />
             </td>
@@ -642,9 +655,19 @@ function ObjektBlock({
 export function MietenbuchRaster({
   raster,
   laufend,
+  hervor,
 }: {
   raster: Raster;
   laufend: string;
+  /**
+   * Der Monat, auf den jemand von aussen gezeigt hat ("JJJJ-MM").
+   *
+   * Kommt aus dem Klick auf eine Spalte im Soll-/Ist-Verlauf des
+   * Cockpits. Ohne Markierung landet man in einem Raster aus zwoelf
+   * gleich aussehenden Spalten und sucht den Monat, wegen dem man
+   * gekommen ist.
+   */
+  hervor?: string | null;
 }) {
   const { monate, gruppen } = raster;
   const kautionen = gruppen
@@ -690,6 +713,9 @@ export function MietenbuchRaster({
                   key={m}
                   className="betrag mb-monat"
                   data-jetzt={m === laufend ? "ja" : undefined}
+                  data-hervor={
+                    hervor && m.slice(0, 7) === hervor ? "ja" : undefined
+                  }
                   scope="col"
                 >
                   <span>{MONAT_KURZ.format(alsDatum(m))}</span>
@@ -714,6 +740,7 @@ export function MietenbuchRaster({
               g={g}
               monate={monate}
               laufend={laufend}
+              hervor={hervor}
             />
           ))}
 

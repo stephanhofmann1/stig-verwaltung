@@ -83,7 +83,13 @@ export function CockpitCashflow({ reihe }: { reihe: CashflowBalken[] }) {
         <Stapelbalken
           posten={reihe.map((b) => ({
             name: monatKurz(b.monat),
-            titel: `${monatKurz(b.monat)}: ${euroGenau(b.miete)} Miete, ${euroGenau(b.sonstige)} sonstige, ${euroGenau(b.aus)} Ausgaben`,
+            titel: `${monatKurz(b.monat)}: ${euroGenau(b.miete)} Miete, ${euroGenau(b.sonstige)} sonstige, ${euroGenau(b.aus)} Ausgaben — anklicken für die Buchungen`,
+            /* Der Klick fuehrt zu den Buchungen dieses Monats. Das Haus
+               muss nicht mitgegeben werden: Die Kontenseite liest
+               dieselbe Objektwahl aus dem Kopf. Stuende es zusaetzlich
+               in der Adresse, gaebe es wieder zwei Quellen fuer eine
+               Entscheidung. */
+            href: `/konten?monat=${b.monat.slice(0, 7)}`,
             teile: [
               { name: "zugeordnete Miete", wert: b.miete, art: "akzent" as const },
               { name: "sonstige Eingänge", wert: b.sonstige, art: "leise" as const },
