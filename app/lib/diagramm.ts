@@ -618,3 +618,28 @@ export function zeichenbreite(
   if (z === null || z <= 0) return runde2(anzahl * max);
   return runde2(anzahl * Math.min(max, z / anzahl));
 }
+
+/**
+ * Jede wievielte Spalte bekommt ihren Namen?
+ *
+ * ANLASS (08.11.2026)
+ *
+ * Seit der Zeitraum der Verlaufsdiagramme waehlbar ist, koennen 36
+ * Spalten nebeneinander stehen. Bei 1040 Einheiten Zeichenbreite sind
+ * das 29 Einheiten je Spalte; "Maerz 24" braucht gut 40. Die
+ * Beschriftung lief ineinander: "Dez. 23Jan. 24Feb. 24Maerz 24".
+ *
+ * `abstand` ist der Abstand zweier Spaltenmitten, `noetig` der Platz,
+ * den eine Beschriftung braucht. Das Ergebnis ist mindestens 1 -- jede
+ * Spalte zu beschriften ist der Normalfall, nicht die Ausnahme.
+ *
+ * Die uebersprungenen Spalten sind nicht verloren: Der Zeigerhinweis
+ * nennt sie, und die Begleittabelle fuehrt jede einzeln auf.
+ */
+export function beschriftungsschritt(abstand: number, noetig = 40): number {
+  const a = endlich(abstand);
+  const n = endlich(noetig);
+  if (a === null || a <= 0) return 1;
+  if (n === null || n <= 0) return 1;
+  return Math.max(1, Math.ceil(n / a));
+}

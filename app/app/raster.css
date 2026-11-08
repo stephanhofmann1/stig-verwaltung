@@ -194,6 +194,24 @@ table.mb-raster {
   border-left: 2px solid var(--akzent);
 }
 
+/* Der Monat, auf den jemand von außen gezeigt hat.
+   ----------------------------------------------------------------------
+   Kommt aus dem Klick auf eine Spalte im Soll-/Ist-Verlauf des Cockpits
+   (?monat=JJJJ-MM). Er filtert nichts — er markiert nur. Ein Mietenbuch
+   mit genau einer Monatsspalte wäre kein Mietenbuch mehr.
+
+   Ein Hintergrund statt einer Kante: Die Kante gehört dem laufenden
+   Monat, und zwei Kanten nebeneinander wären nicht zu unterscheiden.
+   Fällt beides auf dieselbe Spalte, liegt der Hintergrund hinter der
+   Kante — beides bleibt lesbar. */
+.mb-raster .mb-monat[data-hervor="ja"],
+.mb-raster .mb-zelle[data-hervor="ja"] {
+  background: color-mix(in srgb, var(--akzent) 9%, transparent);
+}
+.mb-raster .mb-monat[data-hervor="ja"] {
+  font-weight: 700;
+}
+
 .mb-unter {
   display: block;
   font-weight: 400;

@@ -1,4 +1,5 @@
-import { ladeCockpit, spitze } from "@/lib/kennzahlen";
+import Link from "next/link";
+import { ZEITRAEUME, ladeCockpit, liesMonate, spitze } from "@/lib/kennzahlen";
 import { objektSicht } from "@/lib/objektsicht";
 import { CockpitFristen } from "@/components/CockpitFristen";
 import { CockpitMonat } from "@/components/CockpitMonat";
@@ -56,7 +57,11 @@ export const dynamic = "force-dynamic";
  * wie bei den Mahnstufen: Eine Zahl auf der Startseite wird geglaubt, ohne
  * dass jemand nachrechnet.
  */
-export default async function Cockpit() {
+export default async function Cockpit({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   /*
     Das Cockpit zeigt ein Haus, wenn eines gewaehlt ist.
 
@@ -70,7 +75,16 @@ export default async function Cockpit() {
     Cookie, geprueft in lib/objektsicht.ts. Hier wird nur gelesen.
   */
   const { gewaehlt } = await objektSicht();
-  const d = await ladeCockpit(new Date(), gewaehlt?.id ?? null);
+
+  /*
+    Der Zeitraum der Verlaufsdiagramme steht in der Adresszeile und
+    nicht in einem Zustand im Browser. Drei Gruende: Die Daten kommen
+    ohnehin vom Server -- 24 Monate sind eine andere Abfrage, nicht eine
+    andere Ansicht derselben Zahlen; der Blick laesst sich so
+    weitergeben; und der Zurueck-Knopf tut, was er soll.
+  */
+  const monate = liesMonate((await searchParams).monate);
+  const d = await ladeCockpit(new Date(), gewaehlt?.id ?? null, monate);
 
   /**
    * Hat eine Abfrage geworfen?
@@ -309,6 +323,25 @@ export default async function Cockpit() {
       <CockpitMonat monat={d.monat.monat} geld={d.monat.geld} />
 
       <CockpitAutomatik posten={d.automatik} lagebericht={d.lagebericht} />
+
+      {/* Der Zeitraum gilt fuer beide Verlaufsdiagramme und steht
+          deshalb einmal davor, nicht zweimal daneben. Verweise und keine
+          Knoepfe: Es ist eine andere Adresse, keine Handlung. */}
+      <div className="titelzeile zeitraumwahl">
+        <span className="zaehler">Zeitraum</span>
+        <nav aria-label="Zeitraum der Verlaufsdiagramme">
+          {ZEITRAEUME.map((m) => (
+            <Link
+              key={m}
+              href={m === 12 ? "/cockpit" : `/cockpit?monate=${m}`}
+              data-aktiv={m === monate ? "ja" : "nein"}
+              aria-current={m === monate ? "page" : undefined}
+            >
+              {m} Monate
+            </Link>
+          ))}
+        </nav>
+      </div>
 
       {/* Der Verlauf steht VOR dem Cashflow und nicht dahinter.
 

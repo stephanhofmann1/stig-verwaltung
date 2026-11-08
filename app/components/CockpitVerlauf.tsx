@@ -10,7 +10,12 @@ import {
 } from "@/components/CockpitKarte";
 
 /**
- * Soll gegen Ist, zwoelf Monate.
+ * Soll gegen Ist -- ueber so viele Monate, wie die Reihe lang ist.
+ *
+ * Die Zahl stand bis zum 08.11.2026 als "12" im Titel; seit der
+ * Zeitraum waehlbar ist, kommt sie aus reihe.length. Eine Ueberschrift,
+ * die etwas anderes behauptet als das Bild darunter, ist schlimmer als
+ * gar keine.
  *
  * Die Frage, die das Cockpit bisher nicht beantworten konnte: **Ab welchem
  * Monat blieben die Zahlungen hinter dem Soll zurueck?** Der laufende Monat
@@ -48,11 +53,11 @@ export function CockpitVerlauf({ reihe }: { reihe: SollIstPunkt[] }) {
     const nurLuecken = reihe.length > 0;
     return (
       <CockpitKarte
-        titel="Soll gegen Ist, 12 Monate"
+        titel={`Soll gegen Ist, ${reihe.length} Monate`}
         zaehler="keine Aussage möglich"
         hinweis={
           nurLuecken
-            ? "Für keinen der zwölf Monate liegen Soll und Kontodaten zusammen vor."
+            ? `Für keinen der ${reihe.length} Monate liegen Soll und Kontodaten zusammen vor.`
             : "Es konnten keine Sollstellungen gelesen werden."
         }
       >
@@ -68,7 +73,7 @@ export function CockpitVerlauf({ reihe }: { reihe: SollIstPunkt[] }) {
             </>
           ) : (
             <>
-              Sobald der Nachtlauf Sollstellungen erzeugt hat, stehen hier zwölf
+              Sobald der Nachtlauf Sollstellungen erzeugt hat, stehen hier {reihe.length}
               Monate Soll gegen Ist.
             </>
           )}
@@ -80,6 +85,11 @@ export function CockpitVerlauf({ reihe }: { reihe: SollIstPunkt[] }) {
   const spalten = reihe.map((p) => ({
     name: monatKurz(p.monat),
     luecke: p.luecke,
+    /* Der Klick fuehrt ins Mietenbuch -- dorthin, wo Soll und Ist je
+       Mietverhaeltnis stehen. Das Jahr bestimmt den Zeitraum, der
+       Monat markiert die Spalte. Das Haus kommt dort aus dem Kopf, wie
+       ueberall. */
+    href: `/mietenbuch?jahr=${p.monat.slice(0, 4)}&monat=${p.monat.slice(0, 7)}`,
     titel: p.luecke
       ? p.grund === "nichts_gestellt"
         ? `${monatsName(p.monat)}: keine Sollstellung — es war nichts zu zahlen`
@@ -98,7 +108,7 @@ export function CockpitVerlauf({ reihe }: { reihe: SollIstPunkt[] }) {
 
   return (
     <CockpitKarte
-      titel="Soll gegen Ist, 12 Monate"
+      titel={`Soll gegen Ist, ${reihe.length} Monate`}
       zaehler={
         lage.abMonat === null
           ? "ohne Rückstand"
@@ -125,7 +135,7 @@ export function CockpitVerlauf({ reihe }: { reihe: SollIstPunkt[] }) {
             gestellte Soll steht in der Tabelle, Spalte „gestellt“, zusammen
             mit dem Teil, über den sich nichts sagen lässt
             {lage.summeOhneDaten > 0 ? (
-              <> — in diesen zwölf Monaten {euroGenau(lage.summeOhneDaten)}</>
+              <> — in diesen {reihe.length} Monaten {euroGenau(lage.summeOhneDaten)}</>
             ) : null}
             .
           </p>

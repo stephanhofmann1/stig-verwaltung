@@ -1,6 +1,7 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { nurImporte } from "./quelltext";
 
 import { ALLE, KEKS_ALTER, KEKS_OBJEKT, waehleObjekt } from "../lib/objektwahl";
 
@@ -162,16 +163,16 @@ describe("Die Objektsicht fasst die Sitzung nicht an", () => {
     */
     // Geprueft werden die Importzeilen, nicht der Fliesstext: Die
     // Begruendung dieser Regel nennt die verbotenen Namen selbst.
-    const importe = (quelltext: string) =>
-      quelltext.split("\n").filter((z) => /^\s*import\b/.test(z)).join("\n");
+    // nurImporte steht in tests/quelltext.ts, zusammen mit der
+    // Geschichte dieses dreimal gemachten Fehlers.
     for (const verboten of ["next/headers", "@/lib/db", '"pg"']) {
       assert.ok(
-        !importe(WAHL).includes(verboten),
+        !nurImporte(WAHL).includes(verboten),
         `lib/objektwahl.ts importiert ${verboten}`,
       );
     }
     assert.ok(
-      !importe(quelle("../components/ObjektWahl.tsx")).includes("@/lib/objektsicht"),
+      !nurImporte(quelle("../components/ObjektWahl.tsx")).includes("@/lib/objektsicht"),
       "Die Clientkomponente importiert aus der Serverdatei.",
     );
   });
@@ -207,7 +208,7 @@ describe("Das Cockpit nennt seinen Ausschnitt", () => {
   test("die Zahlen kommen gefiltert aus einer Quelle", () => {
     // ladeCockpit() bekommt das Objekt; nirgends wird daneben noch
     // einmal gerechnet.
-    assert.match(SEITE, /ladeCockpit\(new Date\(\), gewaehlt\?\.id \?\? null\)/);
+    assert.match(SEITE, /ladeCockpit\(new Date\(\), gewaehlt\?\.id \?\? null, monate\)/);
   });
 });
 
@@ -256,12 +257,82 @@ describe("Die Abfragen haben eine Fassung", () => {
   });
 
   test("ladeCockpit nimmt das Objekt entgegen", () => {
-    assert.match(KENNZAHLEN, /objekt: string \| null = null,\n\): Promise<CockpitDaten>/);
+    assert.match(
+      KENNZAHLEN,
+      /objekt: string \| null = null,\n  monate: number = 12,\n\): Promise<CockpitDaten>/,
+    );
   });
 
   test("die Laeufe bleiben ungefiltert -- und das steht da", () => {
     // Einen "Bankabruf des Hauses Westanlage" gibt es nicht.
     assert.match(KENNZAHLEN, /behutsam\("Läufe", ladeLaeufe/);
     assert.match(KENNZAHLEN, /Die Laeufe gelten fuer den Mandanten/);
+  });
+});
+
+/**
+ * Welche Seiten dem Umschalter folgen -- und welche nicht.
+ *
+ * ENTSCHIEDEN AM 08.11.2026
+ *
+ * Stephan auf die Frage, wie der doppelte Objektfilter im Mietenbuch
+ * aufzuloesen sei: "Umschalter steuert alles." Das Mietenbuch hat
+ * seinen eigenen Objektfilter deshalb verloren.
+ *
+ * Nicht alle Seiten folgen. Belege und Zahlungen sind Arbeitsvorraete,
+ * keine Lagebilder: Dort steht, was noch zuzuordnen ist. Ein Filter
+ * wuerde dort Arbeit verstecken, und zwar unsichtbar -- die Liste saehe
+ * vollstaendig aus. Dass sie nicht folgen, ist eine Entscheidung und
+ * kein Vergessen; darum steht sie hier.
+ */
+describe("Die Seiten folgen dem Objekt", () => {
+  const seite = (p: string) =>
+    readFileSync(new URL(`../app/${p}/page.tsx`, import.meta.url), "utf8");
+
+  for (const [pfad, ueberschrift] of [
+    ["mahnwesen", "Rückstände"],
+    ["konten", "Konten"],
+    ["ablage", "Ablage"],
+    ["mietenbuch", "Mietenbuch"],
+  ] as const) {
+    test(`/${pfad} liest die Objektwahl und nennt das Haus`, () => {
+      const q = seite(pfad);
+      assert.match(q, /objektSicht\(\)/, `/${pfad} liest die Wahl nicht`);
+      assert.ok(
+        q.includes(`${ueberschrift} — $`),
+        `/${pfad} nennt das Haus nicht in der Ueberschrift`,
+      );
+    });
+  }
+
+  test("die Arbeitsvorraete folgen bewusst nicht", () => {
+    // Belege und Zahlungen zeigen, was noch zu tun ist. Ein Filter
+    // waere dort kein Ausschnitt, sondern eine Luecke.
+    for (const pfad of ["belege", "zahlungen"]) {
+      assert.ok(
+        !seite(pfad).includes("objektSicht()"),
+        `/${pfad} filtert nach Objekt -- das versteckt offene Arbeit.`,
+      );
+    }
+  });
+
+  test("das Mietenbuch hat keinen zweiten Objektfilter mehr", () => {
+    const filter = readFileSync(
+      new URL("../components/MietenbuchFilter.tsx", import.meta.url),
+      "utf8",
+    );
+    assert.ok(
+      !filter.includes('<select name="objekt"'),
+      "Zwei Stellen fuer dieselbe Entscheidung: Beim Lesen einer Zahl " +
+        "waere nicht mehr zu sagen, welche gerade gilt.",
+    );
+    // Und die Seite nimmt das Haus wirklich aus dem Kopf.
+    assert.match(seite("mietenbuch"), /objekt: gewaehltesHaus\?\.id \?\? null/);
+  });
+
+  test("ein altes ?objekt= in der Adresse wird nicht mehr beachtet", () => {
+    // Sonst zeigte ein veralteter Verweis stillschweigend etwas
+    // anderes, als der Umschalter daneben behauptet.
+    assert.match(seite("mietenbuch"), /lesefilter\(params, \[\]\)/);
   });
 });

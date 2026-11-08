@@ -48,14 +48,11 @@ const NUR_SCHILD: Record<"abweichung" | "leerstand", string> = {
 
 export function MietenbuchFilter({
   filter,
-  objekte,
   jahr,
   zeilen,
   gesamt,
 }: {
   filter: Mietenbuchfilter;
-  /** Die Objekte, die im gewählten Zeitraum überhaupt Zeilen haben. */
-  objekte: Array<{ id: string; name: string }>;
   /** Das gewählte Kalenderjahr -- muss beim Filtern erhalten bleiben. */
   jahr: number | null;
   /** Sichtbare Einheitszeilen. */
@@ -65,15 +62,19 @@ export function MietenbuchFilter({
 }) {
   const gesetzt = filterGesetzt(filter);
 
+  /*
+    Das Haus steht NICHT mehr in dieser Leiste (geaendert 08.11.2026).
+
+    Seit es den Objektumschalter im Kopf gibt (components/ObjektWahl.tsx),
+    gab es zwei Stellen fuer dieselbe Entscheidung -- und beim Lesen einer
+    Zahl waere nicht mehr zu sagen gewesen, welche davon gerade gilt.
+    Stephan hat entschieden: Der Kopf steuert alles.
+
+    Die Marke dazu entfaellt hier ebenfalls. Sie haette "Objekt entfernen"
+    angeboten und damit etwas zurueckgenommen, was die Leiste gar nicht
+    gesetzt hat.
+  */
   const marken: Marke[] = [];
-  if (filter.objekt !== null) {
-    marken.push({
-      feld: "objekt",
-      schild: "Objekt",
-      wert:
-        objekte.find((o) => o.id === filter.objekt)?.name ?? "unbekanntes Haus",
-    });
-  }
   if (filter.suche !== "") {
     marken.push({ feld: "suche", schild: "Suche", wert: filter.suche });
   }
@@ -94,18 +95,6 @@ export function MietenbuchFilter({
           ansieht. */}
       <form method="get" action="/mietenbuch" className="filterleiste">
         {jahr !== null && <input type="hidden" name="jahr" value={jahr} />}
-
-        <label className="filterleiste-feld">
-          Haus
-          <select name="objekt" defaultValue={filter.objekt ?? ""}>
-            <option value="">alle Häuser</option>
-            {objekte.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.name}
-              </option>
-            ))}
-          </select>
-        </label>
 
         <label className="filterleiste-feld">
           Suche
