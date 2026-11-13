@@ -63,7 +63,9 @@ export type AbrufErgebnis =
       hinweis: string;
       medium: string | null;
     }
-  | { art: "fehler"; meldung: string };
+  | { art: "fehler"; meldung: string;
+      /** Die Bank hat geantwortet und abgelehnt -- kein Fehler bei uns. */
+      vonDerBank?: boolean };
 
 /**
  * Macht aus einem Date den ISO-Tag in **lokaler** Zeit.
@@ -244,4 +246,32 @@ export function wegenZugangsdaten(meldung: string): boolean {
     t.includes("ungültige daten") ||
     t.includes("ungueltige daten")
   );
+}
+
+/**
+ * Darf dieser Fehler den Zugang stilllegen?
+ *
+ * Die Entscheidung steht hier und nicht an den beiden Aufrufstellen,
+ * weil sie an beiden gleich ausfallen muss: Der nächtliche Lauf
+ * (holen.ts) und der Klick von Hand (api/bank/abruf) schreiben in
+ * dieselbe Spalte. Weicht einer ab, merkt man es erst an einem Zugang,
+ * der stumm bleibt, während die Mieten als Rückstand auflaufen.
+ *
+ * Zwei Bedingungen, und beide müssen zutreffen:
+ *
+ *   Der Fehler kommt von der Bank. "Für diesen Zugang ist keine PIN
+ *   hinterlegt" entsteht bei uns, bevor jemand die Bank anruft --
+ *   enthält aber das Wort PIN. Eine Prüfung allein am Wortlaut legte
+ *   den Zugang dafür still. Am 06.11.2026 so gebaut und in der Probe
+ *   aufgefallen.
+ *
+ *   Und es geht um die Zugangsdaten. Eine Zeitüberschreitung ist beim
+ *   nächsten Lauf vorbei; dafür einen Zugang anzuhalten, richtet mehr
+ *   Schaden an als es verhindert.
+ */
+export function sollStilllegen(fehler: {
+  meldung: string;
+  vonDerBank?: boolean;
+}): boolean {
+  return fehler.vonDerBank === true && wegenZugangsdaten(fehler.meldung);
 }
