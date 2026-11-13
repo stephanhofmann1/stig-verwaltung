@@ -97,8 +97,11 @@ if [ -z "$WERT" ]; then
   exit 1
 fi
 
+# Der Rueckgabewert des fernen Skripts muss durchgereicht werden. Stuende
+# hier nur "bash skript.sh; rm -f skript.sh", waere der Status der von rm
+# -- also fast immer 0, auch wenn das ferne Skript abgebrochen hat.
 printf '%s' "$WERT" |
-  ssh "$SERVER" "NAME='$NAME' PFAD='$PFAD' bash /tmp/stig-wert-setzen.sh; rm -f /tmp/stig-wert-setzen.sh"
+  ssh "$SERVER" "NAME='$NAME' PFAD='$PFAD' bash /tmp/stig-wert-setzen.sh; E=\$?; rm -f /tmp/stig-wert-setzen.sh; exit \$E"
 
 echo >&2
 echo "Jetzt neu starten, damit die Anwendung den Wert liest:" >&2
