@@ -37,6 +37,12 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     "/api/**": ["./node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs"],
   },
+  // Von `next upgrade --agent=security` gesetzt: markiert, dass dieses
+  // Projekt die Sicherheitsaktualisierung 16.4.3 -> 16.4.6 durch einen
+  // Agenten erhalten hat.
+  experimental: {
+    agentUpgrade: "security",
+  },
   turbopack: {
     rules: {
       "*.css": {
