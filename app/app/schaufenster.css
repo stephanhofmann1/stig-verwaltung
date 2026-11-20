@@ -1251,3 +1251,131 @@ body:has(.schaufenster) .rahmen {
     animation: none;
   }
 }
+
+/* --- Das Gebäudemodell ----------------------------------------------
+   Bühne links, Tafel rechts; am Telefon untereinander. Die Bühne bekommt
+   eine feste Höhe statt eines Seitenverhältnisses: Ein Haus, das auf
+   schmalen Schirmen zum Briefmarkenformat schrumpft, ist keine
+   Darstellung mehr, sondern ein Rätsel.
+
+   Keine Karte, kein Schatten, kein Radius -- das Modell steht auf dem
+   Papier wie alles andere auf dieser Seite, nur von einer Haarlinie
+   gefasst. */
+.schaufenster .s-haus {
+  display: grid;
+  grid-template-columns: 1fr minmax(260px, 340px);
+  gap: 0;
+  margin-top: 3rem;
+  border-top: 1px solid var(--linie);
+  border-bottom: 1px solid var(--linie);
+}
+
+.schaufenster .s-haus-buehne {
+  position: relative;
+  height: clamp(380px, 52vh, 560px);
+  border-right: 1px solid var(--linie);
+}
+
+.schaufenster .s-haus-leinwand {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+  touch-action: none;
+}
+.schaufenster .s-haus-leinwand:active { cursor: grabbing; }
+
+.schaufenster .s-haus-laedt {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  color: var(--grau);
+  font-size: 0.85rem;
+  letter-spacing: 0.02em;
+}
+
+.schaufenster .s-haus-schalter {
+  position: absolute;
+  left: 1.25rem;
+  bottom: 1.25rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.schaufenster .s-haus-schalter button {
+  font: inherit;
+  font-size: 0.8rem;
+  color: var(--schwarz);
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(6px);
+  border: 1px solid var(--linie);
+  border-radius: 2px;
+  padding: 0.45rem 0.9rem;
+  cursor: pointer;
+  transition: border-color 0.18s, color 0.18s;
+}
+.schaufenster .s-haus-schalter button:hover { border-color: var(--schwarz); }
+.schaufenster .s-haus-schalter button[aria-pressed="true"] {
+  color: var(--bronze);
+  border-color: var(--bronze);
+}
+
+.schaufenster .s-haus-hinweis {
+  position: absolute;
+  right: 1.25rem;
+  bottom: 1.4rem;
+  margin: 0;
+  color: var(--grau);
+  font-size: 0.72rem;
+  letter-spacing: 0.03em;
+  pointer-events: none;
+}
+
+.schaufenster .s-haus-tafel { padding: 1.6rem 1.5rem; }
+.schaufenster .s-haus-tafel h3 {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: clamp(1.4rem, 2.2vw, 1.8rem);
+  line-height: 1.1;
+  margin: 0 0 0.75rem;
+  text-wrap: balance;
+}
+.schaufenster .s-haus-lage {
+  margin: 0 0 1.4rem;
+  color: var(--grau);
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.schaufenster .s-haus-werte { margin: 0; border-top: 1px solid var(--linie); }
+.schaufenster .s-haus-werte > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--linie);
+}
+.schaufenster .s-haus-werte dt { color: var(--grau); font-size: 0.82rem; }
+.schaufenster .s-haus-werte dd {
+  margin: 0;
+  text-align: right;
+  font-size: 0.88rem;
+  font-variant-numeric: tabular-nums;
+}
+.schaufenster .s-haus-werte dd.wach { color: var(--bronze); }
+
+@media (max-width: 860px) {
+  .schaufenster .s-haus { grid-template-columns: 1fr; }
+  .schaufenster .s-haus-buehne {
+    border-right: 0;
+    border-bottom: 1px solid var(--linie);
+    height: clamp(300px, 46vh, 420px);
+  }
+  .schaufenster .s-haus-hinweis { display: none; }
+  .schaufenster .s-haus-tafel { padding: 1.4rem 0 1.6rem; }
+}

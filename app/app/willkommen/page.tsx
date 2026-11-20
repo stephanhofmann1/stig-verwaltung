@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import Link from "next/link";
 import { Register } from "@/components/SchaufensterFaltung";
 import { Entwurf } from "@/components/SchaufensterEntwurf";
+import { SchaufensterHaus } from "@/components/SchaufensterHaus";
 import { Assistent } from "@/components/SchaufensterAssistent";
 
 /**
@@ -429,6 +430,40 @@ export default async function Willkommen() {
               </div>
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* --- Das Haus -------------------------------------------------
+          Steht zwischen Oberfläche und Abläufen: erst, wie gearbeitet
+          wird, dann, woran. Das Modell zeigt keine Daten — weder echte
+          noch erfundene — und ist damit der einzige Abschnitt, bei dem
+          sich die Frage nach Mieterdaten gar nicht erst stellt. */}
+      <section className="s-band" id="haus">
+        <div className="s-innen s-abschnitt">
+          <div className="s-kopf">
+            <p className="s-marke">Der Bestand</p>
+            <div>
+              <h2>
+                Ein Haus,
+                <br />
+                keine Liste.
+              </h2>
+              <p className="s-lauf">
+                Eine Verwaltung folgt keinem Datensatz, sondern einem Gebäude:
+                Jede Einheit, jeder Zähler und jede Frist hängt an einem
+                Bauteil. Dieses Haus steht in Gießen, Baujahr 1957 — Maße und
+                Geschosse nach seinen Grundrissen.
+              </p>
+            </div>
+          </div>
+
+          <SchaufensterHaus />
+
+          <p className="s-fussnote">
+            Geschosse, Flächen und Fensterachsen stammen aus den Bauplänen.
+            Zu den Mietverhältnissen zeigt das Modell nichts: keine Namen,
+            keine Beträge, keine Daten aus der laufenden Verwaltung.
+          </p>
         </div>
       </section>
 
