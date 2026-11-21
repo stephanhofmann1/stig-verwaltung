@@ -468,3 +468,71 @@ describe("Das Schaufenster kennt den Angemeldeten", () => {
     }
   });
 });
+
+describe("Das Gebaeudemodell", () => {
+  /*
+    Der Abschnitt zeigt das Haus raeumlich statt als Tabelle. Zwei Dinge
+    koennen dabei schiefgehen, und beide faellt man beim Ansehen nicht
+    auf: Die 3D-Bibliothek landet im Hauptbuendel und verlangsamt die
+    Seite fuer jeden, auch fuer den, der nie so weit scrollt. Oder es
+    gerat doch etwas aus der laufenden Verwaltung hinein -- gerade weil
+    die Zahlen hier so konkret sind.
+  */
+  const HAUS = readFileSync(
+    join(HIER, "../components/SchaufensterHaus.tsx"), "utf8");
+
+  test("three wird erst bei Bedarf geladen, nicht im Hauptbuendel", () => {
+    // Ein statisches import-three waere die bequeme Zeile und kostet
+    // jeden Besucher der Startseite mehr als die ganze uebrige Seite.
+    assert.ok(
+      !/^import .* from "three"/m.test(HAUS),
+      "three wird statisch importiert und landet damit im Hauptbuendel",
+    );
+    assert.match(HAUS, /await import\("three"\)/);
+  });
+
+  test("geladen wird erst, wenn der Abschnitt in Sicht kommt", () => {
+    assert.match(HAUS, /IntersectionObserver/);
+    assert.match(HAUS, /beobachter\.disconnect\(\)/);
+  });
+
+  test("die Komponente liest keine Daten", () => {
+    // Dieselbe Linie wie fuer die Seite selbst: Dieser Abschnitt ist
+    // ohne Anmeldung sichtbar.
+    for (const verboten of ["mitMandant", "lib/db", "query(", "tx(", "fetch("]) {
+      assert.ok(
+        !HAUS.includes(verboten),
+        `Das Gebaeudemodell benutzt "${verboten}"`,
+      );
+    }
+  });
+
+  test("im Modell steht keine Person und kein Betrag", () => {
+    /*
+      Die Flaechen stammen aus den Bauplaenen und duerfen hier stehen.
+      Namen und Mieten nicht -- und der Unterschied verwischt leicht,
+      wenn jemand spaeter "noch eben" einen echten Fall ergaenzt.
+    */
+    for (const wort of ["Stephan", "Hofmann", "Igor", "Jovanic", "Mieter:"]) {
+      assert.ok(!HAUS.includes(wort), `"${wort}" steht im Gebaeudemodell`);
+    }
+    assert.ok(
+      !/\d+[.,]\d{2}\s*(€|EUR|Euro)/.test(HAUS),
+      "Im Gebaeudemodell steht ein Betrag",
+    );
+  });
+
+  test("die Seite bindet es ein und weist es aus", () => {
+    assert.match(SEITE, /<SchaufensterHaus \/>/);
+    // Der Leser muss erfahren, was echt ist und was nicht.
+    assert.match(SEITE, /aus den Bauplänen/);
+    assert.match(SEITE, /keine Daten aus der laufenden Verwaltung/);
+  });
+
+  test("das Aufraeumen haelt den Zeichner nicht fest", () => {
+    // Ohne dispose() bleibt bei jedem Seitenwechsel ein WebGL-Kontext
+    // liegen; Browser geben nach etwa einem Dutzend auf.
+    assert.match(HAUS, /zeichner\.dispose\(\)/);
+    assert.match(HAUS, /laeuft = false/);
+  });
+});
