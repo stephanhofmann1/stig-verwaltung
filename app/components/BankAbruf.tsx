@@ -16,7 +16,14 @@ import { useState } from "react";
 type Schritt =
   | { art: "fertig"; neu: number; bekannt: number; von: string; bis: string;
       gekuerzt: boolean }
-  | { art: "tan"; token: string; hinweis: string; medium: string | null }
+  /*
+    Muss zu Schritt in lib/fints/interaktiv.ts passen. Bewusst
+    nachgebaut statt importiert: Das Modul dort spricht mit Datenbank
+    und Bank und hat im Browser-Buendel nichts zu suchen. Ein Test
+    haelt beide Stellen zusammen.
+  */
+  | { art: "tan"; token: string; hinweis: string; medium: string | null;
+      freigabe: boolean }
   | { art: "fehler"; meldung: string };
 
 export function BankAbruf({ zugang, name }: { zugang: string; name: string }) {
@@ -24,6 +31,8 @@ export function BankAbruf({ zugang, name }: { zugang: string; name: string }) {
   const [tanToken, setTanToken] = useState("");
   const [hinweis, setHinweis] = useState("");
   const [medium, setMedium] = useState<string | null>(null);
+  /** Verfahren ohne TAN: freigegeben wird in der App, nicht hier. */
+  const [freigabe, setFreigabe] = useState(false);
   const [tan, setTan] = useState("");
   const [ergebnis, setErgebnis] = useState<Schritt | null>(null);
 
@@ -33,6 +42,7 @@ export function BankAbruf({ zugang, name }: { zugang: string; name: string }) {
       setTanToken(d.token);
       setHinweis(d.hinweis);
       setMedium(d.medium);
+      setFreigabe(d.freigabe);
       setStand("tan");
     } else {
       setStand(d.art === "fertig" ? "fertig" : "bereit");
@@ -72,7 +82,11 @@ export function BankAbruf({ zugang, name }: { zugang: string; name: string }) {
       {stand === "tan" && (
         <form onSubmit={tanSenden}>
           <p>
-            <strong>Die Bank verlangt eine TAN.</strong>
+            <strong>
+              {freigabe
+                ? "Die Bank wartet auf Ihre Freigabe."
+                : "Die Bank verlangt eine TAN."}
+            </strong>
             <br />
             <span className="hinweis">{hinweis}</span>
             {medium ? (
@@ -82,26 +96,37 @@ export function BankAbruf({ zugang, name }: { zugang: string; name: string }) {
               </>
             ) : null}
           </p>
-          {/* Feld und Knopf in der Knopfreihe: den Abstand dazwischen
-              traegt deren gap, vorher stand er als marginRight im Feld. */}
-          <div className="knopfreihe">
-            <input
-              value={tan}
-              onChange={(e) => setTan(e.target.value)}
-              placeholder="TAN"
-              autoComplete="one-time-code"
-              inputMode="numeric"
-              autoFocus
-            />
-            <button type="submit" disabled={tan.trim() === ""}>
-              TAN senden
-            </button>
-          </div>
-          <p className="hinweis">
-            Bei einem entkoppelten Verfahren (Push-TAN-App) genügt die
-            Bestätigung in der App; dann hier eine beliebige Ziffer eintragen
-            und senden.
-          </p>
+          {/*
+            Kein Eingabefeld bei Freigabeverfahren.
+
+            Hier stand frueher ein TAN-Feld mit dem Rat, "eine beliebige
+            Ziffer" einzutragen. Der Rat ist falsch: Die Bank erwartet
+            bei diesen Verfahren eine Statusabfrage, und eine Nachricht
+            mit Ziffer darin ist fehlerhaft. Die Sparkasse Wetzlar
+            antwortete am 27.11.2026 mit "9050 Die Nachricht enthaelt
+            Fehler" -- obwohl die Freigabe auf dem Handy erteilt war.
+          */}
+          {freigabe ? (
+            <div className="knopfreihe">
+              <button type="submit" disabled={stand !== "tan"}>
+                Freigabe erteilt — weiter
+              </button>
+            </div>
+          ) : (
+            <div className="knopfreihe">
+              <input
+                value={tan}
+                onChange={(e) => setTan(e.target.value)}
+                placeholder="TAN"
+                autoComplete="one-time-code"
+                inputMode="numeric"
+                autoFocus
+              />
+              <button type="submit" disabled={tan.trim() === ""}>
+                TAN senden
+              </button>
+            </div>
+          )}
         </form>
       )}
 

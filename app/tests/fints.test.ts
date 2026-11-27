@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 import { zeitraum, alsBuchungen, bankMeldung, wegenZugangsdaten,
          sollStilllegen, zweiSchrittVerfahren, waehleTanVerfahren,
          EINSCHRITT, setzeTanMedium, waehleTanMedium,
-         wegenGeraetebezeichnung, hinweisGeraet,
+         wegenGeraetebezeichnung, hinweisGeraet, istFreigabeVerfahren,
          type FintsUmsatz } from "../lib/fints/abruf";
 import { liesKontoauszug } from "../lib/kontoformate";
 
@@ -1019,5 +1019,90 @@ describe("Der Hinweis sagt, was versucht wurde", () => {
   test("ohne Verfahren bleibt der Hinweis verstaendlich", () => {
     const t = hinweisGeraet(null, null);
     assert.match(t, /kein Verfahren/i);
+  });
+});
+
+describe("Verfahren ohne TAN zum Abtippen", () => {
+  /*
+    Sparkasse Wetzlar, 27.11.2026, nachdem Verfahren und
+    Geraetebezeichnung endlich stimmten:
+
+    "9050 Die Nachricht enthaelt Fehler.; 9800 Dialog abgebrochen;
+     9010 Bitte den Auftrag nochmals zu einem spaeteren Zeitpunkt senden."
+
+    Die Freigabe war auf dem Handy bereits erteilt. Trotzdem scheiterte
+    es, weil die Oberflaeche eine TAN verlangte und der Nutzer -- der
+    Anweisung auf dem Bildschirm folgend -- "eine beliebige Ziffer"
+    eintrug. pushTAN 2.0 ist decoupled: Die Bank erwartet eine
+    Statusabfrage, und eine Nachricht mit Ziffer darin ist fuer dieses
+    Verfahren fehlerhaft.
+  */
+
+  const client = (isDecoupled?: boolean) => ({
+    config: { selectedTanMethod: { isDecoupled } },
+  });
+
+  test("decoupled wird erkannt", () => {
+    assert.equal(istFreigabeVerfahren(client(true)), true);
+  });
+
+  test("ein normales Verfahren wird nicht als Freigabe behandelt", () => {
+    assert.equal(istFreigabeVerfahren(client(false)), false);
+    assert.equal(istFreigabeVerfahren(client(undefined)), false);
+    assert.equal(istFreigabeVerfahren({ config: {} }), false);
+  });
+
+  test("bei Freigabe wird keine TAN an die Bank geschickt", () => {
+    const INTERAKTIV = readFileSync(
+      new URL("../lib/fints/interaktiv.ts", import.meta.url), "utf8");
+    /*
+      Der Kern. Wird hier wieder `tan` statt `undefined` uebergeben,
+      baut die Software dieselbe fehlerhafte Nachricht wie am 27.11.
+    */
+    assert.match(INTERAKTIV,
+      /synchronizeWithTan\(\s*offen\.tanReferenz,\s*offen\.freigabe \? undefined : tan,/);
+    assert.match(INTERAKTIV,
+      /getAccountStatementsWithTan\(\s*offen\.tanReferenz,\s*offen\.freigabe \? undefined : tan,/);
+  });
+
+  test("die Schnittstelle laesst eine leere TAN durch", () => {
+    const ROUTE = readFileSync(
+      new URL("../app/api/bank/tan/route.ts", import.meta.url), "utf8");
+    /*
+      Vorher stand hier `if (!token || !tan)`. Damit liess sich ein
+      Freigabeverfahren gar nicht abschliessen -- es gab keinen Weg
+      durch die Oberflaeche, der nicht eine Ziffer mitgeschickt haette.
+    */
+    assert.doesNotMatch(ROUTE, /!token \|\| !tan/);
+    assert.match(ROUTE, /tan \|\| undefined/);
+  });
+
+  test("die Oberflaeche raet nicht mehr zu einer beliebigen Ziffer", () => {
+    const UI = readFileSync(
+      new URL("../components/BankAbruf.tsx", import.meta.url), "utf8");
+    /*
+      Dieser Satz stand auf dem Bildschirm und war der eigentliche
+      Grund fuer den Fehlversuch: Der Nutzer hat getan, was dort stand.
+    */
+    assert.doesNotMatch(UI, /beliebige Ziffer eintragen/);
+    assert.match(UI, /Freigabe erteilt/);
+  });
+
+  test("beide Schritt-Typen kennen das Feld", () => {
+    /*
+      Die Oberflaeche baut den Typ nach, statt ihn zu importieren --
+      sonst laege Server-Code im Browser-Buendel. Dieser Test haelt die
+      beiden Stellen zusammen.
+    */
+    const UI = readFileSync(
+      new URL("../components/BankAbruf.tsx", import.meta.url), "utf8");
+    const INTERAKTIV = readFileSync(
+      new URL("../lib/fints/interaktiv.ts", import.meta.url), "utf8");
+    for (const [name, quelle] of
+         [["BankAbruf.tsx", UI], ["interaktiv.ts", INTERAKTIV]] as const) {
+      const tanTyp = quelle.slice(quelle.indexOf('| { art: "tan"'));
+      assert.match(tanTyp.slice(0, 300), /freigabe: boolean/,
+        `${name}: freigabe fehlt im Schritt-Typ`);
+    }
   });
 });

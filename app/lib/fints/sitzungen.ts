@@ -29,6 +29,13 @@ interface Offen {
   /** Wofür die TAN gilt. */
   zweck: "synchronisieren" | "umsaetze";
   tanReferenz: string;
+  /*
+    Verfahren ohne TAN zum Abtippen. Muss hier stehen und nicht nur im
+    Browser: Die Entscheidung, ob eine TAN mitgeschickt wird, faellt beim
+    Fortsetzen des Dialogs -- und was der Browser schickt, ist nicht
+    massgeblich dafuer, was die Bank erwartet.
+  */
+  freigabe: boolean;
   angelegt: number;
 }
 
