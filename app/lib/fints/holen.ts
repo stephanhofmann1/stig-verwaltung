@@ -1,7 +1,8 @@
 import { query, one, tx } from "../db";
 import { entschluessele, schluesselVorhanden } from "./geheimnis";
 import { alsBuchungen, bankMeldung, sollStilllegen, waehleTanVerfahren,
-         zweiSchrittVerfahren, zeitraum,
+         zweiSchrittVerfahren, zeitraum, setzeTanMedium, waehleTanMedium,
+         wegenGeraetebezeichnung, HINWEIS_GERAET,
          type AbrufErgebnis, type TanVerfahren, type ZugangsDaten,
          type FintsUmsatz } from "./abruf";
 
@@ -107,6 +108,7 @@ export async function hole(z: ZugangsDaten, heute = new Date()): Promise<AbrufEr
 
     const client = new FinTSClient(config);
     let gewaehltesVerfahren: TanVerfahren | null = null;
+    let gewaehltesMedium: string | null = null;
 
     // Ohne gespeicherte Bankinformationen muss zuerst synchronisiert
     // werden. Verlangt die Bank dafür eine TAN, bricht es hier ab -- das
@@ -159,8 +161,10 @@ export async function hole(z: ZugangsDaten, heute = new Date()): Promise<AbrufEr
       }
       if (wahl.art === "gewaehlt") {
         client.selectTanMethod(wahl.verfahren.id);
-        if (wahl.verfahren.medien.length === 1) {
-          client.selectTanMedia(wahl.verfahren.medien[0]);
+        const medium = waehleTanMedium(z.tan_medium, wahl.verfahren.medien);
+        if (medium) {
+          setzeTanMedium(client, medium);
+          gewaehltesMedium = medium;
         }
         gewaehltesVerfahren = wahl.verfahren;
         /*
@@ -179,9 +183,12 @@ export async function hole(z: ZugangsDaten, heute = new Date()): Promise<AbrufEr
           };
         }
         if (!zweite.success) {
+          const roh = bankMeldung(zweite.bankAnswers);
           return {
             art: "fehler",
-            meldung: bankMeldung(zweite.bankAnswers),
+            meldung: wegenGeraetebezeichnung(roh)
+              ? `${roh} — ${HINWEIS_GERAET}`
+              : roh,
             vonDerBank: true,
           };
         }
@@ -238,10 +245,7 @@ export async function hole(z: ZugangsDaten, heute = new Date()): Promise<AbrufEr
         : null,
       gekuerzt,
       tan_verfahren: gewaehltesVerfahren?.id ?? null,
-      tan_medium:
-        gewaehltesVerfahren?.medien.length === 1
-          ? gewaehltesVerfahren.medien[0]
-          : null,
+      tan_medium: gewaehltesMedium,
     };
   } catch (e) {
     return { art: "fehler", meldung: (e as Error).message };

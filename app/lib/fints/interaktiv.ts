@@ -2,7 +2,8 @@ import { query, one } from "../db";
 import { randomBytes } from "node:crypto";
 import { entschluessele, schluesselVorhanden } from "./geheimnis";
 import { alsBuchungen, bankMeldung, waehleTanVerfahren,
-         zweiSchrittVerfahren, zeitraum,
+         zweiSchrittVerfahren, zeitraum, setzeTanMedium, waehleTanMedium,
+         wegenGeraetebezeichnung, HINWEIS_GERAET,
          type TanVerfahren, type ZugangsDaten,
          type FintsUmsatz } from "./abruf";
 import { merke, hole as holeSitzung, vergiss } from "./sitzungen";
@@ -180,9 +181,8 @@ export async function starteAbruf(
       }
       if (wahl.art === "gewaehlt") {
         client.selectTanMethod(wahl.verfahren.id);
-        if (wahl.verfahren.medien.length === 1) {
-          client.selectTanMedia(wahl.verfahren.medien[0]);
-        }
+        const medium = waehleTanMedium(z.tan_medium, wahl.verfahren.medien);
+        if (medium) setzeTanMedium(client, medium);
         await merkeVerfahren(z.id, wahl.verfahren);
         const zweite = await client.synchronize();
         if (zweite.requiresTan) {
@@ -200,9 +200,12 @@ export async function starteAbruf(
           };
         }
         if (!zweite.success) {
+          const roh = bankMeldung(zweite.bankAnswers);
           return {
             art: "fehler",
-            meldung: bankMeldung(zweite.bankAnswers),
+            meldung: wegenGeraetebezeichnung(roh)
+              ? `${roh} — ${HINWEIS_GERAET}`
+              : roh,
             vonDerBank: true,
           };
         }

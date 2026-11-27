@@ -399,3 +399,73 @@ function nenneAuswahl(angebotene: TanVerfahren[]): string {
     "eingerichtet ist."
   );
 }
+
+/**
+ * Setzt die Gerätebezeichnung (TAN-Medium) für das gewählte Verfahren.
+ *
+ * Warum das nicht einfach `client.selectTanMedia(name)` ist:
+ *
+ * lib-fints prüft den Namen gegen `activeTanMedia` und wirft, wenn er
+ * nicht darin steht. Diese Liste ist bei der Erstanmeldung aber **immer
+ * leer**: Sie wird nur gefuellt, wenn die Bibliothek die Medienliste
+ * abfragt (HKTAB), und das tut sie erst in einem Dialog, in dem bereits
+ * ein Verfahren gewaehlt ist (initDialogInteraction.js). Genau dieser
+ * Dialog ist der, der ohne Gerätebezeichnung scheitert.
+ *
+ * Henne und Ei: Für die Liste braucht es einen Dialog, für den Dialog
+ * die Liste. Aufgelöst wird das hier so, wie jedes FinTS-Programm es
+ * auflöst -- der Mensch nennt den Namen, und geprüft wird er von der
+ * Bank, nicht von uns. Steht er nicht in der Liste, wird er in die Liste
+ * aufgenommen, damit die Prüfung der Bibliothek ihn durchlässt.
+ *
+ * Fehlerbild ohne diesen Schritt, Sparkasse Wetzlar am 27.11.2026:
+ * "9955 Auftrag nicht ausgeführt - Die Gerätebezeichnung ist unbekannt."
+ */
+export function setzeTanMedium(
+  client: {
+    config: { selectedTanMethod?: { activeTanMedia: string[] } };
+    selectTanMedia: (name: string) => void;
+  },
+  name: string,
+): void {
+  const verfahren = client.config.selectedTanMethod;
+  if (verfahren && !verfahren.activeTanMedia.includes(name)) {
+    verfahren.activeTanMedia.push(name);
+  }
+  client.selectTanMedia(name);
+}
+
+/**
+ * Welche Gerätebezeichnung genommen wird.
+ *
+ * Die hinterlegte hat Vorrang: Nennt die Bank spaeter andere Namen, soll
+ * nicht stillschweigend ein anderes Geraet angesprochen werden. Ist keine
+ * hinterlegt und die Bank nennt genau eine, wird die genommen.
+ */
+export function waehleTanMedium(
+  hinterlegt: string | null,
+  angebotene: string[],
+): string | null {
+  if (hinterlegt) return hinterlegt;
+  if (angebotene.length === 1) return angebotene[0];
+  return null;
+}
+
+/**
+ * Erkennt die Rückmeldung der Bank, dass die Gerätebezeichnung fehlt
+ * oder nicht stimmt, und sagt im Klartext, was zu tun ist.
+ *
+ * Die Bank schickt dazu den Code 9955 mit dem Text "Die
+ * Gerätebezeichnung ist unbekannt". Ohne Übersetzung steht Stephan vor
+ * drei Zahlencodes und weiss nicht, dass ihm ein Feld fehlt.
+ */
+export function wegenGeraetebezeichnung(meldung: string): boolean {
+  return /ger(ä|ae)tebezeichnung/i.test(meldung) || /\b9955\b/.test(meldung);
+}
+
+/** Der Zusatz, der aus dem Bankcode eine Handlungsanweisung macht. */
+export const HINWEIS_GERAET =
+  "Die Bank möchte wissen, welches Gerät die TAN bekommen soll. " +
+  "Trage beim Zugang unter „Gerätebezeichnung“ den Namen der " +
+  "pushTAN-Verbindung ein — er steht in der S-pushTAN-App bei der " +
+  "Verbindung und muss genau so geschrieben werden.";

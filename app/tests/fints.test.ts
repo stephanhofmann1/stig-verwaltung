@@ -5,7 +5,8 @@ import { readFileSync } from "node:fs";
 
 import { zeitraum, alsBuchungen, bankMeldung, wegenZugangsdaten,
          sollStilllegen, zweiSchrittVerfahren, waehleTanVerfahren,
-         EINSCHRITT, type FintsUmsatz } from "../lib/fints/abruf";
+         EINSCHRITT, setzeTanMedium, waehleTanMedium,
+         wegenGeraetebezeichnung, type FintsUmsatz } from "../lib/fints/abruf";
 import { liesKontoauszug } from "../lib/kontoformate";
 
 /**
@@ -888,5 +889,95 @@ describe("Die Wahl steht an der richtigen Stelle im Ablauf", () => {
     assert.match(HOLEN, /tan_verfahren = COALESCE/);
     assert.match(INTERAKTIV, /merkeVerfahren\(/);
     assert.match(INTERAKTIV, /SET tan_verfahren = \$2/);
+  });
+});
+
+describe("Die Geraetebezeichnung", () => {
+  /*
+    Sparkasse Wetzlar, 27.11.2026:
+    "9050 Die Nachricht enthaelt Fehler.; 9800 Dialog abgebrochen;
+     9955 Auftrag nicht ausgefuehrt - Die Geraetebezeichnung ist unbekannt."
+
+    Anmeldung und Verfahrenswahl hatten funktioniert. Es fehlte die
+    Angabe, welches Geraet die TAN bekommen soll.
+  */
+
+  const client = (aktive: string[]) => {
+    const verfahren = { activeTanMedia: aktive };
+    const gesetzt: string[] = [];
+    return {
+      config: { selectedTanMethod: verfahren },
+      selectTanMedia(name: string) {
+        /* Die Pruefung der Bibliothek, nachgebaut. */
+        if (!verfahren.activeTanMedia.includes(name)) {
+          throw new Error(`TAN media '${name}' not found`);
+        }
+        gesetzt.push(name);
+      },
+      gesetzt,
+      verfahren,
+    };
+  };
+
+  test("ein Name wird auch gesetzt, wenn die Liste der Bank leer ist", () => {
+    /*
+      Der Kern. Bei der Erstanmeldung ist activeTanMedia IMMER leer --
+      die Liste holt lib-fints erst in einem Dialog, in dem schon ein
+      Verfahren gewaehlt ist, und genau der scheitert ohne Geraet.
+      Ohne diesen Schritt wirft die Bibliothek, bevor die Bank ueberhaupt
+      gefragt wird.
+    */
+    const c = client([]);
+    setzeTanMedium(c, "iPhone von Stephan");
+    assert.deepEqual(c.gesetzt, ["iPhone von Stephan"]);
+  });
+
+  test("ein Name aus der Liste wird unveraendert durchgereicht", () => {
+    const c = client(["Handy", "Zweitgeraet"]);
+    setzeTanMedium(c, "Zweitgeraet");
+    assert.deepEqual(c.gesetzt, ["Zweitgeraet"]);
+    assert.deepEqual(c.verfahren.activeTanMedia, ["Handy", "Zweitgeraet"]);
+  });
+
+  test("das hinterlegte Geraet hat Vorrang vor dem der Bank", () => {
+    /*
+      Sonst spricht ein Lauf stillschweigend ein anderes Geraet an, und
+      die TAN landet auf einem Handy, das vielleicht nicht mehr benutzt
+      wird.
+    */
+    assert.equal(waehleTanMedium("Mein Handy", ["Anderes Handy"]), "Mein Handy");
+  });
+
+  test("nennt die Bank genau eines und ist keines hinterlegt, gilt ihres", () => {
+    assert.equal(waehleTanMedium(null, ["Handy"]), "Handy");
+  });
+
+  test("bei mehreren ohne Hinterlegung wird keines geraten", () => {
+    assert.equal(waehleTanMedium(null, ["Handy", "Tablet"]), null);
+  });
+
+  test("die Rueckmeldung der Bank wird erkannt", () => {
+    const echt =
+      "9050 Die Nachricht enthält Fehler.; 9800 Dialog abgebrochen; " +
+      "9955 Auftrag nicht ausgeführt - Die Gerätebezeichnung ist unbekannt.";
+    assert.equal(wegenGeraetebezeichnung(echt), true);
+    assert.equal(wegenGeraetebezeichnung("9910 PIN gesperrt"), false);
+  });
+
+  test("aus dem Zahlencode wird eine Handlungsanweisung", () => {
+    const HOLEN = readFileSync(
+      new URL("../lib/fints/holen.ts", import.meta.url), "utf8");
+    const INTERAKTIV = readFileSync(
+      new URL("../lib/fints/interaktiv.ts", import.meta.url), "utf8");
+    /*
+      Ohne diesen Zusatz steht Stephan vor drei Zahlencodes und weiss
+      nicht, dass ihm ein Feld fehlt. Genau das ist am 27.11. passiert.
+    */
+    for (const [name, quelle] of
+         [["holen.ts", HOLEN], ["interaktiv.ts", INTERAKTIV]] as const) {
+      assert.match(quelle, /wegenGeraetebezeichnung\(roh\)/,
+        `${name}: Hinweis fehlt`);
+      assert.match(quelle, /HINWEIS_GERAET/, `${name}: Hinweistext fehlt`);
+    }
   });
 });
