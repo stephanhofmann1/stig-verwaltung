@@ -139,11 +139,13 @@ export function BankZugangPflegen({
           className="feld"
         />
         <span className="hinweis">
-          Leer lassen, solange es geht. Bietet die Bank mehrere Verfahren
-          an, nennt die Fehlermeldung beim Abruf die Kennungen zur Auswahl
-          — zum Beispiel 921 für eine App-Freigabe. Ohne Zwei-Schritt-
-          Verfahren nimmt die Bank die Anmeldung an, liefert aber kein
-          Konto.
+          Leer lassen, solange es geht — der Abruf trägt die Kennung
+          selbst ein, sobald die Bank sie nennt. Welche Nummer für
+          welches Verfahren steht, legt jede Bank selbst fest; es gibt
+          keine allgemeingültige Zuordnung. Die Fehlermeldung beim Abruf
+          nennt deshalb Nummer und Namen so, wie die Bank selbst sie
+          angibt. Ohne Zwei-Schritt-Verfahren nimmt die Bank die
+          Anmeldung an, liefert aber kein Konto.
         </span>
       </label>
       <label>Gerätebezeichnung
