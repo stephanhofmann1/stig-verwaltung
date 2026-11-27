@@ -463,9 +463,37 @@ export function wegenGeraetebezeichnung(meldung: string): boolean {
   return /ger(ä|ae)tebezeichnung/i.test(meldung) || /\b9955\b/.test(meldung);
 }
 
-/** Der Zusatz, der aus dem Bankcode eine Handlungsanweisung macht. */
-export const HINWEIS_GERAET =
-  "Die Bank möchte wissen, welches Gerät die TAN bekommen soll. " +
-  "Trage beim Zugang unter „Gerätebezeichnung“ den Namen der " +
-  "pushTAN-Verbindung ein — er steht in der S-pushTAN-App bei der " +
-  "Verbindung und muss genau so geschrieben werden.";
+/**
+ * Der Zusatz, der aus dem Bankcode eine Handlungsanweisung macht.
+ *
+ * Warum hier das gewaehlte Verfahren und der geschickte Name
+ * mitstehen: Am 27.11.2026 kam dieselbe Meldung zweimal -- einmal ohne
+ * Gerätebezeichnung und einmal mit "16e". Aus der Meldung allein liess
+ * sich nicht erkennen, ob der Name falsch geschrieben war oder ob
+ * ueberhaupt das falsche Verfahren gewaehlt wurde. Bei chipTAN ist die
+ * Gerätebezeichnung naemlich nicht das Handy, sondern die Karte, und
+ * dann kann ein Handyname nie passen. Eine Fehlermeldung, die nicht
+ * sagt, was sie getan hat, kostet jedes Mal eine Runde Raten.
+ */
+export function hinweisGeraet(
+  verfahren: TanVerfahren | null,
+  geschickt: string | null,
+): string {
+  const gewaehlt = verfahren
+    ? `Gewählt war Verfahren ${verfahren.id} (${verfahren.name}).`
+    : "Es war kein Verfahren gewählt.";
+  const name = geschickt
+    ? `Geschickt wurde die Bezeichnung „${geschickt}“.`
+    : "Es wurde keine Bezeichnung mitgeschickt.";
+  const liste = verfahren?.medien.length
+    ? ` Die Bank nennt dazu: ${verfahren.medien.join(", ")}.`
+    : "";
+  return (
+    `${gewaehlt} ${name}${liste} ` +
+    "Die Bank möchte wissen, welches Gerät die TAN bekommen soll. " +
+    "Bei pushTAN ist das der Name der Verbindung aus der S-pushTAN-App, " +
+    "bei chipTAN die Bezeichnung der Karte (etwa „SparkassenCard“). " +
+    "Trage ihn beim Zugang unter „Gerätebezeichnung“ ein, genau so " +
+    "geschrieben."
+  );
+}

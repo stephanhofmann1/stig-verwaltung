@@ -2,7 +2,7 @@ import { query, one, tx } from "../db";
 import { entschluessele, schluesselVorhanden } from "./geheimnis";
 import { alsBuchungen, bankMeldung, sollStilllegen, waehleTanVerfahren,
          zweiSchrittVerfahren, zeitraum, setzeTanMedium, waehleTanMedium,
-         wegenGeraetebezeichnung, HINWEIS_GERAET,
+         wegenGeraetebezeichnung, hinweisGeraet,
          type AbrufErgebnis, type TanVerfahren, type ZugangsDaten,
          type FintsUmsatz } from "./abruf";
 
@@ -187,7 +187,7 @@ export async function hole(z: ZugangsDaten, heute = new Date()): Promise<AbrufEr
           return {
             art: "fehler",
             meldung: wegenGeraetebezeichnung(roh)
-              ? `${roh} — ${HINWEIS_GERAET}`
+              ? `${roh} — ${hinweisGeraet(wahl.verfahren, medium)}`
               : roh,
             vonDerBank: true,
           };
