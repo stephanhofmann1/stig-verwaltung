@@ -35,8 +35,9 @@
 
 /* --- Das Gerüst für diese eine Seite ------------------------------------
 
-   Die Arbeitsflaeche stellt ab 1100 px die Navigation als Schiene an den
-   linken Rand und rueckt den Inhalt daneben. Das ist fuer eine
+   Die Arbeitsflaeche stellt ab 64 rem die Navigation als Seitenleiste an
+   den linken Rand und rueckt den Inhalt daneben (bis 27.11.2026: ab
+   1100 px). Das ist fuer eine
    Anwendung richtig und fuer ein Schaufenster falsch: Dort gibt es
    nichts zu navigieren, und die Baender sollen ueber die volle Breite
    laufen.
@@ -68,7 +69,7 @@ body:has(.schaufenster) .rahmen {
   padding: 0;
 }
 
-@media (min-width: 1100px) {
+@media (min-width: 64rem) {
   body:has(.schaufenster) .kopf {
     position: sticky;
     inset: auto;
@@ -77,7 +78,9 @@ body:has(.schaufenster) .rahmen {
     border-right: 0;
     border-bottom: 1px solid var(--linie);
     overflow: visible;
-    backdrop-filter: saturate(140%) blur(8px);
+    background: color-mix(in srgb, var(--grund) 78%, transparent);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    backdrop-filter: saturate(180%) blur(20px);
   }
   body:has(.schaufenster) .kopf-innen {
     max-width: 76rem;
@@ -93,7 +96,12 @@ body:has(.schaufenster) .rahmen {
      Titel. */
   body:has(.schaufenster) .marke {
     font-size: var(--t-grund);
+    padding: 0;
   }
+  /* Was die Seitenleiste der Arbeitsflaeche an Abstaenden mitbringt,
+     gehoert nicht in eine Kopfzeile. */
+  body:has(.schaufenster) .objektwahl { margin: 0; }
+  body:has(.schaufenster) .objektwahl select { width: auto; }
   body:has(.schaufenster) .rahmen {
     margin-left: 0;
   }

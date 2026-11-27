@@ -287,7 +287,7 @@ export default async function Mietverhaeltnisseite({
   return (
     <>
       <div className="akte-kopf">
-        <span className="aktenzeichen ziffern">{kopf.beginn.slice(0, 4)}</span>
+        <span className="aktenzeichen ziffern">Mietverhältnis seit {kopf.beginn.slice(0, 4)}</span>
         <div>
           <h1>{kopf.mieter}</h1>
           <div className="akte-meta">

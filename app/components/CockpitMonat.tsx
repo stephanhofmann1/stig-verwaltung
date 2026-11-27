@@ -41,10 +41,9 @@ export function CockpitMonat({
     return (
       <CockpitKarte titel={`Geld im ${monatsName(monat)}`} zaehler="keine Daten">
         <div className="leer">
-          <strong>Noch keine Sollstellungen für diesen Monat</strong>
-          Sie werden nachts erzeugt. Solange keine da sind, lässt sich über
-          Soll, bezahlt und offen nichts sagen — eine Null wäre hier die
-          Behauptung, es sei alles bezahlt.
+          <strong>Für diesen Monat sind noch keine Mieten gestellt</strong>
+          Das passiert nachts von allein. Bis dahin lässt sich über bezahlt und
+          offen nichts sagen.
         </div>
       </CockpitKarte>
     );
@@ -53,20 +52,19 @@ export function CockpitMonat({
   return (
     <CockpitKarte
       titel={`Geld im ${monatsName(monat)}`}
-      zaehler={`${geld.anzahl} Sollstellungen`}
+      zaehler={`${geld.anzahl} Posten`}
       hinweis={
         geld.belastbar
-          ? "Offen heißt: fällig, Kontoumsätze liegen vor, nichts angekommen."
-          : "Für keinen dieser Posten liegen Kontodaten vor."
+          ? "Offen heißt: fällig, der Kontoauszug liegt vor, nichts ist angekommen."
+          : "Für diesen Monat liegt noch kein Kontoauszug vor."
       }
       // Die Unterscheidung bleibt wortgleich erhalten -- sie ist der Grund,
       // warum diese Karte "—" statt einer Null zeigt. Sie steht nur nicht
       // mehr vor der ersten Zahl.
       erklaerung={
-        <Erklaerung satz="Monate ohne Kontodaten werden nicht dazugezählt — sonst stünde eine fehlende Unterlage als Rückstand da">
+        <Erklaerung satz="Warum Monate ohne Kontoauszug nicht als offen zählen">
           <p className="hinweis">
-            Der Status je Monat kommt aus <code>lib/mieter.ts</code> und
-            unterscheidet zwei Dinge: <strong>offen</strong> heißt fällig,
+            Unterschieden werden zwei Dinge: <strong>offen</strong> heißt fällig,
             Kontoumsätze liegen vor, es ist nichts angekommen.{" "}
             <strong>Nicht abgeglichen</strong> heißt, dass es für diesen Monat
             überhaupt keine Kontodaten gibt.
@@ -88,7 +86,7 @@ export function CockpitMonat({
         posten={[
           { begriff: "Soll", wert: euroGenau(geld.soll) },
           {
-            begriff: "davon bezahlt",
+            begriff: "Bezahlt",
             wert: euroGenau(geld.bezahlt),
             dazu:
               geld.soll > 0
@@ -97,7 +95,7 @@ export function CockpitMonat({
             art: geld.soll > 0 && geld.bezahlt >= geld.soll ? "gut" : undefined,
           },
           {
-            begriff: "offen",
+            begriff: "Offen",
             // Der entscheidende Zweig: ohne Kontodaten keine Zahl.
             wert: geld.belastbar ? euroGenau(geld.offen) : null,
             dazu: geld.belastbar
@@ -108,7 +106,7 @@ export function CockpitMonat({
                       : "Mietverhältnisse"
                   }`
                 : "nichts fällig und unbezahlt"
-              : "Monat nicht abgeglichen",
+              : "noch kein Kontoauszug",
             art: !geld.belastbar
               ? undefined
               : geld.offen > 0
@@ -116,7 +114,7 @@ export function CockpitMonat({
                 : "gut",
           },
           {
-            begriff: "noch nicht fällig",
+            begriff: "Noch nicht fällig",
             wert: euroGenau(geld.nochNichtFaellig),
             dazu: "Schonfrist bis zum 3. Werktag",
           },
@@ -127,9 +125,9 @@ export function CockpitMonat({
         <div className="meldung" data-art="info">
           <strong>
             {euroGenau(geld.unabgeglichen)} aus {geld.unabgeglichenAnzahl} Posten
-            ohne Kontodaten — kein Rückstand, eine fehlende Unterlage
+            ohne Kontoauszug — kein Rückstand, nur noch nicht belegt
           </strong>
-          <Erklaerung satz="Woran es liegt und wo es steht">
+          <Erklaerung satz="Woran es liegt">
             <p className="hinweis">
               Für diese Monate liegen keine Kontoauszüge vor. Objekte ohne
               eigenes Konto haben überhaupt keine — dort ist jeder Monat so. Ab

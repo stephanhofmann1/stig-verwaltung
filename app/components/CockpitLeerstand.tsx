@@ -41,9 +41,8 @@ export function CockpitLeerstand({ lage }: { lage: LeerstandsLage }) {
       <CockpitKarte titel="Leerstand" zaehler="keine Daten">
         <div className="leer">
           <strong>Es konnten keine Einheiten gelesen werden</strong>
-          Ohne Einheiten ist über frei, bald frei und belegt nichts bekannt.
-          Eine Null stünde hier für „alles vermietet“ — tatsächlich ist nicht
-          einmal bekannt, ob es Einheiten gibt. Zu prüfen in den Stammdaten.
+          Über frei, bald frei und belegt ist deshalb nichts bekannt. Zu
+          prüfen unter Einheiten &amp; Mieter.
         </div>
       </CockpitKarte>
     );
@@ -55,19 +54,17 @@ export function CockpitLeerstand({ lage }: { lage: LeerstandsLage }) {
       zaehler={`${lage.frei.length} frei, ${lage.bald.length} bald frei`}
       hinweis={`Bezogen auf ${lage.gesamt} vermarktbare Einheiten.`}
       erklaerung={
-        <Erklaerung satz="Gezählt werden nur vermarktbare Einheiten — und eine Einheit ohne gepflegte Belegung zählt als belegt">
+        <Erklaerung satz="Wie gezählt wird">
           <p className="hinweis">
-            Nicht dabei sind Gemeinschaftsflächen, die Gewerbefläche
-            (<code>vermarktung = &apos;nicht_anbieten&apos;</code>) und die
-            WG-Etagen selbst, die ihre Zimmer unter sich haben. Die Zahl ist
-            deshalb kleiner als die Zahl aller Einheiten.
+            Gezählt werden nur Einheiten, die vermietet werden. Nicht dabei
+            sind Gemeinschaftsflächen, Flächen, die nicht angeboten werden
+            (etwa das Gewerbe), und die WG-Etagen selbst, die ihre Zimmer
+            unter sich haben.
           </p>
           <p className="hinweis">
-            Aus fehlenden Daten entsteht nie „frei“: Lieber ein freies Zimmer
-            nicht anbieten als ein bewohntes. Der Leerstand ist damit eher zu
-            niedrig als zu hoch, und das ist die gewollte Richtung — im
-            September 2026 hat die umgekehrte Logik ein vermietetes Zimmer
-            öffentlich angeboten.
+            Aus fehlenden Daten entsteht nie „frei“: Eine Einheit ohne
+            gepflegte Belegung zählt als belegt. Lieber ein freies Zimmer nicht
+            anbieten als ein bewohntes.
           </p>
         </Erklaerung>
       }
@@ -75,16 +72,16 @@ export function CockpitLeerstand({ lage }: { lage: LeerstandsLage }) {
       <Kennzahlen
         posten={[
           {
-            begriff: "frei",
+            begriff: "Frei",
             wert: String(lage.frei.length),
             art: lage.frei.length > 0 ? "warn" : "gut",
           },
           {
-            begriff: "frei in 3 Monaten",
+            begriff: "Frei in 3 Monaten",
             wert: String(lage.bald.length),
             dazu: "aus Kündigung oder Mietende",
           },
-          { begriff: "belegt", wert: String(lage.belegt) },
+          { begriff: "Belegt", wert: String(lage.belegt) },
         ]}
       />
 

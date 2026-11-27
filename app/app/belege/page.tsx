@@ -153,8 +153,8 @@ export default async function Belege() {
       <p className="hinweis">
         Für einen Altbestand: ein Archiv (tar.gz) mit bis zu 500 Belegen.
         Statt einer Sichtung am Bildschirm wird jeder Beleg zweimal
-        unabhängig gelesen — vom Regelwerk hier und von einer Beifügung
-        <code> einordnung.json</code> im Archiv. Wo Betrag oder Datum
+        unabhängig gelesen — hier und anhand der Einordnung, die dem Archiv
+        beiliegt. Wo Betrag oder Datum
         voneinander abweichen, wird der Beleg angelegt und markiert, und der
         selbsttätige Abgleich lässt ihn liegen.
       </p>

@@ -189,7 +189,7 @@ export default async function Cockpit({
           {
             // Die handlungsnaechste Zahl der Seite steht vorn: Ein Entwurf,
             // der liegen bleibt, ist eine Antwort, die niemand bekommt.
-            begriff: "Wartet auf Freigabe",
+            begriff: "Zur Freigabe",
             wert: geworfen("Freigaben")
               ? null
               : String(d.freigaben.entwuerfe + d.freigaben.unbeantwortet),
@@ -210,7 +210,7 @@ export default async function Cockpit({
                 : "gut",
           },
           {
-            begriff: "Fristen dringend",
+            begriff: "Dringende Fristen",
             // Keine eingetragene Frist ist nicht dasselbe wie keine offene
             // Frist: Die Tabelle `frist` kann auch nur leer sein.
             wert:
@@ -234,7 +234,7 @@ export default async function Cockpit({
                   : "gut",
           },
           {
-            begriff: "Rückstand zu schreiben",
+            begriff: "Rückstände",
             wert: geworfen("Rückstände")
               ? null
               : euroGenau(d.rueckstaende.summe),
@@ -242,7 +242,7 @@ export default async function Cockpit({
               ? "nicht gelesen"
               : d.mahnwesenFreigegeben
                 ? `${d.rueckstaende.zuSchreiben} Mietverhältnisse`
-                : `${d.rueckstaende.zuSchreiben} Mietverhältnisse · gesperrt`,
+                : `${d.rueckstaende.zuSchreiben} Mietverhältnisse · Mahnwesen gesperrt`,
             art: geworfen("Rückstände")
               ? undefined
               : d.rueckstaende.zuSchreiben > 0
@@ -250,14 +250,14 @@ export default async function Cockpit({
                 : "gut",
           },
           {
-            begriff: "offen im Monat",
+            begriff: "Offen diesen Monat",
             // Derselbe Zweig wie auf der Karte: ohne Kontodaten keine Zahl.
             wert: d.monat.geld.belastbar ? euroGenau(d.monat.geld.offen) : null,
             dazu: d.monat.geld.belastbar
               ? `${d.monat.geld.offenBetroffen} Mietverhältnisse betroffen`
               : d.monat.geld.anzahl === 0
-                ? "noch keine Sollstellungen"
-                : "Monat nicht abgeglichen",
+                ? "noch keine Mieten gestellt"
+                : "noch kein Kontoauszug",
             art: !d.monat.geld.belastbar
               ? undefined
               : d.monat.geld.offen > 0
@@ -265,7 +265,7 @@ export default async function Cockpit({
                 : "gut",
           },
           {
-            begriff: "Eingänge zuzuordnen",
+            begriff: "Zahlungen zuordnen",
             wert:
               geworfen("Zahlungseingänge") || !umsaetze
                 ? null
@@ -273,7 +273,7 @@ export default async function Cockpit({
             dazu: geworfen("Zahlungseingänge")
               ? "nicht gelesen"
               : !umsaetze
-                ? "keine Kontoumsätze eingelesen"
+                ? "noch keine Kontoumsätze"
                 : `bis ${euroGenau(d.unzugeordnet.grenze)} — könnten Mieten sein`,
             art:
               geworfen("Zahlungseingänge") || !umsaetze
@@ -283,7 +283,7 @@ export default async function Cockpit({
                   : "gut",
           },
           {
-            begriff: "frei",
+            begriff: "Leerstand",
             // gesamt === 0 heisst: keine Einheit gelesen. "0 frei" waere dann
             // die Behauptung, alles sei vermietet.
             wert:
@@ -367,7 +367,7 @@ export default async function Cockpit({
         Weiter ins Detail: <Verweis nach="/mietenbuch">Mietenbuch</Verweis>{" "}
         <Verweis nach="/mahnwesen">Rückstände</Verweis>{" "}
         <Verweis nach="/belege">Belege</Verweis>{" "}
-        <Verweis nach="/stammdaten">Stammdaten</Verweis>
+        <Verweis nach="/stammdaten">Einheiten &amp; Mieter</Verweis>
       </p>
     </>
   );

@@ -178,13 +178,12 @@ function ZeichenMietenbuch() {
   );
 }
 
-/** Vorgänge: eine Sprechblase — ein Vorgang ist ein Schriftwechsel. */
+/** Vorgänge: das Eingangsfach wie in Mail — ein Vorgang beginnt mit Post. */
 function ZeichenVorgaenge() {
   return (
     <svg {...ZEICHEN}>
-      <path d="M20.5 12.5a7.5 7.5 0 0 1-10.8 6.7L4 20.5l1.4-5.2A7.5 7.5 0 1 1 20.5 12.5Z" />
-      <path d="M8.75 11.5h6.5" />
-      <path d="M8.75 14.75h4" />
+      <path d="M3.5 13.25 5.7 5.3a1.5 1.5 0 0 1 1.45-1.05h9.7a1.5 1.5 0 0 1 1.45 1.05l2.2 7.95" />
+      <path d="M3.5 13.25V18a1.75 1.75 0 0 0 1.75 1.75h13.5A1.75 1.75 0 0 0 20.5 18v-4.75h-5a3.5 3.5 0 0 1-7 0h-5Z" />
     </svg>
   );
 }

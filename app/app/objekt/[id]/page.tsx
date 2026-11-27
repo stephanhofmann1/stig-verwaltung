@@ -95,7 +95,7 @@ export default async function Objektseite({
   return (
     <>
       <div className="akte-kopf">
-        <span className="aktenzeichen ziffern">{zahlen.einzeln}</span>
+        <span className="aktenzeichen ziffern">Objekt</span>
         <div>
           {/* Die einzige h1 der Seite. Alles darunter ist ein Abschnitt
               dieses Dokuments und trägt h2 -- acht h1 hintereinander sind

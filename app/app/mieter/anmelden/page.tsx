@@ -13,7 +13,7 @@ export default async function MieterAnmelden({
     // Klasse (etwa .schmal); bis es sie gibt, bleibt die Breite als einziger
     // Inline-Stil dieser Seite stehen. Die Typografie der Ueberschrift kommt
     // aus globals.css -- h1 ist dort bereits gesetzt.
-    <div style={{ maxWidth: "24rem", margin: "4rem auto 0" }}>
+    <div className="anmeldung">
       <h1>Mieterbereich</h1>
       {abgelaufen ? (
         <p className="hinweis">

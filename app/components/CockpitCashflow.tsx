@@ -53,13 +53,13 @@ export function CockpitCashflow({ reihe }: { reihe: CashflowBalken[] }) {
           `Für die letzten ${reihe.length} Monate liegen keine Buchungen vor.`
         ) : (
           <>
-            Aus <code>buchung</code>: Eingänge und Ausgaben je Monat.
+            Eingänge und Ausgaben auf den Konten, je Monat.
           </>
         )
       }
       erklaerung={
         leer ? undefined : (
-          <Erklaerung satz="Als Miete gilt nur, was einer Sollstellung zugeordnet ist — ein unzugeordneter Eingang steht bei „sonstige“">
+          <Erklaerung satz="Was als Miete zählt">
             <p className="hinweis">
               Das ist keine Schätzung, sondern der Stand des Abgleichs: Solange
               ein Eingang niemandem zugeordnet ist, kann diese Karte ihn nicht
@@ -121,8 +121,8 @@ export function CockpitCashflow({ reihe }: { reihe: CashflowBalken[] }) {
                aber ohne sie ist die Zahl nach dem Zeichnen verloren. */
             <table>
               <caption>
-                Beträge aus <code>buchung</code>, Miete aus{" "}
-                <code>zuordnung</code>.
+                Beträge laut Kontoauszug; als Miete zählt, was einer Miete
+                zugeordnet ist.
               </caption>
               <thead>
                 <tr>

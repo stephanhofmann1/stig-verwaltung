@@ -57,19 +57,18 @@ export function CockpitVerlauf({ reihe }: { reihe: SollIstPunkt[] }) {
         zaehler="keine Aussage möglich"
         hinweis={
           nurLuecken
-            ? `Für keinen der ${reihe.length} Monate liegen Soll und Kontodaten zusammen vor.`
-            : "Es konnten keine Sollstellungen gelesen werden."
+            ? `Für keinen der ${reihe.length} Monate liegen Mieten und Kontoauszüge zusammen vor.`
+            : "Es konnten keine gestellten Mieten gelesen werden."
         }
       >
         <div className="leer">
           <strong>Hier ist noch nichts zu vergleichen</strong>
           {nurLuecken ? (
             <>
-              Ein Verlauf entsteht, sobald für einen Monat beides vorliegt: eine
-              gestellte Sollstellung und Kontoumsätze ab diesem Monat
-              (<code>objekt.zahlungsdaten_ab</code>). Eine Null-Linie stünde
+              Ein Verlauf entsteht, sobald für einen Monat beides vorliegt:
+              die gestellte Miete und der Kontoauszug. Eine Null-Linie stünde
               hier für „nichts bezahlt“ — tatsächlich ist über die Zahlungen
-              nichts bekannt.
+              noch nichts bekannt.
             </>
           ) : (
             <>
@@ -122,11 +121,10 @@ export function CockpitVerlauf({ reihe }: { reihe: SollIstPunkt[] }) {
         </>
       }
       erklaerung={
-        <Erklaerung satz="Ein Monat ohne Kontodaten ist eine Lücke und kein Ist von Null — sonst entstünde aus fehlenden Auszügen ein Rückstand">
+        <Erklaerung satz="Warum Monate ohne Kontoauszug als Lücke erscheinen">
           <p className="hinweis">
-            Die Kontoauszüge beginnen je Objekt zu einem eigenen Zeitpunkt
-            (<code>objekt.zahlungsdaten_ab</code>, db/023) — und für ein Objekt
-            ohne hinterlegtes Konto gibt es sie gar nicht. Für Monate davor ist
+            Die Kontoauszüge beginnen je Objekt zu einem eigenen Zeitpunkt —
+            und für ein Objekt ohne hinterlegtes Konto gibt es sie gar nicht. Für Monate davor ist
             unbekannt, ob gezahlt wurde; unbekannt ist kein Rückstand.
           </p>
           <p className="hinweis">
@@ -141,8 +139,7 @@ export function CockpitVerlauf({ reihe }: { reihe: SollIstPunkt[] }) {
           </p>
           <p className="hinweis">
             Als offen zählt ein Rest ab einem Euro. Darunter ist es Rundung aus
-            anteiligen Monaten — dieselbe Schwelle wie in{" "}
-            <code>monatsStatus()</code>.
+            anteiligen Monaten — dieselbe Schwelle wie im Mietenbuch.
           </p>
         </Erklaerung>
       }
@@ -195,14 +192,14 @@ export function CockpitVerlauf({ reihe }: { reihe: SollIstPunkt[] }) {
           </>
         }
         leerTitel="Hier ist noch nichts zu vergleichen"
-        leerSatz="Ein Verlauf entsteht, sobald für einen Monat Sollstellung und Kontoumsätze zusammen vorliegen."
+        leerSatz="Ein Verlauf entsteht, sobald für einen Monat Miete und Kontoauszug zusammen vorliegen."
         tabelleTitel="Soll und Ist je Monat"
         tabelle={
           <table>
             <caption>
-              Soll aus <code>sollstellung</code>, Ist aus <code>zuordnung</code>.
-              „ohne Daten“ ist der Teil des Solls ohne Kontoumsätze — er wird
-              nie zum Rückstand addiert.
+              Soll: gestellte Mieten. Ist: zugeordnete Zahlungen. „ohne
+              Daten“ ist der Teil ohne Kontoauszug — er zählt nie als
+              Rückstand.
             </caption>
             <thead>
               <tr>

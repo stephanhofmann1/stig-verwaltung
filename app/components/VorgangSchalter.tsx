@@ -491,8 +491,7 @@ export function VorgangSchalter(p: Props) {
           <p className="erklaerung">
             Die Aufhebung lässt die Automatik an diese Akte heran. Sie
             braucht deshalb einen zweiten Schritt und einen Grund, und beides
-            landet im Protokoll unter diesem Abschnitt — nachlesbar, ohne in
-            die Datenbank zu sehen.
+            landet im Protokoll unter diesem Abschnitt.
           </p>
         </>
       ) : (

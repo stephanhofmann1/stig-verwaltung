@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { NaviZeichen, ZeichenAbmelden, ZeichenMenue } from "./Zeichen";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -289,6 +290,7 @@ export function Navi({ benutzer }: { benutzer: string | null }) {
             aria-controls={NAVI_ID}
             onClick={() => setOffen((v) => !v)}
           >
+            <ZeichenMenue />
             Menü
           </button>
 
@@ -330,6 +332,10 @@ export function Navi({ benutzer }: { benutzer: string | null }) {
                            blieb offen. */
                         onClick={() => setOffen(false)}
                       >
+                        {/* Zeichen und Wort wie in der Seitenleiste von
+                            Mail: das Zeichen fuehrt das Auge, das Wort
+                            sagt, was es ist. */}
+                        <NaviZeichen weg={p.href} />
                         {p.text}
                       </Link>
                     );
@@ -356,6 +362,7 @@ export function Navi({ benutzer }: { benutzer: string | null }) {
           data-art="still"
           onClick={abmelden}
         >
+          <ZeichenAbmelden />
           Abmelden
         </button>
       )}

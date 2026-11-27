@@ -5,12 +5,37 @@ Alles Visuelle steckt in `app/globals.css`. Die Datei ist global geladen
 von allein richtig aus, solange sie die Elemente und Klassen von hier
 benutzen.
 
-**Grundhaltung:** Vermieter-Cockpit. Ruhig, dicht, vertrauenswürdig.
-Neutrale Flächen, Haarlinien, fluchtende Ziffern. Ein Akzent in
-Registerblau, drei Statusfarben — sonst keine Farbe. Keine Verzierung,
-keine Animation außer kurzen Überfahr-Übergängen.
+**Leitbild (seit 27.11.2026):** so ruhig und selbstverständlich wie eine
+Anwendung von Apple — Mail, Notizen, die Einstellungen. Anlass war
+Stephans Rückmeldung zur Papier-und-Bronze-Fassung: „wild, unübersichtlich,
+wirkt kryptisch computerhaft“. Gewünscht: „pure intuitive Bedienung und
+tolle Übersichtlichkeit“.
 
-**Zwei Regeln für alle:**
+**Sieben Regeln, an denen sich jede Ergänzung misst:**
+
+1. **Systemschrift.** Auf Mac, iPhone und iPad ist das SF Pro; Inter steht
+   als Ersatz für alle anderen Geräte dahinter.
+2. **Weißer Inhalt, hellgraue Seitenleiste.** Gegliedert wird mit Weißraum
+   und Haarlinien, nicht mit Kästen. Keine Kachelraster.
+3. **Ein Akzent: Apple-Blau.** Er zeigt, was man anklicken kann, und wo man
+   steht. Statusfarben nur als Punkt, Pille oder Zahl.
+4. **Große Titel, wenige Abschnitte.** Zahlen groß und in fluchtenden
+   Ziffern.
+5. **Erklärungen sind leise.** Eingeklappt, grau, klein — mit einer kurzen
+   Frage als Überschrift („Wie gezählt wird“), nicht mit einem ganzen Satz.
+6. **Bedienelemente wie auf dem Mac.** Pillenknöpfe, runde Felder,
+   Segmentschalter, ein Datei-Knopf statt „Choose Files“.
+7. **Telefon:** Tableiste unten mit Zeichen, großer Titel, alles
+   Antippbare mindestens 44 px hoch.
+
+**Und eine Regel für die Wörter:** Auf der Oberfläche steht, was ein
+Vermieter sagen würde — keine Tabellen-, Spalten- oder Funktionsnamen
+(`frist`, `sollstellung`, `objekt.zahlungsdaten_ab`, `bankabruf`). Kennungen
+aus der Datenbank bekommen einen deutschen Namen, z. B. `laufName()` in
+`lib/formate.ts` für die nächtlichen Läufe. Begründungen, warum etwas so
+gebaut ist, gehören in den Quelltext, nicht auf die Seite.
+
+**Zwei Regeln für den Code:**
 
 1. Keine Klasse umbenennen oder entfernen — die Seiten hängen daran.
 2. Farben, Abstände, Radien und Schriftgrößen nie als festen Wert
@@ -27,149 +52,181 @@ Alle auf `:root`. Dunkelmodus kommt automatisch über
 Die dunklen Werte stehen einmal als `--dk-*` und werden zweimal
 zugewiesen — ändern also nur an den `--dk-*`-Zeilen.
 
-### Flächen (von hinten nach vorn)
+### Flächen
 
-| Marke | wofür |
-|---|---|
-| `--grund` | Seitenhintergrund. Steht ausdrücklich auf `body`. |
-| `--flaeche` | Karte, Tabelle, Eingabefeld |
-| `--flaeche-ruhig` | Zebrastreifen, Protokollblöcke, `.leer` |
-| `--flaeche-tief` | Tabellenkopf, Überfahren, stille Knöpfe |
+| Marke | hell | wofür |
+|---|---|---|
+| `--grund` | `#FFFFFF` | Inhaltsfläche. Steht ausdrücklich auf `body`. |
+| `--flaeche` | `#FFFFFF` | Eingabefeld, Entwurf |
+| `--flaeche-ruhig` | `#F5F5F7` | Hinweis, leerer Zustand, Filterleiste, Protokoll, Überfahren |
+| `--flaeche-tief` | `#E8E8ED` | Kopf im Mietenbuch-Raster, Bahn von Streifen und Ring |
+| `--seitenleiste` | `#F5F5F7` | die Seitenleiste links |
+
+`--grund` und `--dk-grund` stehen noch zweimal als Hex: im `themeColor` von
+`app/layout.tsx` und in `app/manifest.ts`. `tests/webapp.test.ts` hält alle
+drei Stellen gleich.
 
 ### Schrift und Linien
 
 | Marke | wofür |
 |---|---|
-| `--fg` | Haupttext |
-| `--fg-leise` | zweite Ebene: Beschriftungen, `.hinweis` |
-| `--fg-still` | dritte Ebene: Platzhalter, Laufnummern |
-| `--linie` | Haarlinie |
-| `--linie-stark` | Trennung mit Gewicht, Feldrand |
+| `--fg` | Haupttext (`#1D1D1F`) |
+| `--fg-leise` | zweite Ebene: Beschriftungen, `.hinweis` (`#6E6E73`) |
+| `--fg-still` | dritte Ebene: Laufnummern, Platzhalter, Zeitangaben (`#86868B`) |
+| `--linie` | Haarlinie zwischen Zeilen |
+| `--linie-stark` | Linie unter dem Tabellenkopf, über der Summe |
+| `--feldrand` | Rand der Eingabefelder |
 
 ### Akzent und Status
 
 | Marke | hell | wofür |
 |---|---|---|
-| `--akzent` / `--akzent-flaeche` | `#1F4FA8` | aktive Navigation, Links, Entwürfe |
-| `--gut` / `--gut-flaeche` | `#1b6b3a` | erledigt, vollständig, bezahlt |
-| `--warn` / `--warn-flaeche` | `#8a6d00` | hinsehen, unvollständig, TAN fällig |
-| `--fehl` / `--fehl-flaeche` | `#b3261e` | Fehler, Rückstand, Frist gerissen |
+| `--akzent` / `--akzent-flaeche` | `#0071E3` | Links, Zeichen der Seitenleiste, Entwürfe, Info |
+| `--knopf` / `--knopf-ueber` | `#0071E3` | Füllung des Hauptknopfs |
+| `--knopf-still` | 5,5 % Schwarz | stiller Knopf, Objektwahl, Datei-Knopf |
+| `--gut` / `--gut-flaeche` | `#248A3D` | erledigt, bezahlt |
+| `--warn` / `--warn-flaeche` | `#B25000` | hinsehen, unvollständig |
+| `--fehl` / `--fehl-flaeche` | `#D70015` | Fehler, Rückstand, heikel |
 
-Die hellen Statuswerte sind **genau** die Hex-Werte, die bisher als
-Inline-Farbe in den Seiten stehen. Alter Code bleibt dadurch farbgleich.
-
-### Inline-Farben im Bestand
-
-In den Seiten stehen Statusfarben noch als festes Hex im `style`-Attribut
-(`#1b6b3a`, `#8a6d00`, `#8a5a00`, `#b3261e`, `#b00`, `#5b5b66`, …).
-Abschnitt 3 von `globals.css` biegt genau diese Werte auf die Marken um.
-Im Hellmodus ändert das nichts, im Dunkelmodus werden die sonst unlesbar
-dunklen Farben aufgehellt.
-
-**Neuer Code schreibt die Marke, nicht das Hex.** Also
-`style={{ color: "var(--fehl)" }}` statt `"#b3261e"`.
+Die Statusfarben sind Apples Fassungen mit erhöhtem Kontrast; im
+Dunkelmodus die hellen Systemfarben (`#30D158`, `#FF9F0A`, `#FF453A`).
 
 ### Maße
 
 - Abstände: `--abstand-1` … `--abstand-7` (0,25 / 0,5 / 0,75 / 1 / 1,5 / 2 / 3 rem)
-- Seitenabstand des Rahmens: `--mass` (1,5 rem; auf dem Telefon 1 rem = 16 px)
-- Rahmenbreite: `--rahmen-breite` (72 rem), Kopfhöhe: `--kopf-hoehe`
-- Radien: `--radius-s` / `-m` / `-l` / `-rund`
-- Schattierungen: `--schatten-1` (Fläche hebt sich ab), `--schatten-2` (schwebt)
-- Schriftgrößen: `--text-xs`, `-s`, `-m`, `-n`, `-b`, `-l`, `-xl`, `-2xl`
-  (`--text-n` = 0,9375 rem ist das Normalmaß der Anwendung)
-- Schrift: `--schrift` (Archivo Variable, Gewichtsachse 100–900)
+- Seitenabstand: `--mass` (2 rem; mit Seitenleiste 2,5 rem; Telefon 1 rem)
+- Lesebreite: `--rahmen-breite` (70 rem), Kopfhöhe: `--kopf-hoehe`
+- Radien: `--radius-s` 6 px, `--radius-m` 12 px, `--radius-l` 18 px, `--radius-rund`
+- Schatten: `--schatten-2` — nur der Entwurf schwebt
+- Schriftstufen: `--t-mikro` 11 · `--t-klein` 13 · `--t-grund` 15 ·
+  `--t-lese` 17 · `--t-abschnitt` 22 · `--t-seite` 34 · `--t-zahl` 28 px
+  (Telefon: Seite 28, Abschnitt 20, Zahl 24 px). Die Altnamen `--text-*`
+  zeigen darauf.
+- Schrift: `--schrift` (Systemschrift), `--schrift-mono` für Code
+
+### Zeichen
+
+Kleine Symbole im Stil von SF Symbols stehen als Masken auf `:root`
+(`--zeichen-pfeil`, `-info`, `-achtung`, `-fehler`, `-gut`, `-auswahl`).
+Die Farbe kommt aus `background`/`currentColor` und folgt dem Dunkelmodus.
+Die Zeichen der Navigation sind Komponenten: `components/Zeichen.tsx`
+(Seitenleiste) und `components/NaviBoden.tsx` (Tableiste) — fünf davon
+stehen bewusst in beiden Dateien, siehe Kopf von `Zeichen.tsx`.
 
 ---
 
 ## 2. Elemente, die von allein stimmen
 
-Dafür braucht es keine Klasse:
-
 `h1`–`h4` · `p` · `a` · `hr` · `code` · `pre` · `details`/`summary` ·
 `table`/`thead`/`tbody`/`tfoot`/`th`/`td`/`caption` ·
 `button` · `label` · `input` · `select` · `textarea`
 
-`h1` ist in dieser Anwendung auch eine Abschnittszeile (mehrere pro
-Seite) und hat darum eine ruhige Größe, nicht die des Browsers.
+`h1` ist der Seitentitel — einer je Seite. `summary` bekommt einen kleinen
+Winkel, der sich beim Aufklappen dreht. `select` bekommt den Doppelwinkel
+von macOS, `input[type=file]` einen stillen Pillenknopf.
 
 ---
 
 ## 3. Klassen
 
-### Gerüst (steht in `layout.tsx`, nicht anfassen)
+### Gerüst (steht in `layout.tsx` und `Navi.tsx`)
 
-`.kopf` · `.kopf-innen` · `.marke` · `.navi` · `.rahmen`
+`.kopf` · `.kopf-innen` · `.marke` · `.navi` · `.navi-gruppe` ·
+`.navi-titel` · `.navi-punkte` · `.navi-zeichen` · `.navi-schalter` ·
+`.abmelden` · `.rahmen`
 
-Die Navigation rollt auf dem Telefon waagerecht; die Seite bleibt fest.
-Der aktive Punkt wird über `data-aktiv="ja"` markiert.
+Drei Breiten:
+
+- **ab 64 rem** — Seitenleiste links wie in Mail: Mandant, Objektwahl,
+  vier Gruppen mit blauen Zeichen, unten Abmelden. Der Inhalt steht in
+  seiner Spalte zentriert.
+- **darunter** — Kopfleiste oben (durchscheinend), das Menü klappt über
+  den Knopf „Menü“ auf.
+- **bis 40 rem** — dazu die Tableiste unten (`.navi-boden`), Abmelden als
+  runder Knopf mit Zeichen.
+
+Seiten ohne Navigation (Anmeldung, Mieterbereich) bekommen auf jeder
+Breite die schlichte Kopfleiste. Das Schaufenster regelt sein Gerüst in
+`app/schaufenster.css` selbst.
 
 ### Seitenkopf
 
-- `.titelzeile` — Flex-Zeile mit `h1` links und `.zaehler` rechts
-- `.zaehler` — Anzahl/Stand rechts im Titel, graue Ziffern
-- `.hinweis` — der graue Nebensatz. Als `<p>` bekommt er Abstand und
-  Lesebreite, als `span`/`div`/`dt` nicht.
+- `.titelzeile` — Flex-Zeile mit `h1`/`h2` links und `.zaehler` rechts
+- `.zaehler` — Anzahl/Stand rechts im Titel, grau, 13 px
+- `.hinweis` — der graue Nebensatz, 13 px. Als `<p>` bekommt er Abstand
+  und Lesebreite.
 
 ### Register (Liste aus Posten)
 
-`.register` ist der gerahmte Behälter, `.posten` die Zeile — ein Raster
-aus `.nummer` / `.betreff` / `.zeit` mit `.unterzeile` darunter.
-`data-heikel="ja"` setzt den roten Balken links.
+`.register` ist die Liste, `.posten` die Zeile — ein Raster aus
+`.nummer` / `.betreff` / `.zeit` mit `.unterzeile` darunter. Haarlinie
+zwischen den Zeilen, beim Überfahren eine weiche graue Fläche wie in Mail.
+`data-heikel="ja"` und `data-urteil="fehl|warn|gut"` färben die Nummer —
+keine Balken an der Seite.
 
 ### Tabellen
 
-`.liste` ist der historische Klassenname und sieht genauso aus wie eine
-Tabelle ohne Klasse — beides ist richtig.
+Frei auf Weiß, ohne Rahmen und ohne Zebrastreifen; Kopf klein und grau.
 
 - `.betrag` auf `th`/`td`: rechtsbündig, einzeilig, Tabellenziffern.
   **Jede Zahlenspalte bekommt das.**
 - `.tabelle-rolle`: Behälter für breite Tabellen (siehe Rezept unten)
 
-### Karten und Kennzahlen
+### Kennzahlen und Flächen
 
-- `.karte` — gerahmte Fläche mit Radius und feiner Schattierung
-- `.karte-titel` — kleine graue Überschrift darin
-- `.karten` — Raster, das Karten von allein umbricht
-- `.kennzahl` mit `.kennzahl-schild` und `.kennzahl-wert` — eine Zahl
-  fürs Cockpit. `.kennzahl-wert` nimmt `data-art="gut|warn|fehl"`.
-- `.entwurf` mit `.entwurf-kopf` und `.entwurf-notiz` — die Entwurfskarte
-  der Freigabe (blauer Balken links)
+- `.karten` mit `.karte.kennzahl` — die Kennzahlenreihe: große Zahlen frei
+  auf Weiß, darüber das Wort, darunter der Nebensatz. Kein Kasten je Zahl.
+- `.kennzahl-schild`, `.kennzahl-wert` (`data-art="gut|warn|fehl"`,
+  `data-leer="ja"` für einen Wert, den es nicht gibt — leiser Strich)
+- `.karte` allein — eine weiche, graue Fläche für etwas, das zusammengehört
+- `.entwurf` mit `.entwurf-kopf` und `.entwurf-notiz` — der Antwortentwurf,
+  die einzige Fläche mit Schatten (wie ein Fenster zum Verfassen)
+- `.entwurf-falte` — im Cockpit: der Entwurf als aufklappbare Zeile mit
+  `.vorschau` des Textes
 
 ### Status
 
-- `.marker` / `.schild` — Pille mit Rand.
+- `.marker` / `.schild` — kleine Pille in der Farbe des Zustands, normale
+  Schreibung (der erste Buchstabe wird groß gesetzt).
   `data-art="heikel|agent|whatsapp"` (Bestand) und
-  `data-art="gut|warn|fehl|info"` (neu). Ohne `data-art`: neutral grau.
+  `data-art="gut|warn|fehl|info"`. Ohne `data-art`: neutral grau.
 - `.punkt` — der Statuspunkt. `data-art="gut|warn|fehl|info|still"`.
 
 ### Knöpfe
 
-`button` ist von allein die Hauptaktion (dunkel gefüllt).
+`button` ist von allein die Hauptaktion: blaue Pille.
 
-- `data-art="still"` — gleiche Größe, kein Gewicht (umrandet)
-- `data-art="gefahr"` — rot, für Unwiederbringliches
+- `data-art="still"` — graue Pille, dunkle Schrift
+- `data-art="gefahr"` — rote Pille, für Unwiederbringliches
+- `.knopf` — ein Link, der aussieht wie der Hauptknopf
+- `.verweis` — ein Weg auf eine andere Seite: blauer Text mit Winkel,
+  wie „Weitere Infos ›“
 - `.knopfreihe` — Flex-Zeile für mehrere Knöpfe
 
 ### Formulare
 
 - `.feld` — Feld über die ganze Breite
-- `.feldreihe` — Raster, das Felder von allein umbricht
-- `label` umschließt oder benennt das Feld und ist von allein grau und fett
+- `.feldreihe`, `.feldraster` — Raster, das Felder von allein umbricht
+- `label` umschließt oder benennt das Feld und ist von allein grau
+- `.filterleiste` mit `.filterleiste-feld`, `.filter-marke`, `.filter-zurueck`
+- `.zeitraumwahl` — Segmentschalter (12 / 24 / 36 Monate)
 
 ### Meldungen
 
 - `.rueckmeldung` — kurze Rückmeldung neben den Knöpfen;
-  `data-art="fehler"` macht sie rot
-- `.meldung` — Kasten mit farbigem Balken links;
-  `data-art="fehler|warnung|gut|info"`
-- `.leer` — leerer Zustand **und** Merkkasten. Linksbündig, `strong`
-  darin wird zur Überschrift.
+  `data-art="fehler|gut|warn|info"`
+- `.meldung` — getönte Fläche mit Zeichen links;
+  `data-art="fehler|warnung|gut|info"`. Die Überschrift (`strong`) steht
+  in Textfarbe, die Farbe trägt das Zeichen.
+- `.leer` — leerer Zustand **und** Merkkasten. `strong` darin wird zur
+  Überschrift.
+- `.erklaerung` — aufklappbare Begründung, leise und grau
 
 ### Akte
 
-`.akte-kopf` · `.aktenzeichen` · `.akte-meta` · `.verlauf` · `.eintrag`
-(mit `data-richtung="aus"`) · `.eintrag-kopf` · `.absender` ·
+`.akte-kopf` · `.aktenzeichen` (kleine Zeile über dem Titel, z. B.
+„Vorgang 0006“) · `.akte-meta` · `.verlauf` · `.eintrag` (mit
+`data-richtung="aus"` als graue Fläche) · `.eintrag-kopf` · `.absender` ·
 `.eintrag-text`
 
 ### Ziffern
@@ -208,9 +265,6 @@ das bereits von allein — `.ziffern` ist für Zahlen im Fließtext.
 </table>
 ```
 
-Zebrastreifen, Haarlinien, runde Ecken und der klebende Kopf kommen von
-allein. Der Kopf bleibt beim Rollen unter der Kopfzeile der Seite stehen.
-
 ### Breite Tabelle (mehr als fünf Spalten)
 
 ```tsx
@@ -219,50 +273,42 @@ allein. Der Kopf bleibt beim Rollen unter der Kopfzeile der Seite stehen.
 </div>
 ```
 
-Der Behälter rollt waagerecht und nimmt die Seite nicht mit; die Tabelle
-darin gibt ihren eigenen Rahmen ab, der Behälter trägt ihn. Der klebende
-Kopf entfällt dabei — in einem Rollbehälter kann er nicht kleben.
-
 Auf dem Telefon (≤ 40 rem) rollt **jede** Tabelle in sich selbst, auch
-ohne diese Klasse. Das ist ein Fangnetz, kein Ersatz: auf dem Mac
-schiebt eine breite Tabelle ohne `.tabelle-rolle` die Seite zur Seite.
+ohne diese Klasse. Das ist ein Fangnetz, kein Ersatz.
 
-### Karte
-
-```tsx
-<div className="karte">
-  <p className="karte-titel">Nächster Lauf</p>
-  <p>Heute Nacht um 03:00.</p>
-</div>
-```
-
-### Kennzahlenreihe fürs Cockpit
+### Kennzahlenreihe
 
 ```tsx
 <div className="karten">
   <div className="karte kennzahl">
-    <span className="kennzahl-schild">Offene Rückstände</span>
+    <span className="kennzahl-schild">Rückstände</span>
     <span className="kennzahl-wert" data-art="fehl">{euro(summe)}</span>
-    <span className="hinweis">über 4 Mietverhältnisse</span>
-  </div>
-  <div className="karte kennzahl">
-    <span className="kennzahl-schild">Vermietet</span>
-    <span className="kennzahl-wert">34 / 37</span>
+    <span className="hinweis">4 Mietverhältnisse</span>
   </div>
 </div>
 ```
 
-### Statuspunkt
+Oder fertig: `KennzahlenZeile` bzw. `Kennzahlen` aus
+`components/CockpitKarte.tsx` — dort wird `null` von allein zum leisen
+Strich.
+
+### Erklärung
 
 ```tsx
-<span>
-  <span className="punkt" data-art={offen > 0 ? "fehl" : "gut"} />
-  {offen > 0 ? "Rückstand" : "ausgeglichen"}
-</span>
+<Erklaerung satz="Wie gezählt wird">
+  <p className="hinweis">…</p>
+</Erklaerung>
 ```
 
-Für ein Wort mit Rand statt eines Punktes:
-`<span className="schild" data-art="warn">TAN fällig</span>`
+Der Satz ist eine kurze Frage oder Überschrift. Die eigentliche Aussage
+steht darunter.
+
+### Statuspunkt und Schild
+
+```tsx
+<span className="punkt" data-art="fehl" /> Rückstand
+<span className="schild" data-art="warn">TAN fällig</span>
+```
 
 ### Meldung
 
@@ -283,8 +329,8 @@ Prüfmaß ist 390 px Breite (iPhone). Dort gilt:
 - kein waagerechtes Rollen der **Seite** — nur Tabellen rollen in sich
 - angetippte Elemente (Knöpfe, Felder, Auswahllisten) sind mindestens
   44 px hoch
-- die Navigation rollt waagerecht, unter 24 rem weicht das Wort
-  „Verwaltung" in der Wortmarke
+- Tableiste unten mit fünf Zielen; was dort steht, steht nicht noch einmal
+  im Menü
 
 Wenn etwas Neues breiter werden kann als der Schirm — eine Tabelle, ein
 langer Kontoname, eine IBAN —, muss es entweder umbrechen oder in einem

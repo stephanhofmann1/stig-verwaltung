@@ -68,7 +68,7 @@ export function CockpitFristen({ fristen }: { fristen: FristLage[] }) {
           : `${fristen.length} offen, ${dringend.length} dringend`
       }
       erklaerung={
-        <Erklaerung satz="Eine Nebenkostenabrechnung muss dem Mieter bis zum Fristtag zugehen — danach ist die Nachforderung weg, das Guthaben bleibt zu zahlen">
+        <Erklaerung satz="Warum Abrechnungsfristen früh knapp werden">
           <p className="hinweis">
             § 556 Abs. 3 Satz 2 BGB: Nach Ablauf der Frist ist die
             Nachforderung ausgeschlossen, die Guthaben bleiben zu zahlen. Der
@@ -97,9 +97,9 @@ export function CockpitFristen({ fristen }: { fristen: FristLage[] }) {
     >
       {fristen.length === 0 ? (
         <div className="leer">
-          <strong>Keine offene Frist eingetragen</strong>
-          Fristen stehen in der Tabelle <code>frist</code>. Steht hier nichts,
-          ist entweder alles erledigt — oder es hat nie jemand eingetragen.
+          <strong>Keine offenen Fristen</strong>
+          Sobald eine Frist eingetragen ist, steht sie hier — mit den Tagen,
+          die noch bleiben.
         </div>
       ) : (
         <div className="register">

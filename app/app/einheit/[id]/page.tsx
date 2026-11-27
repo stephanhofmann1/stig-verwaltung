@@ -223,7 +223,7 @@ export default async function Einheitenseite({
   return (
     <>
       <div className="akte-kopf">
-        <span className="aktenzeichen ziffern">{kopf.etage ?? "—"}</span>
+        <span className="aktenzeichen ziffern">{kopf.etage ? `Einheit · ${kopf.etage}` : "Einheit"}</span>
         <div>
           {/* Die einzige h1 der Seite. Die Abschnitte darunter tragen h2 --
               sieben h1 hintereinander sind fuer einen Screenreader sieben

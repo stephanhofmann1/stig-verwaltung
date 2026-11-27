@@ -452,10 +452,8 @@ export function MietverhaeltnisBearbeiten(p: Props) {
 
           <p className="erklaerung">
             Ein leeres Feld heißt <strong>unverändert</strong>, nicht
-            &bdquo;leeren&ldquo;: Beide Aktionen schreiben{" "}
-            <code>COALESCE</code> und lassen den alten Wert stehen. Ein
-            gesetztes Enddatum lässt sich hier deshalb nicht mehr
-            zurücknehmen — dafür braucht es weiterhin die Datenbank.
+            &bdquo;leeren&ldquo;: Der alte Wert bleibt stehen. Ein gesetztes
+            Enddatum lässt sich hier deshalb nicht zurücknehmen.
           </p>
 
           {fehlerhaft.length > 0 && (
@@ -556,13 +554,11 @@ export function MietverhaeltnisBearbeiten(p: Props) {
             })}
           </div>
           <p className="erklaerung">
-            Die Liste ist der Wortlaut von <code>fehlendeFelder()</code> und{" "}
-            <code>fehlendeFelderWgb()</code> — derselben Prüfung, die das
-            Erzeugen verhindert.{" "}
+            Die Liste ist dieselbe Prüfung, die das Erzeugen der Dokumente
+            verhindert.{" "}
             {nurSql.length === 0 ? (
               <>
-                Alles davon ist hier zu beheben; ein Weg in die Datenbank ist
-                für keine dieser Angaben mehr nötig.
+                Alles davon lässt sich hier beheben.
               </>
             ) : (
               <>

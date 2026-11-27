@@ -40,3 +40,32 @@ export function seit(wert: string | Date | null): string {
 export function aktenzeichen(nummer: number): string {
   return String(nummer).padStart(4, "0");
 }
+
+/**
+ * Der deutsche Name eines naechtlichen Laufs.
+ *
+ * Die Kennung links ist der Wert in der Datenbank und im Zeitplaner -- sie
+ * bleibt, wie sie ist, sonst findet der Lauf seine Zeile nicht mehr. Nur
+ * angezeigt wird der Name rechts: "sollstellungen" sagt dem Vermieter
+ * nichts darueber, dass dort die Mieten gestellt und die Zahlungen
+ * zugeordnet werden.
+ *
+ * Stand bis zum 27.11.2026 nur in app/laeufe/page.tsx; das Cockpit zeigte
+ * daneben die nackten Kennungen ("bankabruf", "agent").
+ *
+ * Eine unbekannte Kennung bleibt sichtbar, statt zu verschwinden: Kommt ein
+ * neuer Lauf dazu, soll er in der Liste auftauchen -- und zwar auffaellig
+ * genug, dass jemand ihm einen Namen gibt.
+ */
+const LAUF_NAMEN: Record<string, string> = {
+  bankabruf: "Kontoabruf",
+  mailabruf: "E-Mail-Abruf",
+  agent: "Antwortentwürfe",
+  nachfassen: "Nachfassen",
+  sollstellungen: "Mieten stellen und zuordnen",
+  lagebericht: "Lagebericht",
+};
+
+export function laufName(kennung: string): string {
+  return LAUF_NAMEN[kennung] ?? kennung;
+}
