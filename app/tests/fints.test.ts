@@ -6,7 +6,8 @@ import { readFileSync } from "node:fs";
 import { zeitraum, alsBuchungen, bankMeldung, wegenZugangsdaten,
          sollStilllegen, zweiSchrittVerfahren, waehleTanVerfahren,
          EINSCHRITT, setzeTanMedium, waehleTanMedium,
-         wegenGeraetebezeichnung, type FintsUmsatz } from "../lib/fints/abruf";
+         wegenGeraetebezeichnung, hinweisGeraet,
+         type FintsUmsatz } from "../lib/fints/abruf";
 import { liesKontoauszug } from "../lib/kontoformate";
 
 /**
@@ -977,7 +978,46 @@ describe("Die Geraetebezeichnung", () => {
          [["holen.ts", HOLEN], ["interaktiv.ts", INTERAKTIV]] as const) {
       assert.match(quelle, /wegenGeraetebezeichnung\(roh\)/,
         `${name}: Hinweis fehlt`);
-      assert.match(quelle, /HINWEIS_GERAET/, `${name}: Hinweistext fehlt`);
+      assert.match(quelle, /hinweisGeraet\(wahl\.verfahren, medium\)/,
+        `${name}: Hinweis nennt Verfahren und Name nicht`);
     }
+  });
+});
+
+describe("Der Hinweis sagt, was versucht wurde", () => {
+  /*
+    Am 27.11.2026 kam dieselbe Meldung zweimal: einmal ohne
+    Gerätebezeichnung, einmal mit "16e". Aus der Meldung liess sich
+    nicht erkennen, ob der Name falsch geschrieben war oder ob das
+    falsche Verfahren gewaehlt wurde -- bei chipTAN ist die
+    Gerätebezeichnung die Karte, nicht das Handy. Jede Fehlermeldung,
+    die ihr eigenes Tun verschweigt, kostet eine Runde Raten.
+  */
+
+  test("das gewaehlte Verfahren steht mit Nummer und Namen drin", () => {
+    const t = hinweisGeraet(
+      { id: 921, name: "pushTAN 2.0", medien: [] }, "16e",
+    );
+    assert.match(t, /921/);
+    assert.match(t, /pushTAN 2\.0/);
+    assert.match(t, /16e/);
+  });
+
+  test("wurde kein Name geschickt, steht genau das da", () => {
+    const t = hinweisGeraet({ id: 911, name: "chipTAN", medien: [] }, null);
+    assert.match(t, /keine Bezeichnung/i);
+    assert.doesNotMatch(t, /„“/);
+  });
+
+  test("nennt die Bank Medien, werden sie aufgezaehlt", () => {
+    const t = hinweisGeraet(
+      { id: 921, name: "pushTAN", medien: ["iPhone Stephan", "16e"] }, "16e",
+    );
+    assert.match(t, /iPhone Stephan/);
+  });
+
+  test("ohne Verfahren bleibt der Hinweis verstaendlich", () => {
+    const t = hinweisGeraet(null, null);
+    assert.match(t, /kein Verfahren/i);
   });
 });

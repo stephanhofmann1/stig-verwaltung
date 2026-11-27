@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 import { entschluessele, schluesselVorhanden } from "./geheimnis";
 import { alsBuchungen, bankMeldung, waehleTanVerfahren,
          zweiSchrittVerfahren, zeitraum, setzeTanMedium, waehleTanMedium,
-         wegenGeraetebezeichnung, HINWEIS_GERAET,
+         wegenGeraetebezeichnung, hinweisGeraet,
          type TanVerfahren, type ZugangsDaten,
          type FintsUmsatz } from "./abruf";
 import { merke, hole as holeSitzung, vergiss } from "./sitzungen";
@@ -204,7 +204,7 @@ export async function starteAbruf(
           return {
             art: "fehler",
             meldung: wegenGeraetebezeichnung(roh)
-              ? `${roh} — ${HINWEIS_GERAET}`
+              ? `${roh} — ${hinweisGeraet(wahl.verfahren, medium)}`
               : roh,
             vonDerBank: true,
           };
