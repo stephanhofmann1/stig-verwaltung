@@ -18,8 +18,18 @@ export async function POST(req: Request) {
   const form = await req.formData();
   const token = String(form.get("token") ?? "");
   const tan = String(form.get("tan") ?? "").trim();
-  if (!token || !tan) {
-    return NextResponse.json({ fehler: "Token oder TAN fehlt" }, { status: 400 });
+  if (!token) {
+    return NextResponse.json({ fehler: "Token fehlt" }, { status: 400 });
   }
-  return NextResponse.json(await loeseTanEin(token, tan));
+  /*
+    Eine leere TAN ist erlaubt, denn bei Freigabeverfahren (pushTAN 2.0)
+    gibt es keine. Ob sie gebraucht wird, entscheidet der offene Dialog
+    und nicht dieser Endpunkt -- massgeblich ist, was die Bank erwartet,
+    nicht was der Browser schickt.
+
+    Vorher wurde eine leere TAN hier abgewiesen. Damit liess sich ein
+    Freigabeverfahren gar nicht abschliessen: Die Oberflaeche verlangte
+    eine Ziffer, und mit Ziffer lehnte die Bank die Nachricht ab.
+  */
+  return NextResponse.json(await loeseTanEin(token, tan || undefined));
 }

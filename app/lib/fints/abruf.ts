@@ -497,3 +497,29 @@ export function hinweisGeraet(
     "geschrieben."
   );
 }
+
+/**
+ * Ob das gewählte Verfahren ohne TAN auskommt („decoupled").
+ *
+ * pushTAN 2.0 und verwandte Verfahren haben keine TAN zum Abtippen: Die
+ * Bank schickt eine Anfrage aufs Handy, der Mensch wischt sie frei, und
+ * die Software fragt danach nur noch nach, ob das passiert ist.
+ *
+ * Warum das eine Rolle spielt: Wer dort trotzdem eine Ziffer schickt,
+ * baut eine für dieses Verfahren fehlerhafte Nachricht. Die Sparkasse
+ * Wetzlar antwortete am 27.11.2026 mit "9050 Die Nachricht enthält
+ * Fehler; 9800 Dialog abgebrochen" -- und zwar auch dann, wenn die
+ * Freigabe auf dem Handy vorher erteilt war. Unsere Oberfläche verlangte
+ * eine TAN, obwohl es keine gab, und ließ gar keine andere Wahl.
+ */
+export function istFreigabeVerfahren(client: {
+  config: { selectedTanMethod?: { isDecoupled?: boolean } };
+}): boolean {
+  return client.config.selectedTanMethod?.isDecoupled === true;
+}
+
+/** Was im TAN-Schritt steht, wenn nichts einzutippen ist. */
+export const HINWEIS_FREIGABE =
+  "Bitte die Anfrage in der S-pushTAN-App auf dem Handy freigeben. " +
+  "Eine TAN gibt es bei diesem Verfahren nicht — nach der Freigabe " +
+  "hier auf „Weiter“ klicken.";

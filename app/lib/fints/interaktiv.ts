@@ -2,7 +2,8 @@ import { query, one } from "../db";
 import { randomBytes } from "node:crypto";
 import { entschluessele, schluesselVorhanden } from "./geheimnis";
 import { alsBuchungen, bankMeldung, waehleTanVerfahren,
-         zweiSchrittVerfahren, zeitraum, setzeTanMedium, waehleTanMedium,
+         zweiSchrittVerfahren, zeitraum, istFreigabeVerfahren,
+         HINWEIS_FREIGABE, setzeTanMedium, waehleTanMedium,
          wegenGeraetebezeichnung, hinweisGeraet,
          type TanVerfahren, type ZugangsDaten,
          type FintsUmsatz } from "./abruf";
@@ -25,7 +26,9 @@ import type { RohBuchung } from "../kontoimport";
 export type Schritt =
   | { art: "fertig"; neu: number; bekannt: number; von: string; bis: string;
       gekuerzt: boolean }
-  | { art: "tan"; token: string; hinweis: string; medium: string | null }
+  | { art: "tan"; token: string; hinweis: string; medium: string | null;
+      /** Kein Eingabefeld zeigen -- freigegeben wird in der App. */
+      freigabe: boolean }
   | { art: "fehler"; meldung: string;
       /** Die Bank hat geantwortet und abgelehnt -- kein Fehler bei uns. */
       vonDerBank?: boolean };
@@ -144,15 +147,18 @@ export async function starteAbruf(
       const s = await client.synchronize();
       if (s.requiresTan) {
         const token = randomBytes(16).toString("hex");
+        const frei = istFreigabeVerfahren(client);
         merke(token, {
           client, zugangId, zweck: "synchronisieren",
           hinweis: s.tanChallenge ?? "Die Bank verlangt eine TAN.",
-          tanReferenz: s.tanReference ?? "",
+          tanReferenz: s.tanReference ?? "", freigabe: frei,
         });
         return {
-          art: "tan", token,
-          hinweis: s.tanChallenge ??
-            "Die Bank verlangt für die Erstanmeldung eine TAN.",
+          art: "tan", token, freigabe: frei,
+          hinweis: frei
+            ? HINWEIS_FREIGABE
+            : (s.tanChallenge ??
+               "Die Bank verlangt für die Erstanmeldung eine TAN."),
           medium: s.tanMediaName ?? null,
         };
       }
@@ -187,15 +193,18 @@ export async function starteAbruf(
         const zweite = await client.synchronize();
         if (zweite.requiresTan) {
           const token = randomBytes(16).toString("hex");
+          const frei = istFreigabeVerfahren(client);
           merke(token, {
             client, zugangId: z.id, zweck: "synchronisieren",
             hinweis: zweite.tanChallenge ?? "Die Bank verlangt eine TAN.",
-            tanReferenz: zweite.tanReference ?? "",
+            tanReferenz: zweite.tanReference ?? "", freigabe: frei,
           });
           return {
-            art: "tan", token,
-            hinweis: zweite.tanChallenge ??
-              "Die Bank verlangt für die Erstanmeldung eine TAN.",
+            art: "tan", token, freigabe: frei,
+            hinweis: frei
+              ? HINWEIS_FREIGABE
+              : (zweite.tanChallenge ??
+                 "Die Bank verlangt für die Erstanmeldung eine TAN."),
             medium: zweite.tanMediaName ?? null,
           };
         }
@@ -266,16 +275,19 @@ async function weiterMitUmsaetzen(
   const antwort = await client.getAccountStatements(konto, von, bis, true);
   if (antwort.requiresTan) {
     const token = randomBytes(16).toString("hex");
+    const frei = istFreigabeVerfahren(client);
     merke(token, {
       client, zugangId: z.id, zweck: "umsaetze",
       hinweis: antwort.tanChallenge ?? "Die Bank verlangt eine TAN.",
-      tanReferenz: antwort.tanReference ?? "",
+      tanReferenz: antwort.tanReference ?? "", freigabe: frei,
     });
     return {
-      art: "tan", token,
-      hinweis: antwort.tanChallenge ??
-        "Die Bank verlangt eine TAN für den Umsatzabruf. Das ist normal und " +
-        "passiert etwa alle 90 Tage.",
+      art: "tan", token, freigabe: frei,
+      hinweis: frei
+        ? HINWEIS_FREIGABE
+        : (antwort.tanChallenge ??
+           "Die Bank verlangt eine TAN für den Umsatzabruf. Das ist normal " +
+           "und passiert etwa alle 90 Tage."),
       medium: antwort.tanMediaName ?? null,
     };
   }
@@ -314,10 +326,23 @@ async function weiterMitUmsaetzen(
  */
 export async function loeseTanEin(
   token: string,
-  tan: string,
+  /*
+    Bei Freigabeverfahren leer. Dann darf auch nichts mitgeschickt
+    werden: Die Bank erwartet eine Statusabfrage, und eine Nachricht mit
+    Ziffer darin ist fuer dieses Verfahren fehlerhaft -- am 27.11.2026
+    beantwortet mit "9050 Die Nachricht enthaelt Fehler", obwohl die
+    Freigabe auf dem Handy bereits erteilt war.
+  */
+  tan: string | undefined,
   heute = new Date(),
 ): Promise<Schritt> {
   const offen = holeSitzung(token);
+  if (offen && !offen.freigabe && !tan) {
+    return {
+      art: "fehler",
+      meldung: "Für dieses Verfahren wird eine TAN gebraucht.",
+    };
+  }
   if (!offen) {
     return {
       art: "fehler",
@@ -334,7 +359,15 @@ export async function loeseTanEin(
     if (!z) return { art: "fehler", meldung: "Zugang nicht gefunden." };
 
     if (offen.zweck === "synchronisieren") {
-      const s = await offen.client.synchronizeWithTan(offen.tanReferenz, tan);
+      /*
+        Bei einem Freigabeverfahren ohne TAN weiterfragen. Die
+        Bibliothek laesst das ausdruecklich zu ("can be omitted if a
+        decoupled TAN method is used"); mit Ziffer darin lehnt die Bank
+        die Nachricht ab.
+      */
+      const s = await offen.client.synchronizeWithTan(
+        offen.tanReferenz, offen.freigabe ? undefined : tan,
+      );
       if (!s.success) {
         return {
           art: "fehler",
@@ -353,7 +386,7 @@ export async function loeseTanEin(
     }
 
     const antwort = await offen.client.getAccountStatementsWithTan(
-      offen.tanReferenz, tan,
+      offen.tanReferenz, offen.freigabe ? undefined : tan,
     );
     if (!antwort.success) {
       return {
