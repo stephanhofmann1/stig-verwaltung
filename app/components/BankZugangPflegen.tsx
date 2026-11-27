@@ -24,6 +24,7 @@ export function BankZugangPflegen({
   kundenId,
   kontoIban,
   tanVerfahren,
+  tanMedium,
   ruht,
 }: {
   id: string;
@@ -34,6 +35,8 @@ export function BankZugangPflegen({
   kontoIban: string | null;
   /** Kennung des TAN-Verfahrens, etwa 921. Leer = wird selbst ermittelt. */
   tanVerfahren: number | null;
+  /** Name der pushTAN-Verbindung bzw. des TAN-Geräts bei der Bank. */
+  tanMedium: string | null;
   /** Zugang wurde nach einem Fehler an den Zugangsdaten stillgelegt. */
   ruht: boolean;
 }) {
@@ -141,6 +144,19 @@ export function BankZugangPflegen({
           — zum Beispiel 921 für eine App-Freigabe. Ohne Zwei-Schritt-
           Verfahren nimmt die Bank die Anmeldung an, liefert aber kein
           Konto.
+        </span>
+      </label>
+      <label>Gerätebezeichnung
+        <input
+          name="tan_medium"
+          defaultValue={tanMedium ?? ""}
+          className="feld"
+        />
+        <span className="hinweis">
+          Nur nötig, wenn die Bank danach fragt. Es ist der Name der
+          pushTAN-Verbindung, wie er in der S-pushTAN-App steht — auf die
+          Schreibweise kommt es an. Fehlt er, antwortet die Bank mit
+          „Die Gerätebezeichnung ist unbekannt“.
         </span>
       </label>
       <label>Neue PIN

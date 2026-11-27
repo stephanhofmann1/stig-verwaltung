@@ -26,6 +26,7 @@ interface Zeile {
   kunden_id: string | null;
   konto_iban: string | null;
   tan_verfahren: number | null;
+  tan_medium: string | null;
   hat_pin: boolean;
   tan_faellig: boolean;
   tan_hinweis: string | null;
@@ -46,7 +47,7 @@ export default async function Bank() {
   const [zugaenge, konten] = await Promise.all([
     query<Zeile>(`
       SELECT z.id, z.bezeichnung, k.bezeichnung AS konto, z.bank_id, z.benutzer,
-             z.url, z.kunden_id, z.konto_iban, z.tan_verfahren,
+             z.url, z.kunden_id, z.konto_iban, z.tan_verfahren, z.tan_medium,
              (z.pin_verschluesselt IS NOT NULL) AS hat_pin,
              z.tan_faellig, z.tan_hinweis, z.letzter_fehler,
              z.letzter_abruf::text, z.letzter_erfolg::text, z.aktiv
@@ -174,6 +175,7 @@ export default async function Bank() {
                     kundenId={z.kunden_id}
                     kontoIban={z.konto_iban}
                     tanVerfahren={z.tan_verfahren}
+                    tanMedium={z.tan_medium}
                     ruht={!z.aktiv}
                   />
                 </td>

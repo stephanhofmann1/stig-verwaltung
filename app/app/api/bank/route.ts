@@ -187,6 +187,7 @@ export async function PATCH(req: Request) {
             konto_iban = NULLIF($5, ''),
             pin_verschluesselt = COALESCE($6, pin_verschluesselt),
             tan_verfahren = $7::int,
+            tan_medium = NULLIF($8, ''),
             bank_information = NULL,
             tan_faellig = false,
             tan_hinweis = NULL,
@@ -194,7 +195,7 @@ export async function PATCH(req: Request) {
             aktiv = true
       WHERE id = $1`,
     [id, benutzer, url, feld("kunden_id"), feld("konto_iban"), geheim,
-     verfahren],
+     verfahren, feld("tan_medium")],
   );
 
   return NextResponse.json({ ok: true });
