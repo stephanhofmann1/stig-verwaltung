@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ZEITRAEUME, ladeCockpit, liesMonate, spitze } from "@/lib/kennzahlen";
 import { objektSicht } from "@/lib/objektsicht";
+import { NeuerVorgangKnopf } from "@/components/NeuerVorgang";
 import { CockpitFristen } from "@/components/CockpitFristen";
 import { CockpitMonat } from "@/components/CockpitMonat";
 import { CockpitRueckstaende } from "@/components/CockpitRueckstaende";
@@ -115,7 +116,10 @@ export default async function Cockpit({
             weitergibt, muss darauf sehen koennen, wovon die Zahlen
             handeln. Eine Zahl ohne Bezugsgroesse ist keine Auskunft. */}
         <h1>{gewaehlt ? `Cockpit — ${gewaehlt.name}` : "Cockpit"}</h1>
-        <span className="zaehler">Stand {datum(d.heute)}</span>
+        <span className="titel-rechts">
+          <span className="zaehler">Stand {datum(d.heute)}</span>
+          <NeuerVorgangKnopf />
+        </span>
       </div>
 
       {/* Was sich NICHT nach Objekt trennen laesst, steht hier einmal und

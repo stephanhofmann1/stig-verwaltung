@@ -1,3 +1,4 @@
+import { NeuerVorgangKnopf } from "@/components/NeuerVorgang";
 import Link from "next/link";
 import { query } from "@/lib/db";
 import { objektSicht } from "@/lib/objektsicht";
@@ -52,8 +53,14 @@ export default async function Vorgaenge() {
     <>
       <div className="titelzeile">
         <h1>{gewaehlt ? `Vorgänge — ${gewaehlt.name}` : "Vorgänge"}</h1>
-        <span className="zaehler ziffern">
-          {offen} offen · {zeilen.length} gesamt
+        <span className="titel-rechts">
+          <span className="zaehler ziffern">
+            {offen} offen · {zeilen.length} gesamt
+          </span>
+          {/* Selbst etwas anstossen: Handwerker anfragen, einer Behoerde
+              schreiben, Mieter informieren -- mit KI ausgefuellt
+              (components/NeuerVorgang.tsx). */}
+          <NeuerVorgangKnopf />
         </span>
       </div>
 

@@ -2500,3 +2500,388 @@ th.betrag,
 .anmeldung .knopfreihe { flex-direction: column; align-items: stretch; }
 .anmeldung .knopfreihe button { min-height: 2.75rem; }
 .anmeldung .knopfreihe .rueckmeldung { text-align: center; }
+
+/* --- 17. KI: Assistent und Fenster "Neuer Vorgang" ---------------------------
+   Der Assistent kommt von rechts herein wie das Inspektorfenster auf dem
+   Mac -- eine schwebende, leicht durchscheinende Flaeche ueber der Seite.
+   Das Fenster "Neuer Vorgang" ist ein Blatt in der Mitte, wie "Neue
+   E-Mail" in Mail. Beide: components/Assistent.tsx, NeuerVorgang.tsx. */
+
+/* Der Knopf in der Navigation. In der Seitenleiste ein Feld wie die Suche
+   in Mail, darunter (Kopfleiste) ein runder Knopf mit Zeichen. */
+.assistent-knopf,
+button.assistent-knopf {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 2rem;
+  margin: 0.625rem 0 0;
+  padding: 0.375rem 0.625rem;
+  border-radius: 8px;
+  background: var(--knopf-still);
+  color: var(--fg-leise);
+  font-size: var(--t-grund);
+  font-weight: 400;
+  text-align: left;
+}
+.assistent-knopf:hover { background: var(--knopf-still-ueber); color: var(--fg); }
+.assistent-knopf svg { width: 1.125rem; height: 1.125rem; flex: none; color: var(--akzent); }
+.assistent-knopf kbd {
+  margin-left: auto;
+  font: inherit;
+  font-size: var(--t-mikro);
+  color: var(--fg-still);
+}
+@media (max-width: 63.9375rem) {
+  .assistent-knopf,
+  button.assistent-knopf {
+    width: 2.25rem;
+    height: 2.25rem;
+    min-height: 2.25rem;
+    margin: 0 0 0 auto;
+    padding: 0;
+    justify-content: center;
+    border-radius: var(--radius-rund);
+  }
+  .assistent-knopf span,
+  .assistent-knopf kbd { display: none; }
+  .assistent-knopf ~ .abmelden { margin-inline-start: 0; }
+}
+@media (max-width: 40rem) {
+  .assistent-knopf,
+  button.assistent-knopf { width: 2.75rem; height: 2.75rem; min-height: 2.75rem; }
+}
+
+/* Rechts im Seitentitel: Stand oder Anzahl und daneben ein Knopf. */
+.titel-rechts {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--abstand-4);
+  flex-wrap: wrap;
+}
+.neuer-vorgang-knopf { white-space: nowrap; }
+
+/* --- Das Fenster des Assistenten ------------------------------------------- */
+
+.assistent-schleier {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.assistent {
+  position: fixed;
+  z-index: 60;
+  top: 0.75rem;
+  right: 0.75rem;
+  bottom: 0.75rem;
+  width: min(27rem, calc(100vw - 1.5rem));
+  display: flex;
+  flex-direction: column;
+  background: var(--grund);
+  background: color-mix(in srgb, var(--grund) 90%, transparent);
+  -webkit-backdrop-filter: saturate(180%) blur(28px);
+  backdrop-filter: saturate(180%) blur(28px);
+  border: 1px solid var(--linie);
+  border-radius: 22px;
+  box-shadow: var(--schatten-2);
+  transform: translateX(calc(100% + 1.5rem));
+  opacity: 0;
+  visibility: hidden;
+  transition: transform 0.34s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.2s ease,
+              visibility 0s linear 0.34s;
+}
+.assistent[data-offen="ja"] {
+  transform: none;
+  opacity: 1;
+  visibility: visible;
+  transition: transform 0.34s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.2s ease;
+}
+
+.assistent-kopf {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--abstand-3);
+  padding: 0.75rem 0.75rem 0.625rem 1.125rem;
+  border-bottom: 1px solid var(--linie);
+}
+.assistent-titel {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: var(--g-kopf);
+}
+.assistent-titel svg { width: 1.125rem; height: 1.125rem; color: var(--akzent); }
+.assistent-kopf-knoepfe { display: inline-flex; align-items: center; gap: 0.375rem; }
+.assistent-neu { min-height: 1.875rem; padding: 0.25rem 0.75rem; font-size: var(--t-klein); }
+
+.assistent-zu,
+button.assistent-zu {
+  width: 1.875rem;
+  height: 1.875rem;
+  min-height: 1.875rem;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-rund);
+  color: var(--fg-leise);
+}
+.assistent-zu svg { width: 0.875rem; height: 0.875rem; }
+
+.assistent-verlauf {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--abstand-4) 1.125rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--abstand-4);
+}
+
+/* Leerer Anfang: Zeichen, eine Frage, Anregungen zum Antippen. */
+.assistent-start {
+  margin: auto 0;
+  text-align: center;
+  padding: var(--abstand-5) var(--abstand-2);
+}
+.assistent-start-zeichen {
+  display: inline-flex;
+  width: 3rem;
+  height: 3rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  color: #FFFFFF;
+  background: linear-gradient(135deg, #0A84FF 0%, #5E5CE6 55%, #BF5AF2 100%);
+  box-shadow: 0 6px 18px rgba(94, 92, 230, 0.3);
+}
+.assistent-start-zeichen svg { width: 1.5rem; height: 1.5rem; }
+.assistent-start-titel {
+  font-size: var(--t-lese);
+  font-weight: var(--g-kopf);
+  margin: var(--abstand-3) 0 var(--abstand-1);
+}
+.assistent-start .hinweis { max-width: 21rem; margin: 0 auto; }
+.assistent-anregungen {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--abstand-2);
+  margin-top: var(--abstand-5);
+}
+.assistent-anregungen button {
+  min-height: 2rem;
+  padding: 0.3125rem 0.875rem;
+  font-size: var(--t-klein);
+}
+
+/* Die Frage: rechts, blau, wie eine gesendete Nachricht. */
+.assistent-nutzer {
+  align-self: flex-end;
+  max-width: 85%;
+  margin: 0;
+  padding: 0.5rem 0.875rem;
+  border-radius: 18px 18px 5px 18px;
+  background: var(--knopf);
+  color: #FFFFFF;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Die Antwort: links, als Text. */
+.assistent-antwort {
+  align-self: stretch;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.assistent-antwort p { margin: 0 0 var(--abstand-2); }
+.assistent-antwort ul,
+.assistent-antwort ol { margin: 0 0 var(--abstand-2); padding-left: 1.25em; }
+.assistent-antwort li { margin: 0.1875rem 0; }
+.assistent-antwort a { color: var(--akzent); }
+.assistent-antwort a:hover { text-decoration: underline; }
+.assistent-antwort[data-fehler="ja"] {
+  color: var(--fehl);
+  font-size: var(--t-klein);
+}
+
+/* Ein Vorschlag fuer einen neuen Vorgang: eine kleine Karte. */
+.assistent-vorschlag {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+  margin-top: var(--abstand-2);
+  padding: 0.875rem 1rem;
+  border-radius: 14px;
+  background: var(--flaeche);
+  border: 1px solid var(--linie);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+.assistent-vorschlag-art {
+  font-size: var(--t-mikro);
+  font-weight: var(--g-kopf);
+  color: var(--akzent);
+}
+.assistent-vorschlag button { margin-top: var(--abstand-2); min-height: 2rem; font-size: var(--t-klein); }
+
+/* Waehrend die Antwort entsteht: drei Punkte, wie in Nachrichten. */
+.assistent-denkt {
+  align-self: flex-start;
+  display: inline-flex;
+  gap: 0.3125rem;
+  padding: 0.625rem 0.875rem;
+  border-radius: 18px;
+  background: var(--flaeche-ruhig);
+}
+.assistent-denkt span {
+  width: 0.4375rem;
+  height: 0.4375rem;
+  border-radius: 50%;
+  background: var(--fg-still);
+  animation: assistent-punkt 1.2s infinite ease-in-out;
+}
+.assistent-denkt span:nth-child(2) { animation-delay: 0.15s; }
+.assistent-denkt span:nth-child(3) { animation-delay: 0.3s; }
+@keyframes assistent-punkt {
+  0%, 60%, 100% { opacity: 0.35; transform: translateY(0); }
+  30% { opacity: 1; transform: translateY(-2px); }
+}
+
+/* Die Eingabe unten. */
+.assistent-eingabe {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--abstand-2);
+  padding: 0.625rem 0.75rem 0.75rem;
+  border-top: 1px solid var(--linie);
+}
+.assistent-eingabe textarea {
+  flex: 1 1 auto;
+  min-height: 2.5rem;
+  max-height: 10rem;
+  resize: none;
+  field-sizing: content;
+  border-radius: 20px;
+  padding: 0.5625rem 0.875rem;
+  background: var(--flaeche-ruhig);
+  border-color: transparent;
+}
+.assistent-eingabe textarea:focus { background: var(--feld-flaeche); }
+
+.assistent-rund,
+button.assistent-rund {
+  flex: none;
+  width: 2.5rem;
+  height: 2.5rem;
+  min-height: 2.5rem;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-rund);
+}
+.assistent-rund svg { width: 1.125rem; height: 1.125rem; }
+.assistent-rund[data-hoert="ja"] {
+  background: var(--fehl);
+  color: #FFFFFF;
+  animation: assistent-hoert 1.4s infinite ease-in-out;
+}
+@keyframes assistent-hoert {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--fehl) 40%, transparent); }
+  50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--fehl) 0%, transparent); }
+}
+
+/* --- Das Blatt "Neuer Vorgang" ---------------------------------------------- */
+
+.blatt {
+  width: min(40rem, calc(100vw - 2rem));
+  max-width: none;
+  max-height: calc(100dvh - 3rem);
+  margin: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 20px;
+  background: var(--grund);
+  color: var(--fg);
+  box-shadow: var(--schatten-2);
+  overflow: hidden;
+}
+.blatt[open] {
+  display: flex;
+  flex-direction: column;
+  animation: blatt-auf 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@keyframes blatt-auf {
+  from { opacity: 0; transform: translateY(14px) scale(0.985); }
+}
+.blatt::backdrop {
+  background: rgba(0, 0, 0, 0.3);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+}
+.blatt-kopf {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--abstand-3);
+  padding: 0.875rem 0.875rem 0.75rem 1.25rem;
+  border-bottom: 1px solid var(--linie);
+}
+.blatt-kopf h2 {
+  margin: 0;
+  font-size: var(--t-lese);
+  font-weight: var(--g-kopf);
+}
+.blatt-inhalt {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: var(--abstand-5) 1.25rem var(--abstand-3);
+}
+.blatt-inhalt > :last-child { margin-bottom: 0; }
+.blatt-gross { width: 100%; min-height: 8.5rem; resize: vertical; }
+.blatt-abschnitt { margin: var(--abstand-5) 0 var(--abstand-1); font-size: var(--t-grund); }
+.blatt-kontakt { margin-top: calc(-1 * var(--abstand-2)); }
+.blatt-fuss {
+  display: flex;
+  align-items: center;
+  gap: var(--abstand-2);
+  padding: 0.75rem 1.25rem 1rem;
+  border-top: 1px solid var(--linie);
+}
+.blatt-luecke { flex: 1 1 auto; }
+.blatt-fuss button { display: inline-flex; align-items: center; gap: 0.4375rem; }
+.blatt-fuss button svg { width: 1rem; height: 1rem; }
+
+@media (max-width: 40rem) {
+  .assistent {
+    inset: 0;
+    width: 100%;
+    border: 0;
+    border-radius: 0;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .blatt {
+    width: 100vw;
+    height: 100dvh;
+    max-height: 100dvh;
+    border-radius: 0;
+    margin: 0;
+  }
+  .blatt-fuss { padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px)); flex-wrap: wrap; }
+  .titel-rechts { gap: var(--abstand-3); }
+}
+
+/* Auf dem Telefon: Die Wortmarke nimmt, was in der Kopfzeile uebrig ist,
+   und kuerzt sich mit Auslassungspunkten -- so bleiben Assistent, Menue
+   und Abmelden in einer Reihe. Im Blatt schliesst das Kreuz oben; der
+   Knopf "Abbrechen" darunter waere doppelt. */
+@media (max-width: 40rem) {
+  .kopf-innen > .marke { flex: 1 1 0; min-width: 0; }
+  .blatt-abbrechen { display: none; }
+}

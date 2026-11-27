@@ -235,6 +235,22 @@ Frei auf Weiß, ohne Rahmen und ohne Zebrastreifen; Kopf klein und grau.
 `.zaehler`, `.nummer`, `.zeit`, `code`, `pre` und Zahlenfeldern passiert
 das bereits von allein — `.ziffern` ist für Zahlen im Fließtext.
 
+### KI in der Oberfläche
+
+- `.assistent-knopf` — der Zugang zum Assistenten: in der Seitenleiste ein
+  Feld wie die Suche in Mail („Assistent ⌘K“), darunter ein runder Knopf
+- `.assistent` mit `.assistent-kopf`, `.assistent-verlauf`,
+  `.assistent-nutzer` (Frage, blaue Blase rechts), `.assistent-antwort`
+  (Text links), `.assistent-vorschlag` (Karte für einen neuen Vorgang),
+  `.assistent-eingabe` — das Fenster, das von rechts hereinkommt
+- `.blatt` mit `.blatt-kopf`, `.blatt-inhalt`, `.blatt-fuss` — ein
+  `<dialog>` in der Mitte wie „Neue E-Mail“; heute für „Neuer Vorgang“
+- `.titel-rechts` — Zähler und Knopf rechts im Seitentitel
+
+Was die KI darf und was nicht, steht im Kopf von `lib/assistent.ts` und
+`lib/vorgangsvorschlag.ts`: lesen und vorschlagen ja, anlegen nur per
+Klick, senden nur über die Freigabe.
+
 ---
 
 ## 4. Rezepte

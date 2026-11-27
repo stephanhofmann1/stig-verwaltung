@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { NaviZeichen, ZeichenAbmelden, ZeichenMenue } from "./Zeichen";
+import { NaviZeichen, ZeichenAbmelden, ZeichenFunkeln, ZeichenMenue } from "./Zeichen";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -282,6 +282,22 @@ export function Navi({ benutzer }: { benutzer: string | null }) {
               bleiben, wenn die Navigation zugeklappt ist. Auf breiten
               Schirmen blendet ihn globals.css aus -- dort stehen die
               Gruppen ohnehin offen. */}
+          {/* Der Assistent (components/Assistent.tsx) -- in der
+              Seitenleiste ein Feld wie die Suche in Mail, in der
+              Kopfleiste ein runder Knopf. Geoeffnet wird ueber ein
+              Ereignis, weil das Fenster selbst im layout haengt. */}
+          <button
+            type="button"
+            className="assistent-knopf"
+            aria-label="Assistent öffnen"
+            title="Assistent (⌘K)"
+            onClick={() => window.dispatchEvent(new Event("assistent-oeffnen"))}
+          >
+            <ZeichenFunkeln />
+            <span>Assistent</span>
+            <kbd>⌘K</kbd>
+          </button>
+
           <button
             type="button"
             className="navi-schalter"

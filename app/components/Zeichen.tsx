@@ -182,6 +182,56 @@ export function ZeichenMenue() {
   );
 }
 
+/** Der Assistent: zwei Funken, wie das Zeichen fuer KI auf Apple-Geraeten. */
+export function ZeichenFunkeln() {
+  return (
+    <svg {...ZEICHEN}>
+      <path d="M10 4.5Q11 11 17.5 12Q11 13 10 19.5Q9 13 2.5 12Q9 11 10 4.5Z" />
+      <path d="M18.25 2.75Q18.6 5.15 21 5.5Q18.6 5.85 18.25 8.25Q17.9 5.85 15.5 5.5Q17.9 5.15 18.25 2.75Z" />
+    </svg>
+  );
+}
+
+/** Diktieren: ein Mikrofon. */
+export function ZeichenMikro() {
+  return (
+    <svg {...ZEICHEN}>
+      <rect x="9" y="3.25" width="6" height="11.5" rx="3" />
+      <path d="M5.75 11.5a6.25 6.25 0 0 0 12.5 0" />
+      <path d="M12 17.75v3" />
+    </svg>
+  );
+}
+
+/** Abschicken: ein Pfeil nach oben, wie in Nachrichten. */
+export function ZeichenSenden() {
+  return (
+    <svg {...ZEICHEN} strokeWidth={2.25}>
+      <path d="M12 18.5V6" />
+      <path d="m6.75 11.25 5.25-5.25 5.25 5.25" />
+    </svg>
+  );
+}
+
+/** Neu verfassen: ein Blatt mit Stift, wie in Mail. */
+export function ZeichenVerfassen() {
+  return (
+    <svg {...ZEICHEN}>
+      <path d="M11.5 4.5H6.25A1.75 1.75 0 0 0 4.5 6.25v11.5c0 .97.78 1.75 1.75 1.75h11.5c.97 0 1.75-.78 1.75-1.75V12.5" />
+      <path d="M17.6 3.9a1.6 1.6 0 0 1 2.3 2.3l-7.4 7.4-3.1.8.8-3.1 7.4-7.4Z" />
+    </svg>
+  );
+}
+
+/** Schliessen: ein Kreuz. */
+export function ZeichenSchliessen() {
+  return (
+    <svg {...ZEICHEN}>
+      <path d="M6.5 6.5l11 11M17.5 6.5l-11 11" />
+    </svg>
+  );
+}
+
 const ZU_WEG: Record<string, () => React.ReactElement> = {
   "/cockpit": Cockpit,
   "/mietenbuch": Mietenbuch,

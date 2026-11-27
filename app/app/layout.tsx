@@ -10,6 +10,8 @@ import { zugaengeFuer } from "@/lib/zugang";
 import { MandantWahl } from "@/components/MandantWahl";
 import { ObjektWahl } from "@/components/ObjektWahl";
 import { objektSicht } from "@/lib/objektsicht";
+import { Assistent } from "@/components/Assistent";
+import { NeuerVorgang } from "@/components/NeuerVorgang";
 
 /**
  * Titel und Beschreibung stehen im Browsertab, im Lesezeichen und in der
@@ -206,6 +208,18 @@ export default async function RootLayout({
           NaviBoden.tsx.
         */}
         <NaviBoden benutzer={benutzer} />
+        {/*
+          Der Assistent und das Fenster "Neuer Vorgang" haengen einmal hier
+          und nicht auf jeder Seite: Beide werden von ueberall geoeffnet --
+          aus der Navigation, mit ⌘K, aus dem Assistenten heraus. Nur fuer
+          die Verwaltung; ein Mieterzugang bekommt beides nicht.
+        */}
+        {sitzung && sitzung.rolle !== "mieter" && (
+          <>
+            <Assistent />
+            <NeuerVorgang />
+          </>
+        )}
       </body>
     </html>
   );
