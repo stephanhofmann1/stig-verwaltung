@@ -1,7 +1,9 @@
 import { query, one } from "../db";
 import { randomBytes } from "node:crypto";
 import { entschluessele, schluesselVorhanden } from "./geheimnis";
-import { alsBuchungen, bankMeldung, zeitraum, type ZugangsDaten,
+import { alsBuchungen, bankMeldung, waehleTanVerfahren,
+         zweiSchrittVerfahren, zeitraum,
+         type TanVerfahren, type ZugangsDaten,
          type FintsUmsatz } from "./abruf";
 import { merke, hole as holeSitzung, vergiss } from "./sitzungen";
 import type { RohBuchung } from "../kontoimport";
@@ -161,6 +163,49 @@ export async function starteAbruf(
       */
       if (!s.success) {
         return { art: "fehler", meldung: bankMeldung(s.bankAnswers), vonDerBank: true };
+      }
+
+      /*
+        TAN-Verfahren waehlen, bevor nach Konten gefragt wird. Ohne diesen
+        Schritt bleibt es beim Einschrittverfahren 999, und die Bank
+        liefert keine Konten -- die Begruendung steht an
+        `zweiSchrittVerfahren` in abruf.ts.
+      */
+      const wahl = waehleTanVerfahren(
+        zweiSchrittVerfahren(client),
+        z.tan_verfahren,
+      );
+      if (wahl.art === "auswahl_noetig") {
+        return { art: "fehler", meldung: wahl.meldung };
+      }
+      if (wahl.art === "gewaehlt") {
+        client.selectTanMethod(wahl.verfahren.id);
+        if (wahl.verfahren.medien.length === 1) {
+          client.selectTanMedia(wahl.verfahren.medien[0]);
+        }
+        await merkeVerfahren(z.id, wahl.verfahren);
+        const zweite = await client.synchronize();
+        if (zweite.requiresTan) {
+          const token = randomBytes(16).toString("hex");
+          merke(token, {
+            client, zugangId: z.id, zweck: "synchronisieren",
+            hinweis: zweite.tanChallenge ?? "Die Bank verlangt eine TAN.",
+            tanReferenz: zweite.tanReference ?? "",
+          });
+          return {
+            art: "tan", token,
+            hinweis: zweite.tanChallenge ??
+              "Die Bank verlangt für die Erstanmeldung eine TAN.",
+            medium: zweite.tanMediaName ?? null,
+          };
+        }
+        if (!zweite.success) {
+          return {
+            art: "fehler",
+            meldung: bankMeldung(zweite.bankAnswers),
+            vonDerBank: true,
+          };
+        }
       }
     }
 
@@ -333,4 +378,25 @@ export async function loeseTanEin(
   } catch (e) {
     return { art: "fehler", meldung: (e as Error).message };
   }
+}
+
+/**
+ * Haelt das gewaehlte TAN-Verfahren fest, sofort nach der Wahl.
+ *
+ * Nicht erst am Ende des Abrufs: Wenn die Bank danach eine TAN verlangt,
+ * bricht der Vorgang hier ab, und beim naechsten Versuch soll dieselbe
+ * Wahl gelten. Sonst waehlt der naechste Lauf wieder von vorn.
+ */
+async function merkeVerfahren(
+  zugangId: string,
+  verfahren: TanVerfahren,
+): Promise<void> {
+  await query(
+    `UPDATE fints_zugang
+        SET tan_verfahren = $2,
+            tan_medium = COALESCE($3::text, tan_medium)
+      WHERE id = $1`,
+    [zugangId, verfahren.id,
+     verfahren.medien.length === 1 ? verfahren.medien[0] : null],
+  );
 }

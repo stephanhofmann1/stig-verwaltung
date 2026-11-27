@@ -4,7 +4,8 @@ import { Buffer } from "node:buffer";
 import { readFileSync } from "node:fs";
 
 import { zeitraum, alsBuchungen, bankMeldung, wegenZugangsdaten,
-         sollStilllegen, type FintsUmsatz } from "../lib/fints/abruf";
+         sollStilllegen, zweiSchrittVerfahren, waehleTanVerfahren,
+         EINSCHRITT, type FintsUmsatz } from "../lib/fints/abruf";
 import { liesKontoauszug } from "../lib/kontoformate";
 
 /**
@@ -733,5 +734,159 @@ describe("Kein Konto trotz geglueckter Anmeldung", () => {
     const stelle = INTERAKTIV.slice(INTERAKTIV.indexOf("if (!konto)"));
     assert.match(stelle, /z\.konto_iban/);
     assert.match(stelle, /konten\.length/);
+  });
+});
+
+describe("Das TAN-Verfahren wird gewaehlt", () => {
+  /*
+    Der Fehler, den diese Tests festhalten:
+
+    Vom 06. bis zum 23.11.2026 kam der Zugang bei der Volksbank Buehl
+    nicht zustande. Die Anmeldung wurde angenommen, aber die Bank
+    lieferte kein Konto. Wir haben am Anmeldenamen gesucht, an der
+    Kundennummer, an der Freischaltung des Kontos -- und die Bank hat
+    dann geschrieben, woran es lag: Unsere Software meldete gar kein
+    TAN-Verfahren zurueck, sondern das Einschrittverfahren 999.
+
+    lib-fints setzt die 999 ein, wenn ihr keine Kennung mitgegeben wird
+    (`secFunc: tanMethodId ?? 999`). Genau unser Fall bei der
+    Erstanmeldung. Ohne Zwei-Schritt-Verfahren laesst die Bank den
+    Login zu, ruecht aber die Konten nicht heraus.
+  */
+
+  const client = (
+    methoden: { id: number; name: string; activeTanMedia?: string[] }[],
+  ) => ({ config: { availableTanMethods: methoden } });
+
+  test("das Einschrittverfahren 999 zaehlt nicht als Verfahren", () => {
+    const v = zweiSchrittVerfahren(
+      client([
+        { id: EINSCHRITT, name: "Einschritt-Verfahren" },
+        { id: 921, name: "SecureGo plus", activeTanMedia: ["Handy"] },
+      ]),
+    );
+    assert.deepEqual(v.map((x) => x.id), [921]);
+    assert.deepEqual(v[0].medien, ["Handy"]);
+  });
+
+  test("bietet die Bank nur eines an, wird es ohne Rueckfrage genommen", () => {
+    const wahl = waehleTanVerfahren(
+      [{ id: 921, name: "SecureGo plus", medien: ["Handy"] }], null,
+    );
+    assert.equal(wahl.art, "gewaehlt");
+    assert.equal(wahl.art === "gewaehlt" && wahl.verfahren.id, 921);
+  });
+
+  test("bei mehreren wird gefragt, und die Meldung nennt alle Kennungen", () => {
+    const wahl = waehleTanVerfahren(
+      [
+        { id: 921, name: "SecureGo plus", medien: [] },
+        { id: 942, name: "Sm@rt-TAN plus", medien: [] },
+      ],
+      null,
+    );
+    assert.equal(wahl.art, "auswahl_noetig");
+    if (wahl.art !== "auswahl_noetig") return;
+    /*
+      Die Kennungen muessen in der Meldung stehen. Sonst steht Stephan
+      vor einem Feld, in das eine Zahl gehoert, die er nirgends ablesen
+      kann -- und muss im Onlinebanking raten.
+    */
+    assert.match(wahl.meldung, /921/);
+    assert.match(wahl.meldung, /942/);
+    assert.match(wahl.meldung, /SecureGo plus/);
+  });
+
+  test("ein hinterlegtes Verfahren wird verwendet, nicht neu geraten", () => {
+    const wahl = waehleTanVerfahren(
+      [
+        { id: 921, name: "SecureGo plus", medien: [] },
+        { id: 942, name: "Sm@rt-TAN plus", medien: [] },
+      ],
+      942,
+    );
+    assert.equal(wahl.art, "gewaehlt");
+    assert.equal(wahl.art === "gewaehlt" && wahl.verfahren.id, 942);
+  });
+
+  test("faellt das hinterlegte Verfahren weg, wird gefragt statt getauscht", () => {
+    /*
+      Nicht stillschweigend ein anderes nehmen: Wenn die Bank das
+      gewohnte Verfahren abschaltet, soll das auffallen und nicht in
+      einer Anmeldung enden, die auf eine TAN wartet, die niemand
+      erwartet.
+    */
+    const wahl = waehleTanVerfahren(
+      [{ id: 921, name: "SecureGo plus", medien: [] }], 942,
+    );
+    assert.equal(wahl.art, "auswahl_noetig");
+    assert.match(
+      wahl.art === "auswahl_noetig" ? wahl.meldung : "", /942/,
+    );
+  });
+
+  test("eine hinterlegte 999 gilt als nicht gesetzt", () => {
+    const wahl = waehleTanVerfahren(
+      [{ id: 921, name: "SecureGo plus", medien: [] }], EINSCHRITT,
+    );
+    assert.equal(wahl.art, "gewaehlt");
+    assert.equal(wahl.art === "gewaehlt" && wahl.verfahren.id, 921);
+  });
+
+  test("nennt die Bank keines, bleibt es dabei statt abzubrechen", () => {
+    assert.equal(waehleTanVerfahren([], null).art, "keines");
+  });
+});
+
+describe("Die Wahl steht an der richtigen Stelle im Ablauf", () => {
+  const HOLEN = readFileSync(
+    new URL("../lib/fints/holen.ts", import.meta.url), "utf8");
+  const INTERAKTIV = readFileSync(
+    new URL("../lib/fints/interaktiv.ts", import.meta.url), "utf8");
+  const BEIDE = [["holen.ts", HOLEN], ["interaktiv.ts", INTERAKTIV]] as const;
+
+  test("gewaehlt wird nach der Anmeldepruefung und vor der Kontenliste", () => {
+    /*
+      Die Reihenfolge ist der ganze Punkt. Zu frueh gewaehlt, gibt es
+      noch keine Liste der Verfahren -- die schickt die Bank erst in der
+      Antwort auf die Synchronisierung. Zu spaet gewaehlt, ist die
+      Kontenliste schon gelesen, und sie ist leer.
+    */
+    for (const [name, quelle] of BEIDE) {
+      const pruefung = quelle.indexOf("if (!s.success)");
+      const wahl = quelle.indexOf("waehleTanVerfahren(", pruefung);
+      const konten = quelle.indexOf("bankAccounts", pruefung);
+      assert.ok(wahl > pruefung, `${name}: Wahl fehlt oder steht zu frueh`);
+      assert.ok(konten > 0, `${name}: Kontenliste nicht gefunden`);
+      assert.ok(wahl < konten, `${name}: erst Konten lesen, dann waehlen`);
+    }
+  });
+
+  test("nach der Wahl wird erneut synchronisiert", () => {
+    /*
+      Ohne den zweiten Durchgang bleibt die Kontenliste leer: Die
+      Userparameterdaten kommen nur in einem Dialog, der mit dem
+      gewaehlten Verfahren unterschrieben ist.
+    */
+    for (const [name, quelle] of BEIDE) {
+      const wahl = quelle.indexOf("selectTanMethod(");
+      assert.ok(wahl > 0, `${name}: selectTanMethod fehlt`);
+      const konten = quelle.indexOf("bankAccounts", wahl);
+      const zweite = quelle.indexOf("client.synchronize()", wahl);
+      assert.ok(
+        zweite > wahl && (konten < 0 || zweite < konten),
+        `${name}: nach selectTanMethod wird nicht erneut synchronisiert`,
+      );
+    }
+  });
+
+  test("das gewaehlte Verfahren wird gespeichert", () => {
+    /*
+      Sonst waehlt der naechste Lauf von vorn -- und bleibt bei mehreren
+      angebotenen Verfahren jedes Mal mit derselben Rueckfrage stehen.
+    */
+    assert.match(HOLEN, /tan_verfahren = COALESCE/);
+    assert.match(INTERAKTIV, /merkeVerfahren\(/);
+    assert.match(INTERAKTIV, /SET tan_verfahren = \$2/);
   });
 });
