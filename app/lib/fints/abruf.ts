@@ -478,6 +478,12 @@ export function wegenGeraetebezeichnung(meldung: string): boolean {
 export function hinweisGeraet(
   verfahren: TanVerfahren | null,
   geschickt: string | null,
+  /*
+    Was die Bank von sich aus genannt hat -- getrennt uebergeben, weil
+    `verfahren.medien` zu diesem Zeitpunkt bereits unseren eigenen Namen
+    enthaelt. Diese Liste darf nicht aus dem Verfahren gelesen werden.
+  */
+  vonDerBank: string[] = [],
 ): string {
   const gewaehlt = verfahren
     ? `Gewählt war Verfahren ${verfahren.id} (${verfahren.name}).`
@@ -485,9 +491,9 @@ export function hinweisGeraet(
   const name = geschickt
     ? `Geschickt wurde die Bezeichnung „${geschickt}“.`
     : "Es wurde keine Bezeichnung mitgeschickt.";
-  const liste = verfahren?.medien.length
-    ? ` Die Bank nennt dazu: ${verfahren.medien.join(", ")}.`
-    : "";
+  const liste = vonDerBank.length
+    ? ` Die Bank nennt dazu: ${vonDerBank.join(", ")}.`
+    : " Die Bank hat von sich aus keine Bezeichnung genannt.";
   return (
     `${gewaehlt} ${name}${liste} ` +
     "Die Bank möchte wissen, welches Gerät die TAN bekommen soll. " +

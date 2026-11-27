@@ -978,7 +978,7 @@ describe("Die Geraetebezeichnung", () => {
          [["holen.ts", HOLEN], ["interaktiv.ts", INTERAKTIV]] as const) {
       assert.match(quelle, /wegenGeraetebezeichnung\(roh\)/,
         `${name}: Hinweis fehlt`);
-      assert.match(quelle, /hinweisGeraet\(wahl\.verfahren, medium\)/,
+      assert.match(quelle, /hinweisGeraet\(\s*wahl\.verfahren,\s*medium,/,
         `${name}: Hinweis nennt Verfahren und Name nicht`);
     }
   });
@@ -1011,9 +1011,31 @@ describe("Der Hinweis sagt, was versucht wurde", () => {
 
   test("nennt die Bank Medien, werden sie aufgezaehlt", () => {
     const t = hinweisGeraet(
-      { id: 921, name: "pushTAN", medien: ["iPhone Stephan", "16e"] }, "16e",
+      { id: 921, name: "pushTAN", medien: [] }, "16e",
+      ["iPhone Stephan", "Tablet"],
     );
     assert.match(t, /iPhone Stephan/);
+  });
+
+  test("unser eigener Name wird nicht als Angabe der Bank ausgegeben", () => {
+    /*
+      Am 27.11.2026 stand in der Meldung "Die Bank nennt dazu: 16e" --
+      obwohl die Bank gar nichts genannt hatte. setzeTanMedium traegt
+      den Namen in activeTanMedia ein, damit die Bibliothek ihn
+      durchlaesst, und der Hinweis las danach genau diese Liste aus.
+      Eine Fehlermeldung, die den eigenen Eingabewert als Auskunft der
+      Bank ausgibt, ist schlimmer als gar keine: Sie bestaetigt einen
+      Wert, den niemand bestaetigt hat.
+    */
+    const t = hinweisGeraet(
+      /* so sieht das Verfahren NACH setzeTanMedium aus: */
+      { id: 923, name: "pushTAN 2.0", medien: ["16e"] },
+      "16e",
+      /* die Bank selbst hat nichts genannt: */
+      [],
+    );
+    assert.doesNotMatch(t, /Bank nennt dazu/);
+    assert.match(t, /keine Bezeichnung genannt/);
   });
 
   test("ohne Verfahren bleibt der Hinweis verstaendlich", () => {

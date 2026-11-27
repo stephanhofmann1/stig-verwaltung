@@ -161,7 +161,15 @@ export async function hole(z: ZugangsDaten, heute = new Date()): Promise<AbrufEr
       }
       if (wahl.art === "gewaehlt") {
         client.selectTanMethod(wahl.verfahren.id);
-        const medium = waehleTanMedium(z.tan_medium, wahl.verfahren.medien);
+        /*
+          Die Liste der Bank festhalten, BEVOR setzeTanMedium sie
+          ergaenzt. Sonst spiegelt der Hinweis unseren eigenen Wert
+          zurueck, als haette die Bank ihn genannt -- am 27.11.2026
+          stand so "Die Bank nennt dazu: 16e" in der Meldung, obwohl
+          die Bank gar nichts genannt hatte.
+        */
+        const vonDerBankGenannt = [...wahl.verfahren.medien];
+        const medium = waehleTanMedium(z.tan_medium, vonDerBankGenannt);
         if (medium) {
           setzeTanMedium(client, medium);
           gewaehltesMedium = medium;
@@ -187,7 +195,7 @@ export async function hole(z: ZugangsDaten, heute = new Date()): Promise<AbrufEr
           return {
             art: "fehler",
             meldung: wegenGeraetebezeichnung(roh)
-              ? `${roh} — ${hinweisGeraet(wahl.verfahren, medium)}`
+              ? `${roh} — ${hinweisGeraet(wahl.verfahren, medium, vonDerBankGenannt)}`
               : roh,
             vonDerBank: true,
           };
