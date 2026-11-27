@@ -1,7 +1,8 @@
 import { query, one, tx } from "../db";
 import { entschluessele, schluesselVorhanden } from "./geheimnis";
-import { alsBuchungen, bankMeldung, sollStilllegen, zeitraum,
-         type AbrufErgebnis, type ZugangsDaten,
+import { alsBuchungen, bankMeldung, sollStilllegen, waehleTanVerfahren,
+         zweiSchrittVerfahren, zeitraum,
+         type AbrufErgebnis, type TanVerfahren, type ZugangsDaten,
          type FintsUmsatz } from "./abruf";
 
 /**
@@ -105,6 +106,7 @@ export async function hole(z: ZugangsDaten, heute = new Date()): Promise<AbrufEr
         );
 
     const client = new FinTSClient(config);
+    let gewaehltesVerfahren: TanVerfahren | null = null;
 
     // Ohne gespeicherte Bankinformationen muss zuerst synchronisiert
     // werden. Verlangt die Bank dafür eine TAN, bricht es hier ab -- das
@@ -139,6 +141,50 @@ export async function hole(z: ZugangsDaten, heute = new Date()): Promise<AbrufEr
       */
       if (!s.success) {
         return { art: "fehler", meldung: bankMeldung(s.bankAnswers), vonDerBank: true };
+      }
+
+      /*
+        Jetzt, und nicht spaeter, das TAN-Verfahren auswaehlen.
+
+        Ohne diesen Schritt bleibt lib-fints beim Einschrittverfahren 999.
+        Die Bank nimmt die Anmeldung dann an, liefert aber keine Konten --
+        siehe die Begruendung an `zweiSchrittVerfahren` in abruf.ts.
+      */
+      const wahl = waehleTanVerfahren(
+        zweiSchrittVerfahren(client),
+        z.tan_verfahren,
+      );
+      if (wahl.art === "auswahl_noetig") {
+        return { art: "fehler", meldung: wahl.meldung };
+      }
+      if (wahl.art === "gewaehlt") {
+        client.selectTanMethod(wahl.verfahren.id);
+        if (wahl.verfahren.medien.length === 1) {
+          client.selectTanMedia(wahl.verfahren.medien[0]);
+        }
+        gewaehltesVerfahren = wahl.verfahren;
+        /*
+          Noch einmal synchronisieren: Die Konten stehen in den
+          Userparameterdaten, und die schickt die Bank erst in einem
+          Dialog, der mit dem richtigen Verfahren unterschrieben ist.
+        */
+        const zweite = await client.synchronize();
+        if (zweite.requiresTan) {
+          return {
+            art: "tan_faellig",
+            hinweis:
+              zweite.tanChallenge ??
+              "Die Bank verlangt für die Erstanmeldung eine TAN.",
+            medium: zweite.tanMediaName ?? null,
+          };
+        }
+        if (!zweite.success) {
+          return {
+            art: "fehler",
+            meldung: bankMeldung(zweite.bankAnswers),
+            vonDerBank: true,
+          };
+        }
       }
     }
 
@@ -191,6 +237,11 @@ export async function hole(z: ZugangsDaten, heute = new Date()): Promise<AbrufEr
         ? client.config.bankingInformation
         : null,
       gekuerzt,
+      tan_verfahren: gewaehltesVerfahren?.id ?? null,
+      tan_medium:
+        gewaehltesVerfahren?.medien.length === 1
+          ? gewaehltesVerfahren.medien[0]
+          : null,
     };
   } catch (e) {
     return { art: "fehler", meldung: (e as Error).message };
@@ -269,9 +320,12 @@ export async function vermerke(
       `UPDATE fints_zugang
           SET letzter_abruf = $2, letzter_erfolg = now(),
               letzter_fehler = NULL, tan_faellig = false, tan_hinweis = NULL,
-              bank_information = COALESCE($3::jsonb, bank_information)
+              bank_information = COALESCE($3::jsonb, bank_information),
+              tan_verfahren = COALESCE($4::int, tan_verfahren),
+              tan_medium = COALESCE($5::text, tan_medium)
         WHERE id = $1`,
-      [z.id, e.bis, e.bank_information ? JSON.stringify(e.bank_information) : null],
+      [z.id, e.bis, e.bank_information ? JSON.stringify(e.bank_information) : null,
+       e.tan_verfahren ?? null, e.tan_medium ?? null],
     );
   });
   return { neu, bekannt };

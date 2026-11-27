@@ -56,6 +56,13 @@ export type AbrufErgebnis =
        * aus der Luecke aus wie Rueckstaende.
        */
       gekuerzt: boolean;
+      /*
+        Das bei der Erstanmeldung gewaehlte TAN-Verfahren. Es muss
+        gespeichert werden, sonst waehlt der naechste Lauf wieder neu --
+        und bei mehreren angebotenen Verfahren bliebe er stehen.
+      */
+      tan_verfahren?: number | null;
+      tan_medium?: string | null;
     }
   | {
       art: "tan_faellig";
@@ -274,4 +281,121 @@ export function sollStilllegen(fehler: {
   vonDerBank?: boolean;
 }): boolean {
   return fehler.vonDerBank === true && wegenZugangsdaten(fehler.meldung);
+}
+
+/** Ein TAN-Verfahren, so wie die Bank es für diesen Zugang anbietet. */
+export interface TanVerfahren {
+  id: number;
+  name: string;
+  /** Namen der freigeschalteten TAN-Medien, etwa der Name der App. */
+  medien: string[];
+}
+
+/**
+ * Das Einschrittverfahren: Anmeldung nur mit PIN, ohne zweiten Faktor.
+ *
+ * lib-fints setzt diese Kennung ein, wenn ihr keine andere mitgegeben wird
+ * (`secFunc: tanMethodId ?? 999` in message.js). Genau das war unser Fehler.
+ */
+export const EINSCHRITT = 999;
+
+/**
+ * Die Zwei-Schritt-Verfahren, die die Bank für diesen Zugang freigeschaltet
+ * hat.
+ *
+ * Woher die Liste kommt: In der Antwort auf die Erstsynchronisierung
+ * schickt die Bank in den Bankparameterdaten alle Verfahren, die sie
+ * überhaupt kann, und dazu eine Rückmeldung 3920 mit denen, die für diesen
+ * Benutzer freigeschaltet sind. lib-fints schneidet beides in
+ * `availableTanMethods` zusammen.
+ *
+ * Warum das eine eigene Funktion ist: Vom 06.11. bis zum 23.11.2026 lief
+ * der Zugang bei der Volksbank Bühl ins Leere, weil wir nach der
+ * Erstsynchronisierung kein Verfahren ausgewählt haben. Dann bleibt es bei
+ * der 999. Die Bank nimmt die Anmeldung trotzdem an -- deshalb sah es wie
+ * ein geglückter Login aus -- liefert aber in den Userparameterdaten kein
+ * einziges Konto. Unsere Meldung lautete daraufhin "Die Bank liefert kein
+ * Konto zu diesem Zugang", und wir haben zwei Wochen am Anmeldenamen und
+ * an der Freischaltung des Kontos gesucht. Die Volksbank hat es am
+ * 23.11.2026 aufgeklärt: Das Konto war die ganze Zeit freigeschaltet, es
+ * fehlte das Verfahren.
+ */
+export function zweiSchrittVerfahren(client: {
+  config: {
+    availableTanMethods?: {
+      id: number;
+      name: string;
+      activeTanMedia?: string[];
+    }[];
+  };
+}): TanVerfahren[] {
+  return (client.config.availableTanMethods ?? [])
+    .filter((v) => v.id !== EINSCHRITT)
+    .map((v) => ({
+      id: v.id,
+      name: v.name,
+      medien: v.activeTanMedia ?? [],
+    }));
+}
+
+export type VerfahrensWahl =
+  | { art: "gewaehlt"; verfahren: TanVerfahren }
+  /** Mehrere Verfahren -- die Wahl hängt daran, was Stephan wirklich hat. */
+  | { art: "auswahl_noetig"; angebotene: TanVerfahren[]; meldung: string }
+  /** Die Bank nennt keines. Dann bleibt nur die 999. */
+  | { art: "keines" };
+
+/**
+ * Wählt das TAN-Verfahren.
+ *
+ * Automatisch nur dann, wenn die Bank genau eines anbietet. Bei mehreren
+ * wird gefragt, und zwar mit Absicht: Welches geht, hängt daran, was der
+ * Nutzer in der Hand hat. Ein Verfahren mit Kartenleser auszuwählen, wenn
+ * nur die App eingerichtet ist, führt zu einer Anmeldung, die auf eine TAN
+ * wartet, die nie kommt -- und das sieht wieder nach einem Fehler in der
+ * Software aus statt nach einer Einstellung.
+ */
+export function waehleTanVerfahren(
+  angebotene: TanVerfahren[],
+  gewuenscht: number | null,
+): VerfahrensWahl {
+  if (angebotene.length === 0) return { art: "keines" };
+
+  if (gewuenscht !== null && gewuenscht !== EINSCHRITT) {
+    const treffer = angebotene.find((v) => v.id === gewuenscht);
+    if (treffer) return { art: "gewaehlt", verfahren: treffer };
+    return {
+      art: "auswahl_noetig",
+      angebotene,
+      meldung:
+        `Das hinterlegte TAN-Verfahren ${gewuenscht} bietet die Bank für ` +
+        "diesen Zugang nicht (mehr) an. " + nenneAuswahl(angebotene),
+    };
+  }
+
+  if (angebotene.length === 1) {
+    return { art: "gewaehlt", verfahren: angebotene[0] };
+  }
+
+  return {
+    art: "auswahl_noetig",
+    angebotene,
+    meldung:
+      "Die Bank bietet mehrere TAN-Verfahren an. " + nenneAuswahl(angebotene),
+  };
+}
+
+/** Schreibt die Auswahl so hin, dass sie ohne Nachfragen bedienbar ist. */
+function nenneAuswahl(angebotene: TanVerfahren[]): string {
+  const liste = angebotene
+    .map((v) => {
+      const medien = v.medien.length ? ` [${v.medien.join(", ")}]` : "";
+      return `${v.id} = ${v.name}${medien}`;
+    })
+    .join("; ");
+  return (
+    `Bitte eines davon beim Zugang hinterlegen: ${liste}. ` +
+    "Maßgeblich ist, welches Verfahren im Onlinebanking tatsächlich " +
+    "eingerichtet ist."
+  );
 }

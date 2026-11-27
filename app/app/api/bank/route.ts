@@ -164,6 +164,21 @@ export async function PATCH(req: Request) {
   // will, löscht den Zugang.
   const geheim = pin ? verschluessele(pin) : null;
 
+  /*
+    Das TAN-Verfahren. Leer heisst "selbst herausfinden": Bietet die Bank
+    genau eines an, nimmt der Abruf dieses. Erst bei mehreren muss hier
+    eine Zahl stehen -- die Fehlermeldung des Abrufs nennt dann die
+    Kennungen, die zur Auswahl stehen.
+  */
+  const verfahrenRoh = feld("tan_verfahren");
+  if (verfahrenRoh && !/^[0-9]{1,4}$/.test(verfahrenRoh)) {
+    return NextResponse.json(
+      { fehler: "Das TAN-Verfahren ist eine Zahl, etwa 921." },
+      { status: 400 },
+    );
+  }
+  const verfahren = verfahrenRoh ? Number(verfahrenRoh) : null;
+
   await query(
     `UPDATE fints_zugang
         SET benutzer = $2,
@@ -171,13 +186,15 @@ export async function PATCH(req: Request) {
             kunden_id = NULLIF($4, ''),
             konto_iban = NULLIF($5, ''),
             pin_verschluesselt = COALESCE($6, pin_verschluesselt),
+            tan_verfahren = $7::int,
             bank_information = NULL,
             tan_faellig = false,
             tan_hinweis = NULL,
             letzter_fehler = NULL,
             aktiv = true
       WHERE id = $1`,
-    [id, benutzer, url, feld("kunden_id"), feld("konto_iban"), geheim],
+    [id, benutzer, url, feld("kunden_id"), feld("konto_iban"), geheim,
+     verfahren],
   );
 
   return NextResponse.json({ ok: true });

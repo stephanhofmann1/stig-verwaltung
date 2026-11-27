@@ -23,6 +23,7 @@ export function BankZugangPflegen({
   url,
   kundenId,
   kontoIban,
+  tanVerfahren,
   ruht,
 }: {
   id: string;
@@ -31,6 +32,8 @@ export function BankZugangPflegen({
   url: string;
   kundenId: string | null;
   kontoIban: string | null;
+  /** Kennung des TAN-Verfahrens, etwa 921. Leer = wird selbst ermittelt. */
+  tanVerfahren: number | null;
   /** Zugang wurde nach einem Fehler an den Zugangsdaten stillgelegt. */
   ruht: boolean;
 }) {
@@ -124,6 +127,21 @@ export function BankZugangPflegen({
           placeholder="DE..."
           className="feld"
         />
+      </label>
+      <label>TAN-Verfahren
+        <input
+          name="tan_verfahren"
+          inputMode="numeric"
+          defaultValue={tanVerfahren ?? ""}
+          className="feld"
+        />
+        <span className="hinweis">
+          Leer lassen, solange es geht. Bietet die Bank mehrere Verfahren
+          an, nennt die Fehlermeldung beim Abruf die Kennungen zur Auswahl
+          — zum Beispiel 921 für eine App-Freigabe. Ohne Zwei-Schritt-
+          Verfahren nimmt die Bank die Anmeldung an, liefert aber kein
+          Konto.
+        </span>
       </label>
       <label>Neue PIN
         <input name="pin" type="password" autoComplete="off" className="feld" />
