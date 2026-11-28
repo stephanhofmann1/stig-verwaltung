@@ -157,9 +157,33 @@ export function normalisiere(
 // ---------------------------------------------------------------------------
 
 /**
- * Den genannten Kontakt im Bestand suchen: erst ueber die E-Mail-Adresse,
- * dann ueber den Namen (gross/klein egal). Nur ein eindeutiger Treffer
- * zaehlt -- bei zwei "Anna" lieber keinen als den falschen.
+ * Der Kern eines Namens fuer den Vergleich mit einer Mail-Domain:
+ * klein, Umlaute ausgeschrieben, nur Buchstaben und Ziffern.
+ * "ML Hauselemente" -> "mlhauselemente", passend zu "ml-hauselemente.de".
+ */
+export function suchkern(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/ä/g, "ae")
+    .replace(/ö/g, "oe")
+    .replace(/ü/g, "ue")
+    .replace(/ß/g, "ss")
+    .replace(/[^a-z0-9]/g, "");
+}
+
+const ILIKE = (w: string) => `%${w.replace(/[\\%_]/g, (z) => "\\" + z)}%`;
+
+/**
+ * Den genannten Kontakt im Bestand suchen, in drei Stufen:
+ *   1. ueber die E-Mail-Adresse
+ *   2. ueber den Namen oder die Firma, genau (gross/klein egal)
+ *   3. ungefaehr: Name oder Firma enthaelt das Wort, oder die Domain
+ *      einer Adresse passt zum Namen -- so findet "ML Hauselemente" den
+ *      Kontakt "Dennis Harsch <d.harsch@ml-hauselemente.de>"
+ *
+ * Nur ein eindeutiger Treffer zaehlt -- bei zwei "Anna" lieber keinen als
+ * den falschen. Stufe 3 erst ab vier Zeichen, sonst passt "Bau" auf jeden
+ * Handwerker.
  */
 export async function findeKontakt(
   name: string,
@@ -177,19 +201,40 @@ export async function findeKontakt(
     if (k) return k;
   }
   if (!name) return null;
-  const treffer = await query<{ id: string; anzeigename: string; email: string | null }>(
-    `SELECT k.id, k.anzeigename,
+
+  const MIT_ADRESSE = `SELECT k.id, k.anzeigename,
             (SELECT ke.email FROM kontakt_email ke
               WHERE ke.kontakt_id = k.id
               ORDER BY ke.ist_primaer DESC LIMIT 1) AS email
-       FROM kontakt k
+       FROM kontakt k`;
+
+  const genau = await query<{ id: string; anzeigename: string; email: string | null }>(
+    `${MIT_ADRESSE}
       WHERE k.aktiv
         AND (lower(k.anzeigename) = lower($1)
              OR lower(coalesce(k.firma, '')) = lower($1))
       LIMIT 2`,
     [name],
   );
-  return treffer.length === 1 ? treffer[0] : null;
+  if (genau.length === 1) return genau[0];
+  if (genau.length > 1) return null;
+
+  const kern = suchkern(name);
+  if (kern.length < 4) return null;
+  const ungefaehr = await query<{ id: string; anzeigename: string; email: string | null }>(
+    `${MIT_ADRESSE}
+      WHERE k.aktiv
+        AND (k.anzeigename ILIKE $1
+             OR coalesce(k.firma, '') ILIKE $1
+             OR EXISTS (
+               SELECT 1 FROM kontakt_email ke
+                WHERE ke.kontakt_id = k.id
+                  AND regexp_replace(lower(split_part(ke.email, '@', 2)), '[^a-z0-9]', '', 'g')
+                      LIKE '%' || $2 || '%'))
+      LIMIT 2`,
+    [ILIKE(name), kern],
+  );
+  return ungefaehr.length === 1 ? ungefaehr[0] : null;
 }
 
 // ---------------------------------------------------------------------------

@@ -1917,6 +1917,21 @@ th.betrag,
 .register > .entwurf-falte:last-child:not([open]) > summary > .posten::after { display: none; }
 .entwurf-falte > .entwurf { margin: var(--abstand-1) var(--abstand-3) var(--abstand-5); }
 
+/* Eine Kennzahlenreihe mit sechs Werten bricht nicht 5 + 1 um, sondern
+   steht in zwei Reihen zu drei -- und auf dem Telefon in drei zu zwei.
+   Erst wenn die Spalte breit genug ist (ab 80 rem Fensterbreite), stehen
+   alle sechs nebeneinander. */
+@media (max-width: 79.9375rem) {
+  .karten:has(> .karte:nth-child(6):last-child) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 40rem) {
+  .karten:has(> .karte:nth-child(6):last-child) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 /* --- 14g. Diagramme ---------------------------------------------------------
    Die Reihen tragen ihre Farbe als currentColor; Soll grau, Ist blau,
    Status in den Statusfarben. */
@@ -2884,4 +2899,22 @@ button.assistent-rund {
 @media (max-width: 40rem) {
   .kopf-innen > .marke { flex: 1 1 0; min-width: 0; }
   .blatt-abbrechen { display: none; }
+}
+
+/* Zwischenzeile in einer Antwort ("**Rueckstaende**" oder "## ..."). */
+.assistent-zwischen {
+  font-weight: var(--g-kopf);
+  margin: var(--abstand-4) 0 var(--abstand-1);
+}
+.assistent-antwort > .assistent-zwischen:first-child { margin-top: 0; }
+
+/* Im Blatt: das Textfeld der Nachricht gross genug zum Gegenlesen, und
+   Rollen im Feld oder im Blatt nimmt die Seite dahinter nicht mit. */
+.blatt .blatt-gross { min-height: 10rem; }
+.blatt-inhalt,
+.blatt textarea,
+.assistent-verlauf { overscroll-behavior: contain; }
+body:has(.blatt[open]) { overflow: hidden; }
+@media (max-width: 40rem) {
+  body:has(.assistent[data-offen="ja"]) { overflow: hidden; }
 }

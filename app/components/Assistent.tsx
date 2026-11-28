@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { gliedere } from "@/lib/kitext";
 import { useSpracheingabe } from "./Spracheingabe";
 import {
   ZeichenFunkeln,
@@ -357,31 +358,32 @@ function VorschlagKarte({ vorschlag, oeffnen }: { vorschlag: Vorschlag; oeffnen:
 }
 
 /**
- * Die Antwort als Text: Absaetze, Listen mit "- ", **fett** und Verweise
- * [Wort](/pfad). Mehr nicht -- und ohne HTML aus der Antwort: Was das
- * Modell schreibt, wird nie als Markup eingesetzt. Verweise nur innerhalb
- * der Verwaltung (beginnend mit "/") oder auf https.
+ * Die Antwort als Text: Absaetze, Listen, Zwischenzeilen, **fett** und
+ * Verweise [Wort](/pfad). Gegliedert wird in lib/kitext.ts. Was das Modell
+ * schreibt, wird nie als Markup eingesetzt; Verweise nur innerhalb der
+ * Verwaltung (beginnend mit "/") oder auf https.
  */
 export function KiText({ text, beimKlick }: { text: string; beimKlick?: () => void }) {
-  const bloecke = text.replace(/\r/g, "").split(/\n{2,}/);
   return (
     <>
-      {bloecke.map((b, i) => {
-        const zeilen = b.split("\n").filter((z) => z.trim() !== "");
-        const liste = zeilen.length > 0 && zeilen.every((z) => /^\s*([-•*]|\d+\.)\s+/.test(z));
-        if (liste) {
-          const nummeriert = /^\s*\d+\./.test(zeilen[0]);
-          const punkte = zeilen.map((z, j) => (
-            <li key={j}>{zeile(z.replace(/^\s*([-•*]|\d+\.)\s+/, ""), beimKlick)}</li>
-          ));
-          return nummeriert ? <ol key={i}>{punkte}</ol> : <ul key={i}>{punkte}</ul>;
+      {gliedere(text).map((t, i) => {
+        if (t.art === "zwischen") {
+          return (
+            <p key={i} className="assistent-zwischen">
+              {zeile(t.text, beimKlick)}
+            </p>
+          );
+        }
+        if (t.art === "liste" || t.art === "nummern") {
+          const punkte = t.punkte.map((p, j) => <li key={j}>{zeile(p, beimKlick)}</li>);
+          return t.art === "nummern" ? <ol key={i}>{punkte}</ol> : <ul key={i}>{punkte}</ul>;
         }
         return (
           <p key={i}>
-            {zeilen.map((z, j) => (
+            {t.zeilen.map((z, j) => (
               <span key={j}>
                 {j > 0 && <br />}
-                {zeile(z.replace(/^#+\s+/, ""), beimKlick)}
+                {zeile(z, beimKlick)}
               </span>
             ))}
           </p>
