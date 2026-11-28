@@ -59,7 +59,7 @@ const NAME = "Hausverwaltung";
 const BESCHREIBUNG = "Mieten, Zahlungen, Vorgänge und Freigaben an einer Stelle";
 
 /**
- * Flächenfarbe. Muss zu --grund in app/globals.css passen (#F4F2EE).
+ * Flächenfarbe. Muss zu --grund in app/globals.css passen (#FFFFFF).
  *
  * Als Hex und nicht als var(--grund), weil das Manifest eine JSON-Datei
  * ist und keine CSS-Marken auflöst — dieselbe Lage wie beim themeColor im
@@ -77,7 +77,7 @@ const BESCHREIBUNG = "Mieten, Zahlungen, Vorgänge und Freigaben an einer Stelle
  * beim Start steht, bevor die erste Seite da ist. Gleich gewählt, damit
  * der Start nicht blinkt.
  */
-const GRUND = "#F4F2EE";
+const GRUND = "#FFFFFF";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {

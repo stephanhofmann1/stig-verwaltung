@@ -1,3 +1,4 @@
+import { laufName } from "@/lib/formate";
 import { query } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -36,30 +37,9 @@ const LAEUFE = [
   "lagebericht",
 ] as const;
 
-/**
- * Der deutsche Name eines Laufs.
- *
- * Die Kennung links ist der Wert in der Datenbank und im Zeitplaner -- sie
- * bleibt, wie sie ist, sonst findet der Lauf seine Zeile nicht mehr. Nur
- * angezeigt wird der Name rechts: "sollstellungen" sagt dem Vermieter
- * nichts darueber, dass dort die Mieten gestellt und die Zahlungen
- * zugeordnet werden.
- */
-const NAMEN: Record<string, string> = {
-  bankabruf: "Kontoabruf",
-  mailabruf: "E-Mail-Abruf",
-  agent: "Antwortentwürfe",
-  nachfassen: "Nachfassen",
-  sollstellungen: "Mieten stellen und zuordnen",
-  lagebericht: "Lagebericht",
-};
-
-/**
- * Eine unbekannte Kennung bleibt sichtbar, statt zu verschwinden: Kommt ein
- * neuer Lauf dazu, soll er in der Liste auftauchen -- und zwar auffaellig
- * genug, dass jemand ihm einen Namen gibt.
- */
-const beschriftung = (name: string) => NAMEN[name] ?? name;
+/** Der deutsche Name eines Laufs -- steht in lib/formate.ts, weil das
+ * Cockpit dieselben Namen braucht. */
+const beschriftung = laufName;
 
 const zeit = (iso: string) =>
   new Intl.DateTimeFormat("de-DE", {

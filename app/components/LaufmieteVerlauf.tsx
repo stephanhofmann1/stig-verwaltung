@@ -186,8 +186,8 @@ export function LaufmieteVerlauf({
         tabelle={
           <table>
             <caption>
-              Je Monat zwölf Mal das am Monatsersten geschuldete Soll
-              (<code>miete_am()</code>, db/022). Zu- und Abgänge sind der
+              Je Monat zwölf Mal die am Monatsersten geschuldete Miete. Zu-
+              und Abgänge sind der
               Vergleich mit dem Vormonat; im ersten Monat stehen sie auf 0,
               weil sein Vormonat außerhalb des Fensters liegt. Monate mit
               „Vorausschau“ sind Untergrenzen.

@@ -186,7 +186,7 @@ export default async function Vorgangsakte({
   return (
     <>
       <div className="akte-kopf">
-        <span className="aktenzeichen ziffern">{aktenzeichen(kopf.nummer)}</span>
+        <span className="aktenzeichen ziffern">Vorgang {aktenzeichen(kopf.nummer)}</span>
         <div>
           <h1>{kopf.betreff}</h1>
           <div className="akte-meta">

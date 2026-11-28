@@ -47,18 +47,16 @@ export function CockpitZahlungen({
   if (!umsaetze) {
     return (
       <CockpitKarte
-        titel="Unzugeordnete Zahlungseingänge"
+        titel="Zahlungseingänge"
         zaehler="keine Umsätze"
         mehr="/konten"
-        mehrText="Konten und Bankabruf"
+        mehrText="Kontoauszüge"
       >
         <div className="leer">
-          <strong>
-            In den letzten zwölf Monaten sind keine Kontoumsätze eingelesen
-          </strong>
-          Ohne Umsätze gibt es nichts zuzuordnen — und „0 unzugeordnet“ wäre
-          hier kein erledigter Abgleich, sondern eine fehlende Grundlage. Auch
-          jedes „offen“ und „bezahlt“ auf dieser Seite hängt daran.
+          <strong>Noch keine Kontoumsätze aus den letzten zwölf Monaten</strong>
+          Sobald Kontoauszüge da sind, steht hier, welche Eingänge noch einer
+          Miete zugeordnet werden müssen. Bis dahin sagen auch „offen“ und
+          „bezahlt“ auf dieser Seite wenig.
         </div>
       </CockpitKarte>
     );
@@ -66,8 +64,8 @@ export function CockpitZahlungen({
 
   return (
     <CockpitKarte
-      titel="Unzugeordnete Zahlungseingänge"
-      zaehler={anzahl === 0 ? "keine" : String(anzahl)}
+      titel="Zahlungseingänge"
+      zaehler={anzahl === 0 ? "alle zugeordnet" : `${anzahl} zuzuordnen`}
       hinweis={
         anzahl === 0
           ? "Jeder Eingang ist einer Sollstellung zugeordnet."
@@ -84,7 +82,7 @@ export function CockpitZahlungen({
             </p>
           </Erklaerung>
         ) : (
-          <Erklaerung satz="Getrennt wird an der höchsten vereinbarten Monatsmiete — was darüber liegt, kann keine einzelne Miete sein">
+          <Erklaerung satz="Wie Mieten von anderen Eingängen getrennt werden">
             <p className="hinweis">
               Auf dem Konto liegen neben Mieten auch die Darlehensauszahlung und
               Gesellschaftereinlagen. Zusammengerechnet stünde hier eine Summe
@@ -107,12 +105,12 @@ export function CockpitZahlungen({
       <Kennzahlen
         posten={[
           {
-            begriff: "Eingänge",
+            begriff: "Nicht zugeordnet",
             wert: String(anzahl),
             art: anzahl > 0 ? "warn" : "gut",
           },
           {
-            begriff: "könnte eine Miete sein",
+            begriff: "Könnte Miete sein",
             wert: euroGenau(lage.summeMietgross),
             // "Hier liegt die Arbeit" nur, wenn es Arbeit gibt.
             dazu:
@@ -126,7 +124,7 @@ export function CockpitZahlungen({
           ...(lage.anzahlGross > 0
             ? [
                 {
-                  begriff: "größer als jede Monatsmiete",
+                  begriff: "Größer als jede Miete",
                   wert: euroGenau(lage.summeGross),
                   dazu:
                     `${lage.anzahlGross} Eingänge über ` +

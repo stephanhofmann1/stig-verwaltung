@@ -352,10 +352,9 @@ export default async function Konten({
       <h2 className="abschnitt">Beginn der Kontodaten</h2>
       <p className="hinweis">
         Ab diesem Tag gilt ein Monat als abgeglichen. Monate davor werden
-        nie gemahnt — für sie liegen keine Kontodaten vor. Der Wert gehört
-        auf die erste Buchung, die wirklich in der Datenbank liegt, nicht
-        auf das Eröffnungsdatum des Kontos: Sonst sehen Monate ohne Daten
-        wie Rückstände aus.
+        nie gemahnt — für sie liegen keine Kontodaten vor. Gemeint ist die
+        erste eingelesene Buchung, nicht die Eröffnung des Kontos: Sonst
+        sehen Monate ohne Daten wie Rückstände aus.
       </p>
       <KontodatenBeginn objekte={objekte} />
 

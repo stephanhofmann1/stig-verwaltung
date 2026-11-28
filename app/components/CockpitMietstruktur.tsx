@@ -39,13 +39,12 @@ import {
 export function CockpitMietstruktur({ struktur }: { struktur: Mietstruktur }) {
   if (struktur.monat === null || struktur.soll <= 0) {
     return (
-      <CockpitKarte titel="Mietstruktur" zaehler="keine Sollstellungen">
+      <CockpitKarte titel="Mietstruktur" zaehler="noch nichts gestellt">
         <div className="leer">
-          <strong>Es konnte kein gestelltes Soll gelesen werden</strong>
-          Diese Karte zeigt, woraus das Soll eines Monats besteht. Sie füllt
-          sich, sobald der Nachtlauf <code>sollstellungen</code> für einen
-          Monat Beträge erzeugt hat. Eine Null stünde hier für „keine Miete
-          vereinbart“ — tatsächlich ist nichts gestellt.
+          <strong>Für diesen Monat ist noch keine Miete gestellt</strong>
+          Hier steht, woraus die Miete eines Monats besteht — Kaltmiete,
+          Betriebskosten, Pauschalen. Das füllt sich, sobald die Mieten des
+          Monats nachts gestellt sind.
         </div>
       </CockpitKarte>
     );
@@ -88,13 +87,12 @@ export function CockpitMietstruktur({ struktur }: { struktur: Mietstruktur }) {
       zaehler={`${euro(struktur.soll)} Soll`}
       hinweis={
         <>
-          Gestelltes Soll für {monatsName(struktur.monat)} aus{" "}
-          <code>sollstellung</code>, aufgeteilt nach den Vertragsposten von{" "}
-          {struktur.anzahl} Mietverhältnissen.
+          Gestellte Mieten für {monatsName(struktur.monat)}, aufgeteilt
+          nach den Vertragsposten von {struktur.anzahl} Mietverhältnissen.
         </>
       }
       erklaerung={
-        <Erklaerung satz="Eine Inklusivmiete hat keine Kaltmiete — sie steht vollständig unter „ohne Aufteilung“ und wird nie hineingerechnet">
+        <Erklaerung satz="Was „ohne Aufteilung“ heißt">
           <p className="hinweis">
             Aufgeteilt wird nur, wenn im Vertrag eine getrennte Kaltmiete steht
             <em>und</em> das gestellte Soll der Vertragssumme auf den Cent
@@ -140,9 +138,8 @@ export function CockpitMietstruktur({ struktur }: { struktur: Mietstruktur }) {
         tabelle={
           <table>
             <caption>
-              Soll aus <code>sollstellung</code>, Posten aus{" "}
-              <code>mietverhaeltnis</code> bzw. der jüngsten{" "}
-              <code>mietanpassung</code>.
+              Gestellte Mieten, aufgeteilt nach dem Mietvertrag bzw. der
+              jüngsten Mietanpassung.
             </caption>
             <thead>
               <tr>

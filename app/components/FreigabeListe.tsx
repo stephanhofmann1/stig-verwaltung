@@ -44,6 +44,7 @@ interface Entwurf {
   id: string;
   betreff: string;
   koerper_text: string;
+  angelegt_am: string;
   an_emails: string[];
   verfasst_von: "agent" | "mensch" | null;
   agent_notiz: string | null;
@@ -76,9 +77,19 @@ interface Wartend {
   einordnung_stichwort: string | null;
 }
 
+/**
+ * Der Anfang des Entwurfs fuer die Zeile: Zeilenumbrueche zu Leerzeichen,
+ * hoechstens 140 Zeichen. Wie die Vorschau unter dem Betreff in Mail --
+ * genug, um den Entwurf wiederzuerkennen, ohne ihn aufzuklappen.
+ */
+function vorschau(text: string): string {
+  const flach = text.replace(/\s+/g, " ").trim();
+  return flach.length > 140 ? flach.slice(0, 139).trimEnd() + "…" : flach;
+}
+
 export async function FreigabeListe() {
   const entwuerfe = await query<Entwurf>(`
-    SELECT n.id, n.betreff, n.koerper_text, n.an_emails,
+    SELECT n.id, n.betreff, n.koerper_text, n.an_emails, n.angelegt_am,
            n.verfasst_von, n.agent_notiz,
            n.entwurf_quelle, n.entwurf_modell, n.entwurf_fassung_nr,
            v.id AS vorgang_id, v.nummer AS vorgang_nummer,
@@ -127,11 +138,42 @@ export async function FreigabeListe() {
       {entwuerfe.length === 0 ? (
         <div className="leer">
           <strong>Nichts zum Freigeben</strong>
-          Sobald eine Mail ankommt, die sich beantworten lässt, liegt der
-          Entwurf hier.
+          Sobald eine Mail kommt, die sich beantworten lässt, liegt der Entwurf
+          hier.
         </div>
       ) : (
-        entwuerfe.map((e) => (
+        /*
+          Jeder Entwurf ist eine Zeile wie in Mail: Betreff, Empfaenger,
+          der Anfang des Textes. Ein Klick klappt die ganze Karte darunter
+          auf -- Text, Anweisung, Anhaenge, Senden.
+
+          Bis zum 27.11.2026 standen alle Entwuerfe vollstaendig offen
+          untereinander, jeder mit zwei Textfeldern und einer Dateiauswahl.
+          Bei drei Entwuerfen war das Cockpit danach zu Ende gelesen, bevor
+          die erste Zahl kam. In der Vorgangsakte steht die Karte weiter
+          offen -- dort ist sie der Grund, warum man die Akte oeffnet.
+        */
+        <div className="register">
+        {entwuerfe.map((e) => (
+          <details className="entwurf-falte" key={e.id}>
+            <summary>
+              <span className="posten">
+                <span className="nummer ziffern">
+                  {aktenzeichen(e.vorgang_nummer)}
+                </span>
+                <span className="betreff">{e.vorgang_betreff}</span>
+                <span className="zeit">{seit(e.angelegt_am)}</span>
+                <span className="unterzeile">
+                  <span>An: {e.an_emails.join(", ")}</span>
+                  {e.heikel && (
+                    <span className="marker" data-art="heikel">
+                      heikel
+                    </span>
+                  )}
+                  <span className="vorschau">{vorschau(e.koerper_text)}</span>
+                </span>
+              </span>
+            </summary>
           <EntwurfKarte
             key={e.id}
             id={e.id}
@@ -161,7 +203,9 @@ export async function FreigabeListe() {
               } satisfies HerkunftDaten
             }
           />
-        ))
+          </details>
+        ))}
+        </div>
       )}
 
       {unbeantwortet.length > 0 && (
@@ -170,15 +214,12 @@ export async function FreigabeListe() {
             <h2 style={{ margin: 0 }}>Ohne Entwurf</h2>
             <span className="zaehler ziffern">{unbeantwortet.length}</span>
           </div>
-          <Erklaerung satz="Diese Vorgänge hat der Agent nicht beantwortet — hier gibt es nichts freizugeben, sondern zu schreiben">
+          <Erklaerung satz="Warum hier kein Entwurf liegt">
             <p className="hinweis">
-              Der Grund steht je Zeile. Er stand bis zum 03.11.2026 nirgends,
-              und genau daran war der teuerste Fehler dieser Automatik nicht
-              zu erkennen: Eine falsch als Behördenpost eingeordnete Mail war
-              dadurch heikel, der Agent hielt an, und niemand erfuhr warum.
-              Steht als Grund ein Stichwort, das nicht passt, ist die
-              Kategorie in der Akte zu berichtigen — danach lässt sich der
-              Entwurf dort nachziehen.
+              Diese Vorgänge hat die Automatik bewusst nicht beantwortet — hier
+              ist selbst zu schreiben. Der Grund steht je Zeile. Passt er
+              nicht, lässt sich die Kategorie in der Akte berichtigen; danach
+              kann der Entwurf dort nachgezogen werden.
             </p>
           </Erklaerung>
           <div className="register">

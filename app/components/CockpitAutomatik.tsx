@@ -1,5 +1,6 @@
 import type { AutomatikPosten, LageberichtLage, LaufLage } from "@/lib/kennzahlen";
 import { CockpitKarte, Erklaerung } from "@/components/CockpitKarte";
+import { laufName } from "@/lib/formate";
 
 /**
  * Zustand der Automatik.
@@ -21,10 +22,10 @@ import { CockpitKarte, Erklaerung } from "@/components/CockpitKarte";
 
 const WORTE: Record<LaufLage, string> = {
   nie: "noch nie gelaufen",
-  steht: "steht",
+  steht: "angehalten",
   gescheitert: "gescheitert",
   hinweise: "mit Hinweis",
-  ok: "ok",
+  ok: "läuft",
 };
 
 const PUNKT: Record<LaufLage, string> = {
@@ -63,38 +64,39 @@ export function CockpitAutomatik({
       }
       hinweis={
         <>
-          Die nächtlichen Läufe aus der Tabelle <code>lauf</code>.
+          Was nachts von allein läuft: Kontoumsätze, E-Mails,
+          Antwortentwürfe und die Mieten des Monats.
         </>
       }
       erklaerung={
-        <Erklaerung satz="Ein „ok“ von vorgestern ist kein ok — dann sind auch alle anderen Zahlen dieser Seite von vorgestern">
+        <Erklaerung satz="Warum ein altes „läuft“ nicht reicht">
           <p className="hinweis">
-            Ein Lauf, der seit drei Wochen an einem abgelaufenen Token
+            Ein Ablauf, der seit drei Wochen an einem abgelaufenen Zugang
             scheitert, verhält sich nach außen genauso wie einer, der nichts zu
             tun hatte: Beide schweigen. Auffallen würde es erst, wenn sich ein
             Mieter beschwert, dass niemand auf seine Mail geantwortet hat.
           </p>
           <p className="hinweis">
             Zwei Zustände sind deshalb ausdrücklich benannt.{" "}
-            <strong>Steht</strong> heißt: Der letzte Lauf meldet ok, ist aber
-            älter als 26 Stunden — dann erreicht der Zeitplaner die Anwendung
-            nicht. Eine <strong>Serie</strong> sind mehrere Fehlläufe
+            <strong>Angehalten</strong> heißt: Der letzte Lauf war in Ordnung,
+            liegt aber mehr als 26 Stunden zurück — dann kommt der Zeitplan
+            nicht mehr an. Eine <strong>Serie</strong> sind mehrere Fehlläufe
             hintereinander; ein einmaliger Umfaller ist kein Grund, etwas zu
             tun, eine Serie schon.
           </p>
         </Erklaerung>
       }
       mehr="/laeufe"
-      mehrText="Läufe im Verlauf"
+      mehrText="Alle Abläufe"
     >
       {dauerhaft.length > 0 && (
         <div className="meldung" data-art="fehler">
-          <strong>Das scheitert nicht einmal, das scheitert dauerhaft</strong>
+          <strong>Diese Abläufe laufen nicht</strong>
           {dauerhaft
             .map((p) =>
               p.lage === "nie"
-                ? `${p.name} ist noch nie gelaufen`
-                : `${p.name} scheitert ${p.serie} Läufe hintereinander`,
+                ? `${laufName(p.name)} ist noch nie gelaufen`
+                : `${laufName(p.name)} scheitert seit ${p.serie} Läufen`,
             )
             .join("; ")}
           .
@@ -122,7 +124,7 @@ export function CockpitAutomatik({
               <span className="nummer" aria-hidden="true">
                 <span className="punkt" data-art={PUNKT[p.lage]} />
               </span>
-              <span className="betreff">{p.name}</span>
+              <span className="betreff">{laufName(p.name)}</span>
               <span className="zeit">
                 {p.begonnen_am ? zeitpunkt(p.begonnen_am) : "nie"}
               </span>

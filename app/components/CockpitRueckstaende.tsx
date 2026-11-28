@@ -42,9 +42,9 @@ export function CockpitRueckstaende({
       <CockpitKarte titel="Rückstände" zaehler="nicht gelesen">
         <div className="leer">
           <strong>Die Rückstände konnten nicht ermittelt werden</strong>
-          Solange die Abfrage nicht antwortet, ist über Summen und Fälle nichts
-          bekannt — eine Null wäre hier die Behauptung, es stehe nichts aus.
-          Der Grund steht oben auf der Seite.
+          Über Summen und Fälle ist gerade nichts bekannt — eine Null wäre
+          hier die Behauptung, es stehe nichts aus. Der Grund steht oben auf
+          der Seite.
         </div>
       </CockpitKarte>
     );
@@ -59,15 +59,15 @@ export function CockpitRueckstaende({
           : `${lage.zuSchreiben} zu schreiben`
       }
       mehr="/mahnwesen"
-      mehrText="Rückstände und Bereitschaftsliste"
+      mehrText="Alle Rückstände"
     >
       {/* Der Zustand selbst bleibt sichtbar: Eine Zahl wie "1.780 EUR
           Mahnung faellig" liest sich sonst, als waere das Schreiben schon
           unterwegs. Nur die Begruendung klappt zu. */}
       {freigegeben ? (
         <div className="meldung" data-art="info">
-          <strong>Mahnwesen freigegeben — es entsteht trotzdem nur ein Entwurf</strong>
-          <Erklaerung satz="Versendet wird über die Freigabe, nie von selbst">
+          <strong>Mahnwesen ist freigegeben — es entstehen nur Entwürfe</strong>
+          <Erklaerung satz="Was das heißt">
             <p className="hinweis">
               Nachts erzeugt der Lauf das Schreiben als Entwurf. Raus geht es
               erst, wenn es oben in der Freigabe freigegeben wurde — daran
@@ -77,12 +77,11 @@ export function CockpitRueckstaende({
         </div>
       ) : (
         <div className="meldung" data-art="warnung">
-          <strong>Es geht nichts raus — das Mahnwesen ist gesperrt</strong>
-          <Erklaerung satz="Die Sperre liegt in der Datenbank, nicht in der Anzeige">
+          <strong>Mahnwesen ist gesperrt — es geht nichts raus</strong>
+          <Erklaerung satz="Was das heißt">
             <p className="hinweis">
-              Solange die Freigabe in der Tabelle{" "}
-              <code>mahnwesen_freigabe</code> fehlt, entsteht auch nachts kein
-              Schreiben. Diese Zahlen sind der Stand, kein Schreiben.
+              Solange das Mahnwesen nicht freigegeben ist, entsteht auch
+              nachts kein Mahnschreiben. Die Zahlen hier zeigen nur den Stand.
             </p>
           </Erklaerung>
         </div>
@@ -99,13 +98,13 @@ export function CockpitRueckstaende({
             art: lage.zuSchreiben > 0 ? "fehl" : "gut",
           },
           {
-            begriff: "unter der Schwelle",
+            begriff: "Unter der Mahnschwelle",
             wert: euroGenau(lage.summeBeobachten),
-            dazu: `${lage.beobachten} beobachten, kein Schreiben`,
+            dazu: `${lage.beobachten} im Blick, noch kein Schreiben`,
             art: lage.beobachten > 0 ? "warn" : undefined,
           },
           {
-            begriff: "ungeklärt",
+            begriff: "Ungeklärt",
             wert: euroGenau(lage.summeUngeklaert),
             dazu: `${lage.ungeklaert} ${
               lage.ungeklaert === 1 ? "Fall" : "Fälle"
@@ -115,7 +114,7 @@ export function CockpitRueckstaende({
       />
 
       {lage.summeUngeklaert > 0 && (
-        <Erklaerung satz="Die ungeklärten Beträge gehören nicht in die Forderung — addiert ergäben sie einen Kündigungsgrund gegen pünktliche Altmieter">
+        <Erklaerung satz="Warum ungeklärte Beträge nicht mitzählen">
           <p className="hinweis">
             Für diese Monate liegen keine Auszüge vor. Sie zur Forderung
             hinzuzuzählen wäre der Fehler, der nach § 543 Abs. 2 Nr. 3 BGB

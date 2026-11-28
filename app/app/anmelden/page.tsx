@@ -9,17 +9,18 @@ export default async function Anmelden({
 }) {
   const { weiter } = await searchParams;
   return (
-    <div style={{ maxWidth: "22rem", margin: "4rem auto 0" }}>
-      <h1
-        style={{
-          fontSize: "1.5rem",
-          fontWeight: 700,
-          letterSpacing: "-0.02em",
-          margin: "0 0 0.5rem",
-        }}
-      >
-        Anmelden
-      </h1>
+    /* Die Anmeldung wie bei einem Apple-Konto: in der Mitte das Zeichen der
+       Anwendung, darunter Titel, ein Satz und die zwei Felder. */
+    <div className="anmeldung">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        className="anmeldung-zeichen"
+        src="/apple-touch-icon.png"
+        alt=""
+        width={64}
+        height={64}
+      />
+      <h1>Anmelden</h1>
       <p className="hinweis">
         Hier liegen Mieterdaten. Der Zugang ist auf die Verwaltung beschränkt.
       </p>

@@ -94,9 +94,8 @@ export function MahnFreigabeSchalter(p: Props) {
         <div className="meldung" data-art="warnung">
           <strong>Gesperrt — es entsteht kein Schreiben</strong>
           Solange keine Freigabe vorliegt, wird kein Entwurf angelegt, auch
-          keiner, der nur in der Freigabe liegen würde. Die Sperre steht in
-          der Datenbank und nicht nur in der Absprache: Auch ein nächtlicher
-          Lauf kommt an ihr nicht vorbei.
+          keiner, der nur in der Freigabe liegen würde. Auch ein nächtlicher
+          Lauf kommt an der Sperre nicht vorbei.
         </div>
       ) : (
         <div className="meldung" data-art="gut">

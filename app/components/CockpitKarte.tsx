@@ -173,7 +173,11 @@ export function KennzahlenZeile({ posten }: { posten: Kennzahl[] }) {
           {/* Kein `?? 0`: Ein Gedankenstrich heisst "wir wissen es nicht",
               eine Null heisst "es ist nichts". Das ist auf dieser Seite der
               Unterschied zwischen einer Mahnung und keiner Mahnung. */}
-          <span className="kennzahl-wert" data-art={p.art}>
+          <span
+            className="kennzahl-wert"
+            data-art={p.art}
+            data-leer={p.wert === null ? "ja" : undefined}
+          >
             {p.wert ?? "—"}
           </span>
           {p.dazu && (
@@ -193,7 +197,12 @@ export function Kennzahlen({ posten }: { posten: Kennzahl[] }) {
       {posten.map((p) => (
         <div className="karte kennzahl" key={p.begriff}>
           <dt className="kennzahl-schild">{p.begriff}</dt>
-          <dd className="kennzahl-wert" data-art={p.art} style={{ margin: 0 }}>
+          <dd
+            className="kennzahl-wert"
+            data-art={p.art}
+            data-leer={p.wert === null ? "ja" : undefined}
+            style={{ margin: 0 }}
+          >
             {p.wert ?? "—"}
           </dd>
           {p.dazu && (

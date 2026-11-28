@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { NaviZeichen, ZeichenAbmelden, ZeichenFunkeln, ZeichenMenue } from "./Zeichen";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -281,6 +282,22 @@ export function Navi({ benutzer }: { benutzer: string | null }) {
               bleiben, wenn die Navigation zugeklappt ist. Auf breiten
               Schirmen blendet ihn globals.css aus -- dort stehen die
               Gruppen ohnehin offen. */}
+          {/* Der Assistent (components/Assistent.tsx) -- in der
+              Seitenleiste ein Feld wie die Suche in Mail, in der
+              Kopfleiste ein runder Knopf. Geoeffnet wird ueber ein
+              Ereignis, weil das Fenster selbst im layout haengt. */}
+          <button
+            type="button"
+            className="assistent-knopf"
+            aria-label="Assistent öffnen"
+            title="Assistent (⌘K)"
+            onClick={() => window.dispatchEvent(new Event("assistent-oeffnen"))}
+          >
+            <ZeichenFunkeln />
+            <span>Assistent</span>
+            <kbd>⌘K</kbd>
+          </button>
+
           <button
             type="button"
             className="navi-schalter"
@@ -289,6 +306,7 @@ export function Navi({ benutzer }: { benutzer: string | null }) {
             aria-controls={NAVI_ID}
             onClick={() => setOffen((v) => !v)}
           >
+            <ZeichenMenue />
             Menü
           </button>
 
@@ -330,6 +348,10 @@ export function Navi({ benutzer }: { benutzer: string | null }) {
                            blieb offen. */
                         onClick={() => setOffen(false)}
                       >
+                        {/* Zeichen und Wort wie in der Seitenleiste von
+                            Mail: das Zeichen fuehrt das Auge, das Wort
+                            sagt, was es ist. */}
+                        <NaviZeichen weg={p.href} />
                         {p.text}
                       </Link>
                     );
@@ -356,6 +378,7 @@ export function Navi({ benutzer }: { benutzer: string | null }) {
           data-art="still"
           onClick={abmelden}
         >
+          <ZeichenAbmelden />
           Abmelden
         </button>
       )}
