@@ -13,9 +13,11 @@ import {
   normalisiere,
   rolleFuer,
   schlageVor,
+  suchkern,
   WERKZEUG_AUSFUELLEN,
   type Auswahl,
 } from "../lib/vorgangsvorschlag";
+import { gliedere } from "../lib/kitext";
 
 /**
  * Tests fuer die KI in der Oberflaeche: den Assistenten und das Fenster
@@ -392,5 +394,61 @@ describe("Wer an die KI kommt", () => {
   test("die Verwaltung darf", () => {
     assert.equal(darf("/api/vorgang", "verwalter", "POST"), true);
     assert.equal(darf("/api/assistent", "verwalter", "POST"), true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+describe("gliedere: so sieht eine Antwort aus", () => {
+  test("die Antwort vom ersten echten Lauf (28.11.2026)", () => {
+    const teile = gliedere(
+      [
+        "Hier ist die Lage für heute:",
+        "",
+        "---",
+        "",
+        "✅ Freigaben",
+        "- **2 Entwürfe** warten auf deine Freigabe",
+        "",
+        "---",
+        "",
+        "## Rückstände",
+        "- 27 Fälle",
+        "- Mahnwesen gesperrt",
+      ].join("\n"),
+    );
+    assert.deepEqual(
+      teile.map((t) => t.art),
+      ["absatz", "absatz", "liste", "zwischen", "liste"],
+    );
+    // Keine Trennlinie bleibt als Text stehen.
+    assert.doesNotMatch(JSON.stringify(teile), /---/);
+  });
+
+  test("eine Titelzeile direkt ueber einer Liste wird nicht zur Listenzeile", () => {
+    const teile = gliedere("Leerstand\n- Zimmer 1.5\n- Zimmer 10 ab 01.12.");
+    assert.deepEqual(teile, [
+      { art: "absatz", zeilen: ["Leerstand"] },
+      { art: "liste", punkte: ["Zimmer 1.5", "Zimmer 10 ab 01.12."] },
+    ]);
+  });
+
+  test("nummerierte Punkte und Zeilenumbrueche im Absatz", () => {
+    const teile = gliedere("Zeile eins\nZeile zwei\n\n1. erstens\n2. zweitens");
+    assert.deepEqual(teile, [
+      { art: "absatz", zeilen: ["Zeile eins", "Zeile zwei"] },
+      { art: "nummern", punkte: ["erstens", "zweitens"] },
+    ]);
+  });
+});
+
+describe("suchkern: Name gegen Mail-Domain", () => {
+  test("eine Firma findet ihre Domain", () => {
+    assert.equal(suchkern("ML Hauselemente"), "mlhauselemente");
+    assert.ok("ml-hauselemente.de".replace(/[^a-z0-9]/g, "").includes(suchkern("ML Hauselemente")));
+  });
+
+  test("Umlaute werden ausgeschrieben, wie in Domains ueblich", () => {
+    assert.equal(suchkern("Glaserei Müller & Söhne"), "glasereimuellersoehne");
   });
 });

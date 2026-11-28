@@ -351,7 +351,10 @@ export function systemprompt(lage: {
     "  Vorgang → [Vorgang 0006](/vorgang/ID), Mieter → [Name](/mietverhaeltnis/ID),",
     "  Einheit → [Bezeichnung](/einheit/ID), Objekt → [Name](/objekt/ID).",
     "  Seiten: /cockpit, /mietenbuch, /mahnwesen (Rückstände), /zahlungen, /belege, /konten.",
-    "- Beträge wie 1.234,56 €, Daten wie 27.11.2026. Listen mit „- “, wichtige Zahlen **fett**.",
+    "- Beträge wie 1.234,56 €, Daten wie 27.11.2026. Wichtige Zahlen **fett**.",
+    "- Form: kurze Absätze und Listen mit „- “. Für Abschnitte eine fett gesetzte Zeile",
+    "  (z. B. **Rückstände**). Keine Emojis, keine Trennlinien, keine Überschriften mit #.",
+    "- Beginne direkt mit dem Wichtigsten, ohne Einleitung wie „Hier ist die Lage“.",
     "- Rechtliche Fragen: Orientierung geben und sagen, dass es keine Rechtsberatung ist.",
   ].join("\n");
 }
